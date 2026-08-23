@@ -1,0 +1,16 @@
+# ── Private dev folder (never publish) ───────────────────────────
+EXBOSS-DEV/
+
+# ── OS & editor ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.claude/
+.codex/
+__pycache__/
+*.pyc
+
+# Development scripts and HTML tooling belong in EXWIND-DEV, never in this public addon source repository.
+*.py
+*.html
+*.htm

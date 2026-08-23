@@ -1,0 +1,942 @@
+[
+  {
+    "file": "prepare-aoe",
+    "zhCN": "准备AOE",
+    "enUS": "AOE INC"
+  },
+  {
+    "file": "prepare-beam",
+    "zhCN": "准备引线",
+    "enUS": "Bait"
+  },
+  {
+    "file": "prepare-interrupt",
+    "zhCN": "准备打断",
+    "enUS": "Interrupt"
+  },
+  {
+    "file": "prepare-pull",
+    "zhCN": "准备拉人",
+    "enUS": "Pull"
+  },
+  {
+    "file": "prepare-block-line",
+    "zhCN": "准备挡线",
+    "enUS": "Line"
+  },
+  {
+    "file": "prepare-soak",
+    "zhCN": "准备接圈",
+    "enUS": "Soak"
+  },
+  {
+    "file": "prepare-clear-stack",
+    "zhCN": "准备消层",
+    "enUS": "Clear"
+  },
+  {
+    "file": "prepare-target",
+    "zhCN": "准备点名",
+    "enUS": "Mark"
+  },
+  {
+    "file": "prepare-arrow",
+    "zhCN": "准备踩箭",
+    "enUS": "Arrow"
+  },
+  {
+    "file": "prepare-enter-circle",
+    "zhCN": "准备进圈",
+    "enUS": "In"
+  },
+  {
+    "file": "prepare-link",
+    "zhCN": "准备连线",
+    "enUS": "Line"
+  },
+  {
+    "file": "prepare-ball",
+    "zhCN": "准备送球",
+    "enUS": "Pass"
+  },
+  {
+    "file": "prepare-hook",
+    "zhCN": "准备钩人",
+    "enUS": "Hook"
+  },
+  {
+    "file": "prepare-stack",
+    "zhCN": "准备集合",
+    "enUS": "Stack"
+  },
+  {
+    "file": "prepare-dispel",
+    "zhCN": "准备驱散",
+    "enUS": "Dispel"
+  },
+  {
+    "file": "hit-clone",
+    "zhCN": "去撞分身",
+    "enUS": "Clone"
+  },
+  {
+    "file": "tank-buster",
+    "zhCN": "坦克尖刺",
+    "enUS": "TANK HIT"
+  },
+  {
+    "file": "fix-camera",
+    "zhCN": "快卡视角",
+    "enUS": "LoS"
+  },
+  {
+    "file": "clear-water",
+    "zhCN": "快去消水",
+    "enUS": "Clear"
+  },
+  {
+    "file": "find-beacon",
+    "zhCN": "快找光柱",
+    "enUS": "Clear"
+  },
+  {
+    "file": "step-trap",
+    "zhCN": "快踩陷阱",
+    "enUS": "Trap"
+  },
+  {
+    "file": "54321",
+    "zhCN": "54321",
+    "enUS": "54321"
+  },
+  {
+    "file": "watch-knockback",
+    "zhCN": "注意击退",
+    "enUS": "Knock"
+  },
+  {
+    "file": "watch-frontal",
+    "zhCN": "注意头前",
+    "enUS": "FRONTAL"
+  },
+  {
+    "file": "block-ball",
+    "zhCN": "注意挡球",
+    "enUS": "Orb"
+  },
+  {
+    "file": "clear-ball",
+    "zhCN": "注意消球",
+    "enUS": "Clear"
+  },
+  {
+    "file": "watch-dodge",
+    "zhCN": "注意躲避",
+    "enUS": "DODGE"
+  },
+  {
+    "file": "target-frontal",
+    "zhCN": "点名头前",
+    "enUS": "Frontal"
+  },
+  {
+    "file": "target-drop-water",
+    "zhCN": "点名放水",
+    "enUS": "Drop"
+  },
+  {
+    "file": "target-clear-line",
+    "zhCN": "点名消线",
+    "enUS": "Clear"
+  },
+  {
+    "file": "dodge-frontal",
+    "zhCN": "躲开头前",
+    "enUS": "Frontal"
+  },
+  {
+    "file": "switch-add",
+    "zhCN": "转火小怪",
+    "enUS": "ADDS"
+  },
+  {
+    "file": "phase-change",
+    "zhCN": "转阶段",
+    "enUS": "Intermission"
+  },
+  {
+    "file": "away-boss",
+    "zhCN": "远离BOSS",
+    "enUS": "Away"
+  },
+  {
+    "file": "spread-close",
+    "zhCN": "靠近分散",
+    "enUS": "Spread"
+  },
+  {
+    "file": "kite-add",
+    "zhCN": "风筝小怪",
+    "enUS": "Kite"
+  },
+  {
+    "file": "boss-enrage",
+    "zhCN": "Boss狂暴",
+    "enUS": "Enrage"
+  },
+  {
+    "file": "boss-vuln",
+    "zhCN": "Boss易伤",
+    "enUS": "Vulnerability"
+  },
+  {
+    "file": "you-white",
+    "zhCN": "你是白色",
+    "enUS": "WHITE"
+  },
+  {
+    "file": "you-black",
+    "zhCN": "你是黑色",
+    "enUS": "BLACK"
+  },
+  {
+    "file": "prepare-aoe-break",
+    "zhCN": "准备AOE(断条)",
+    "enUS": "AOE()"
+  },
+  {
+    "file": "prepare-absorb-ball",
+    "zhCN": "准备吸球",
+    "enUS": "Orb"
+  },
+  {
+    "file": "drop-water",
+    "zhCN": "出去放水",
+    "enUS": "Drop"
+  },
+  {
+    "file": "intercept-add",
+    "zhCN": "去接小怪",
+    "enUS": "Adds"
+  },
+  {
+    "file": "beam-on-you",
+    "zhCN": "射线点你",
+    "enUS": "Beam"
+  },
+  {
+    "file": "watch-shockwave",
+    "zhCN": "小心冲击波",
+    "enUS": "Dodge"
+  },
+  {
+    "file": "watch-launch",
+    "zhCN": "小心击飞",
+    "enUS": "Knock"
+  },
+  {
+    "file": "empower-hpal",
+    "zhCN": "强化奶骑",
+    "enUS": "Empower Hpal"
+  },
+  {
+    "file": "empower-ret",
+    "zhCN": "强化惩戒骑",
+    "enUS": "Empower Ret"
+  },
+  {
+    "file": "empower-prot",
+    "zhCN": "强化防骑",
+    "enUS": "Empower Prot"
+  },
+  {
+    "file": "spread-now",
+    "zhCN": "快分散",
+    "enUS": "Spread"
+  },
+  {
+    "file": "interrupt-now",
+    "zhCN": "快打断",
+    "enUS": "Kick"
+  },
+  {
+    "file": "rescue-now",
+    "zhCN": "快救人",
+    "enUS": "Save"
+  },
+  {
+    "file": "break-shield",
+    "zhCN": "快破盾",
+    "enUS": "Break"
+  },
+  {
+    "file": "enter-bubble",
+    "zhCN": "快进罩子",
+    "enUS": "In"
+  },
+  {
+    "file": "break-link",
+    "zhCN": "拉断连线",
+    "enUS": "Break"
+  },
+  {
+    "file": "vuln-burst",
+    "zhCN": "易伤爆发",
+    "enUS": "Vulnerability"
+  },
+  {
+    "file": "use-defensive",
+    "zhCN": "注意减伤",
+    "enUS": "Defensive"
+  },
+  {
+    "file": "watch-healing",
+    "zhCN": "注意治疗",
+    "enUS": "Heal"
+  },
+  {
+    "file": "special-mechanic",
+    "zhCN": "特殊技能",
+    "enUS": "Special"
+  },
+  {
+    "file": "switch-boss",
+    "zhCN": "转火大怪",
+    "enUS": "Adds"
+  },
+  {
+    "file": "away-add",
+    "zhCN": "远离大怪",
+    "enUS": "Away"
+  },
+  {
+    "file": "stack-share",
+    "zhCN": "集合分摊",
+    "enUS": "Soak"
+  },
+  {
+    "file": "countdown-5",
+    "zhCN": "5",
+    "enUS": "Five"
+  },
+  {
+    "file": "countdown-4",
+    "zhCN": "4",
+    "enUS": "Four"
+  },
+  {
+    "file": "countdown-3",
+    "zhCN": "3",
+    "enUS": "Three"
+  },
+  {
+    "file": "countdown-2",
+    "zhCN": "2",
+    "enUS": "Two"
+  },
+  {
+    "file": "countdown-1",
+    "zhCN": "1",
+    "enUS": "One"
+  },
+  {
+    "file": "stack-drop",
+    "zhCN": "集合放圈",
+    "enUS": "Stack"
+  },
+  {
+    "file": "cc-cast",
+    "zhCN": "控断钢条",
+    "enUS": "CC"
+  },
+  {
+    "file": "tank-knockback",
+    "zhCN": "坦克击退",
+    "enUS": "Tank Knock"
+  },
+  {
+    "file": "summon-adds",
+    "zhCN": "召唤小怪",
+    "enUS": "Adds"
+  },
+  {
+    "file": "watch-mark",
+    "zhCN": "注意点名",
+    "enUS": "Mark"
+  },
+  {
+    "file": "watch-circle",
+    "zhCN": "注意躲圈",
+    "enUS": "DODGE"
+  },
+  {
+    "file": "watch-launch-hit",
+    "zhCN": "注意击飞",
+    "enUS": "Dodge"
+  },
+  {
+    "file": "prepare-dance",
+    "zhCN": "准备跑圈",
+    "enUS": "Dance"
+  },
+  {
+    "file": "prepare-fixate",
+    "zhCN": "准备追人",
+    "enUS": "Fixated"
+  },
+  {
+    "file": "mirror",
+    "zhCN": "召唤分身",
+    "enUS": "Mirror"
+  },
+  {
+    "file": "aoe",
+    "zhCN": "AOE",
+    "enUS": "AOE"
+  },
+  {
+    "file": "watch-step",
+    "zhCN": "小心脚下",
+    "enUS": "Watch Step"
+  },
+  {
+    "file": "dodge-repeat",
+    "zhCN": "连续躲圈",
+    "enUS": "Dodge"
+  },
+  {
+    "file": "prepare-grab",
+    "zhCN": "准备抓人",
+    "enUS": "Grab"
+  },
+  {
+    "file": "cc-add",
+    "zhCN": "控制小怪",
+    "enUS": "CC"
+  },
+  {
+    "file": "aim-note",
+    "zhCN": "瞄准音符",
+    "enUS": "Note"
+  },
+  {
+    "file": "wake-adds",
+    "zhCN": "唤醒小怪",
+    "enUS": "Adds"
+  },
+  {
+    "file": "drop-water-edge",
+    "zhCN": "贴边放水",
+    "enUS": "Drop Edge"
+  },
+  {
+    "file": "approach-boss",
+    "zhCN": "靠近BOSS",
+    "enUS": "In"
+  },
+  {
+    "file": "clear-link",
+    "zhCN": "消除连线",
+    "enUS": "Clear"
+  },
+  {
+    "file": "aoe-after-5s",
+    "zhCN": "5秒后AOE",
+    "enUS": "AOE 5s"
+  },
+  {
+    "file": "supply-protocol",
+    "zhCN": "补给协议",
+    "enUS": "Supply"
+  },
+  {
+    "file": "massive-aoe",
+    "zhCN": "超大AOE",
+    "enUS": "Massive AOE"
+  },
+  {
+    "file": "aoe-continuous",
+    "zhCN": "持续AOE",
+    "enUS": "AOE Cont"
+  },
+  {
+    "file": "hit-back",
+    "zhCN": "打背面",
+    "enUS": "Hit Back"
+  },
+  {
+    "file": "big-adds",
+    "zhCN": "召唤大怪",
+    "enUS": "Big Adds"
+  },
+  {
+    "file": "dodge-charge",
+    "zhCN": "躲开冲锋",
+    "enUS": "Charge"
+  },
+  {
+    "file": "dodge-orb",
+    "zhCN": "躲球",
+    "enUS": "Orb"
+  },
+  {
+    "file": "dodge-circle",
+    "zhCN": "躲圈",
+    "enUS": "Circle"
+  },
+  {
+    "file": "dodge-beam",
+    "zhCN": "躲射线",
+    "enUS": "Beam"
+  },
+  {
+    "file": "hook-boss",
+    "zhCN": "勾BOSS",
+    "enUS": "Hook"
+  },
+  {
+    "file": "get-buff",
+    "zhCN": "获得增益",
+    "enUS": "Buff"
+  },
+  {
+    "file": "move-group",
+    "zhCN": "集合移动",
+    "enUS": "Move"
+  },
+  {
+    "file": "approach-link",
+    "zhCN": "靠近连线",
+    "enUS": "Link"
+  },
+  {
+    "file": "kill-orb",
+    "zhCN": "快打宝珠",
+    "enUS": "Orb"
+  },
+  {
+    "file": "dodge-now",
+    "zhCN": "快躲开",
+    "enUS": "DODGE"
+  },
+  {
+    "file": "run-now",
+    "zhCN": "快跑",
+    "enUS": "RUN"
+  },
+  {
+    "file": "run-marked",
+    "zhCN": "快跑！你被点名",
+    "enUS": "RUN"
+  },
+  {
+    "file": "link-on-you",
+    "zhCN": "连线点你",
+    "enUS": "Link"
+  },
+  {
+    "file": "rift-on-you",
+    "zhCN": "裂隙点你",
+    "enUS": "Rift"
+  },
+  {
+    "file": "you-marked",
+    "zhCN": "你被点名",
+    "enUS": "Marked"
+  },
+  {
+    "file": "soak-lightning",
+    "zhCN": "圈住电水",
+    "enUS": "Lightning Soak"
+  },
+  {
+    "file": "stop-cast",
+    "zhCN": "停止施法",
+    "enUS": "Stop Cast"
+  },
+  {
+    "file": "heal-absorb",
+    "zhCN": "吸收治疗",
+    "enUS": "Heal Absorb"
+  },
+  {
+    "file": "watch-bomb",
+    "zhCN": "小心炸弹",
+    "enUS": "Bomb"
+  },
+  {
+    "file": "watch-explosion",
+    "zhCN": "小心自爆",
+    "enUS": "Explosion"
+  },
+  {
+    "file": "vuln-over",
+    "zhCN": "易伤结束",
+    "enUS": "Vuln Over"
+  },
+  {
+    "file": "sound-glass",
+    "zhCN": "音效_Glass",
+    "enUS": "Glass"
+  },
+  {
+    "file": "sound-info",
+    "zhCN": "音效_Info",
+    "enUS": "Info"
+  },
+  {
+    "file": "sound-ding",
+    "zhCN": "音效_叮咚",
+    "enUS": "Ding"
+  },
+  {
+    "file": "away-group",
+    "zhCN": "远离人群",
+    "enUS": "Away"
+  },
+  {
+    "file": "watch-wind",
+    "zhCN": "注意躲风",
+    "enUS": "Wind"
+  },
+  {
+    "file": "watch-breath",
+    "zhCN": "注意吐息",
+    "enUS": "Breath"
+  },
+  {
+    "file": "prepare-vuln",
+    "zhCN": "准备易伤",
+    "enUS": "Vuln Prep"
+  },
+  {
+    "file": "target-on-you",
+    "zhCN": "目标是你",
+    "enUS": "Targeted"
+  },
+  {
+    "file": "std-absorb",
+    "zhCN": "吸收盾",
+    "enUS": "Absorb"
+  },
+  {
+    "file": "std-add",
+    "zhCN": "注意大怪",
+    "enUS": "Add"
+  },
+  {
+    "file": "std-adds",
+    "zhCN": "小怪快打",
+    "enUS": "Adds"
+  },
+  {
+    "file": "std-arrow",
+    "zhCN": "注意箭矢",
+    "enUS": "Arrow"
+  },
+  {
+    "file": "std-away",
+    "zhCN": "远离",
+    "enUS": "Away"
+  },
+  {
+    "file": "std-bait",
+    "zhCN": "引导位置",
+    "enUS": "Bait"
+  },
+  {
+    "file": "std-beam",
+    "zhCN": "注意射线",
+    "enUS": "Beam"
+  },
+  {
+    "file": "std-black",
+    "zhCN": "黑色",
+    "enUS": "Black"
+  },
+  {
+    "file": "std-blue",
+    "zhCN": "蓝色",
+    "enUS": "Blue"
+  },
+  {
+    "file": "std-bomb",
+    "zhCN": "炸弹",
+    "enUS": "Bomb"
+  },
+  {
+    "file": "std-break",
+    "zhCN": "打破",
+    "enUS": "Break"
+  },
+  {
+    "file": "std-breath",
+    "zhCN": "吐息",
+    "enUS": "Breath"
+  },
+  {
+    "file": "std-cc",
+    "zhCN": "注意控断",
+    "enUS": "CC"
+  },
+  {
+    "file": "std-chain",
+    "zhCN": "锁链",
+    "enUS": "Chain"
+  },
+  {
+    "file": "std-charge",
+    "zhCN": "冲锋",
+    "enUS": "Charge"
+  },
+  {
+    "file": "std-clear",
+    "zhCN": "清除",
+    "enUS": "Clear"
+  },
+  {
+    "file": "std-clone",
+    "zhCN": "分身",
+    "enUS": "Clone"
+  },
+  {
+    "file": "std-curse",
+    "zhCN": "诅咒",
+    "enUS": "Curse"
+  },
+  {
+    "file": "std-dance",
+    "zhCN": "躲地板",
+    "enUS": "Dance"
+  },
+  {
+    "file": "std-disease",
+    "zhCN": "疾病",
+    "enUS": "Disease"
+  },
+  {
+    "file": "std-dispel",
+    "zhCN": "驱散",
+    "enUS": "Dispel"
+  },
+  {
+    "file": "std-dot",
+    "zhCN": "持续伤害",
+    "enUS": "Dot"
+  },
+  {
+    "file": "std-drop",
+    "zhCN": "放水",
+    "enUS": "Drop"
+  },
+  {
+    "file": "std-enrage",
+    "zhCN": "激怒",
+    "enUS": "Enrage"
+  },
+  {
+    "file": "std-fixate",
+    "zhCN": "追人",
+    "enUS": "Fixate"
+  },
+  {
+    "file": "std-grasp",
+    "zhCN": "抓握",
+    "enUS": "Grasp"
+  },
+  {
+    "file": "std-hook",
+    "zhCN": "注意钩人",
+    "enUS": "Hook"
+  },
+  {
+    "file": "std-in",
+    "zhCN": "进入",
+    "enUS": "In"
+  },
+  {
+    "file": "std-intermission",
+    "zhCN": "阶段转换",
+    "enUS": "Intermission"
+  },
+  {
+    "file": "std-interrupt",
+    "zhCN": "打断施法",
+    "enUS": "Interrupt"
+  },
+  {
+    "file": "std-kite",
+    "zhCN": "风筝",
+    "enUS": "Kite"
+  },
+  {
+    "file": "std-knock",
+    "zhCN": "击飞",
+    "enUS": "Knock"
+  },
+  {
+    "file": "std-leap",
+    "zhCN": "跳跃",
+    "enUS": "Leap"
+  },
+  {
+    "file": "std-line",
+    "zhCN": "连线",
+    "enUS": "Line"
+  },
+  {
+    "file": "std-los",
+    "zhCN": "卡视野",
+    "enUS": "LoS"
+  },
+  {
+    "file": "std-mark",
+    "zhCN": "点名",
+    "enUS": "Mark"
+  },
+  {
+    "file": "std-move",
+    "zhCN": "移动",
+    "enUS": "Move"
+  },
+  {
+    "file": "std-near",
+    "zhCN": "靠近",
+    "enUS": "Near"
+  },
+  {
+    "file": "std-orb",
+    "zhCN": "宝珠",
+    "enUS": "Orb"
+  },
+  {
+    "file": "std-out",
+    "zhCN": "出出出",
+    "enUS": "Out"
+  },
+  {
+    "file": "std-pass",
+    "zhCN": "传递",
+    "enUS": "Pass"
+  },
+  {
+    "file": "std-refresh",
+    "zhCN": "刷新",
+    "enUS": "Refresh"
+  },
+  {
+    "file": "std-ring",
+    "zhCN": "注意大圈",
+    "enUS": "Ring"
+  },
+  {
+    "file": "std-root",
+    "zhCN": "定身",
+    "enUS": "Root"
+  },
+  {
+    "file": "std-secure",
+    "zhCN": "救人",
+    "enUS": "Secure"
+  },
+  {
+    "file": "std-shield",
+    "zhCN": "护盾",
+    "enUS": "Shield"
+  },
+  {
+    "file": "std-soak",
+    "zhCN": "吸收",
+    "enUS": "Soak"
+  },
+  {
+    "file": "std-spellsteal",
+    "zhCN": "进攻驱散",
+    "enUS": "Spellsteal"
+  },
+  {
+    "file": "std-split",
+    "zhCN": "分裂",
+    "enUS": "Split"
+  },
+  {
+    "file": "std-spread",
+    "zhCN": "分散",
+    "enUS": "Spread"
+  },
+  {
+    "file": "std-stack",
+    "zhCN": "集合站位",
+    "enUS": "Stack"
+  },
+  {
+    "file": "std-switch",
+    "zhCN": "目标转换",
+    "enUS": "Switch"
+  },
+  {
+    "file": "std-tank-hit",
+    "zhCN": "坦克承伤",
+    "enUS": "Tank Hit"
+  },
+  {
+    "file": "std-tank-knock",
+    "zhCN": "坦克击飞",
+    "enUS": "Tank Knock"
+  },
+  {
+    "file": "std-totem",
+    "zhCN": "图腾",
+    "enUS": "Totem"
+  },
+  {
+    "file": "std-trap",
+    "zhCN": "陷阱",
+    "enUS": "Trap"
+  },
+  {
+    "file": "std-vulnerability",
+    "zhCN": "易伤",
+    "enUS": "Vulnerability"
+  },
+  {
+    "file": "std-volley",
+    "zhCN": "齐射",
+    "enUS": "Volley"
+  },
+  {
+    "file": "std-wave",
+    "zhCN": "注意躲波",
+    "enUS": "Wave"
+  },
+  {
+    "file": "std-white",
+    "zhCN": "白色",
+    "enUS": "White"
+  },
+  {
+    "file": "std-wind",
+    "zhCN": "躲风",
+    "enUS": "Wind"
+  },
+  {
+    "file": "std-yellow",
+    "zhCN": "黄色",
+    "enUS": "Yellow"
+  },
+  {
+    "file": "wake-adds-aoe",
+    "zhCN": "唤醒小怪(AOE)",
+    "enUS": "Wake Adds AOE"
+  },
+  {
+    "file": "red-link",
+    "zhCN": "红色连线",
+    "enUS": "Red Link"
+  },
+  {
+    "file": "green-link",
+    "zhCN": "绿色连线",
+    "enUS": "Green Link"
+  }
+]
