@@ -1250,7 +1250,10 @@ local function LoadSelectedSpellToEditor()
         db.ringRenameText = tostring(cfg.ringRenameText or "")
         db.castProgressBarEnabled = cfg.castProgressBarEnabled == true
         db.castProgressBarRenameEnabled = cfg.castProgressBarRenameEnabled == true
-        db.castProgressBarRenameText = tostring(cfg.castProgressBarRenameText or "")
+        -- Keep the cast-bar rename field consistent with the other preset text
+        -- fields above: Factory stores the stable source label, while the UI
+        -- shows its active-client localization (for example 群控 → CC).
+        db.castProgressBarRenameText = LocalizeDynamicText(cfg.castProgressBarRenameText or "")
         db.ringCastCheckEnabled = cfg.ringCastCheckEnabled == true
         db.targetAlertStartEnabled = cfg.targetAlertStartEnabled == true
         db.targetAlertStartLSM = tostring(cfg.targetAlertStartLSM or "")

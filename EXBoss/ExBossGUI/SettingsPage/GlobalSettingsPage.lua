@@ -61,10 +61,10 @@ local ResetAllConfigIncludingAppearance
 -- avoiding the load-time capture bug where L["..."] would always return zhCN
 -- because EXBOSS12S2 (and the saved locale mode) is not yet available at file load.
 local ITEMS = {
-    { key = "overview",           category = "general", titleKey = "通用设置",         descKey = "全局显示模式与语音输出。",                                                                                                          mode = "embedded", moduleKey = "ExBoss.GeneralOverview" },
-    { key = "countdownvoice",     category = "general", titleKey = "语音设置",          descKey = "开怪倒数、数字语音与踩地板提示音。",                                                                                                   mode = "embedded", moduleKey = "ExBoss.CountdownVoiceSettings" },
+    { key = "overview",           category = "general", titleKey = "通用设置",         descKey = "全局显示模式与语音输出。",                                                                                                          mode = "embedded", moduleKey = "ExBoss.GeneralOverview", appearanceRoots = { "ui.general", "voice.global", "autoGossip" } },
+    { key = "countdownvoice",     category = "general", titleKey = "语音设置",          descKey = "开怪倒数与数字语音。",                                                                                                               mode = "embedded", moduleKey = "ExBoss.CountdownVoiceSettings", appearanceRoots = { "voice.countdown" } },
     { key = "batchedit",          category = "general", titleKey = "批量修改",          descKey = "批量启用/禁用事件功能，并真实写入 override。",                                                                                        mode = "embedded", moduleKey = "ExBoss.BatchEdit" },
-    { key = "color",              category = "general", titleKey = "通用颜色方案",      descKey = "4个固定颜色方案 + 1个自定义方案 + 最多3个额外方案。Boss技能页可直接选择方案或自定义颜色。",                                             mode = "builtin",  moduleKey = "ExBoss.GeneralColor" },
+    { key = "color",              category = "general", titleKey = "通用颜色方案",      descKey = "4个固定颜色方案 + 1个自定义方案 + 最多3个额外方案。Boss技能页可直接选择方案或自定义颜色。",                                             mode = "builtin",  moduleKey = "ExBoss.GeneralColor", appearanceRoots = { "voice.colorSchemes", "voice.customColors", "voice.extraCustomColors" } },
     { key = "timerbar",           category = "display", titleKey = "计时条",            descKey = "计时条外观、文字、位置。",                                                                                                           mode = "embedded", moduleKey = "ExBoss.TimerBar" },
     { key = "bunbar",             category = "display", titleKey = "束状条",            descKey = "束状条外观、轨道、位置。",                                                                                                           mode = "embedded", moduleKey = "ExBoss.BunBar" },
     { key = "countdown",          category = "display", titleKey = "[文本]5秒倒数",     descKey = "中央倒数文字与字体、位置。",                                                                                                         mode = "embedded", moduleKey = "ExBoss.Countdown" },
@@ -102,6 +102,34 @@ function Page:GetExportModuleKeys()
         end
     end
     return out
+end
+
+-- 外观导出唯一从设置路由取范围：新增非 Boss／小怪设置页时，模块配置会
+-- 自动纳入；只有直接写根 SavedVariables 的页面才需要在同一项声明其根路径。
+function Page:GetAppearanceProfileSpec()
+    local modules, roots, seenModules, seenRoots = {}, {}, {}, {}
+    local function add(out, seen, value)
+        if type(value) == "string" and value ~= "" and not seen[value] then
+            seen[value] = true
+            out[#out + 1] = value
+        end
+    end
+    for _, item in ipairs(ITEMS) do
+        if item.category ~= "trash" and item.key ~= "reset" then
+            add(modules, seenModules, item.moduleKey)
+            if type(item.moduleKeys) == "table" then
+                for _, key in ipairs(item.moduleKeys) do add(modules, seenModules, key) end
+            end
+            if type(item.appearanceRoots) == "table" then
+                for _, path in ipairs(item.appearanceRoots) do add(roots, seenRoots, path) end
+            end
+        end
+    end
+    -- Tools 模块拥有独立模块页；注册到 ExBoss.ModuleList 即自动随外观走。
+    for _, module in ipairs((ExBoss and ExBoss.ModuleList) or {}) do
+        add(modules, seenModules, module.Key)
+    end
+    return { modules = modules, roots = roots }
 end
 local function GetTitle(t) return L[t.titleKey or ""] end
 local function GetDesc(t)  return L[t.descKey  or ""] end
@@ -301,14 +329,24 @@ local function IsEncounterWarningSoundsEnabled()
 end
 
 local function SetEncounterWarningsEnabled(enabled)
+    -- 舊 Overview 控件與設定路由共用 ui.general；CVar 只是立即生效的
+    -- 遊戲端結果，SavedVariables 才是外觀配置導出／導入的來源。
+    local g = EnsureGeneralDB()
+    g.encounterWarningsEnabled = (enabled == true)
     WriteCVarValue("encounterWarningsEnabled", enabled and "1" or "0")
 end
 
 local function SetEncounterTimelineEnabled(enabled)
+    -- 外观配置读取 ui.general；旧 Overview 控件过去只改 CVar，导致
+    -- 「关闭暴雪原生计时条」的实际选择没有进入导出包。
+    local g = EnsureGeneralDB()
+    g.disableBlizzardEncounterTimeline = (enabled ~= true)
     WriteCVarValue("encounterTimelineEnabled", enabled and "1" or "0")
 end
 
 local function SetEncounterWarningSoundsEnabled(enabled)
+    local g = EnsureGeneralDB()
+    g.encounterWarningSoundsEnabled = (enabled == true)
     WriteCVarValue("Sound_EnableEncounterWarningsSounds", enabled and "1" or "2")
 end
 

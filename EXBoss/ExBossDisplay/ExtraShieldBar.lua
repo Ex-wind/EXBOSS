@@ -132,6 +132,25 @@ do
         return value or fallback
     end
 
+    -- 旧版护盾条用 AbbreviateNumbers 将秘密护盾值交给原生格式化器，得到
+    -- 可直接写入 FontString 的秘密百分比文本；不得在 Lua 中计算 value / maxValue。
+    local function FormatSecretShieldPercent(secretValue, maxValue)
+        local maximum = Num(maxValue, 0)
+        if maximum <= 0 or type(AbbreviateNumbers) ~= "function" then return nil end
+        local ok, text = pcall(AbbreviateNumbers, secretValue, {
+            breakpointData = {
+                {
+                    breakpoint = 0,
+                    abbreviation = "%",
+                    significandDivisor = maximum / 100,
+                    fractionDivisor = 1,
+                    abbreviationIsGlobal = false,
+                },
+            },
+        })
+        return ok and type(text) == "string" and text or nil
+    end
+
     local function ResolveTimerStyle()
         return DB().timerGroup
     end
@@ -216,8 +235,14 @@ do
         widget:SetIcon(payload.icon or 136197)
         widget:SetLabel(payload.name or L["护盾"])
         widget.timeText:ClearDurationBinding()
-        widget.timeText:SetText("")
-        widget.timeText:Hide()
+        local percentText = FormatSecretShieldPercent(payload.value, payload.maxValue)
+        if percentText ~= nil then
+            widget.timeText:SetSecretText(percentText)
+            widget.timeText:SetShown(db.font_timer.enabled ~= false)
+        else
+            widget.timeText:SetText("")
+            widget.timeText:Hide()
+        end
         widget:SetFillVisible(true)
         widget.secretBar:Hide()
         widget.bar:Show()

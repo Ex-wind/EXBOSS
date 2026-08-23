@@ -196,9 +196,9 @@ local AURA_CATEGORY_LABELS = {
 -- 顶部快捷卡只是当前常用分类的入口，不是 AuraSound 分类的完整枚举。
 -- category 仍然是 action 自身的开放字符串，列表和编辑器会原样保留所有其他分类。
 local AURA_CATEGORY_SHORTCUTS = {
-    { key = "地板", label = L["地板"], hint = L["范围与落点"], color = { 0.941, 0.733, 0.341 }, icon = 132886 },
-    { key = "错误", label = L["错误"], hint = L["失误与纠正"], color = { 0.937, 0.498, 0.490 }, icon = 136243 },
-    { key = "坦克", label = L["坦克"], hint = L["承伤与换坦"], color = { 0.404, 0.780, 0.949 }, icon = 132341 },
+    { key = "地板", label = L["地板"], hint = L["踩到可以规避的地板技能"], color = { 0.941, 0.733, 0.341 }, icon = 132886 },
+    { key = "错误", label = L["错误"], hint = L["漏断/没有转火等"], color = { 0.937, 0.498, 0.490 }, icon = 136243 },
+    { key = "坦克", label = L["坦克"], hint = L["所有与坦克相关的"], color = { 0.404, 0.780, 0.949 }, icon = 132341 },
 }
 local AURA_CATEGORY_SHORTCUTS_BY_KEY = {}
 for _, category in ipairs(AURA_CATEGORY_SHORTCUTS) do
@@ -337,10 +337,15 @@ end
 
 function Common.GetAuraSoundDisplayName(row)
     row = type(row) == "table" and row or {}
-    local value = row.sourceType == "lsm" and tostring(row.customLSM or "")
-        or row.sourceType == "file" and tostring(row.customPath or "")
+    local sourceType = tostring(row.sourceType or "pack")
+    local value = sourceType == "lsm" and tostring(row.customLSM or "")
+        or sourceType == "file" and tostring(row.customPath or "")
         or tostring(row.label or "")
-    return value ~= "" and value or L["未选择"]
+    if value == "" then return L["未选择"] end
+
+    -- 语音包保存的是跨语言稳定的原始标签；显示时才按当前客户端语言转换，
+    -- 与 BOSS 语音页面的下拉项保持一致。LSM 名称及自定义路径则原样显示。
+    return sourceType == "pack" and (L[value] or value) or value
 end
 
 local function HasAuraSoundSelection(row)
@@ -664,7 +669,9 @@ function Common.CreateAuraSoundVirtualRow(parent)
         AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3], 1.00
     )
 
-    row.category = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontNormalSmall")
+    -- 分类方框是 row 的子 Frame。标签必须属于该方框本身，才能位于其
+    -- Backdrop 之上；此前挂在 row 上，视觉层级反而被方框背景覆盖。
+    row.category = ExwindTools.UI:CreateVisualFontString(row.categoryPill, EXFONTFRAME, "GameFontNormalSmall")
     row.category:SetJustifyH("LEFT")
     row.category:SetWordWrap(false)
     row.category:SetTextColor(
@@ -741,9 +748,9 @@ function Common.RefreshAuraSoundVirtualRow(row)
     if row.categoryPill then
         row.categoryPill:SetBackdropBorderColor(categoryColor[1], categoryColor[2], categoryColor[3], 0.34)
     end
-    -- 分类色只交给圆点和边框；文字使用固定高不透明度亮色，避免深色
-    -- 胶囊上的黄色文字看起来像被错误降低了透明度。
-    row.category:SetTextColor(0.78, 0.82, 0.87, 1.00)
+    -- 分类名与前方色块和边框使用同一颜色；保持满不透明度，
+    -- 让弹窗背景被压暗时文字仍能清楚辨认。
+    row.category:SetTextColor(categoryColor[1], categoryColor[2], categoryColor[3], 1.00)
     row.category:SetAlpha(1.00)
     local unit, auraType = GetAuraSoundTarget(item)
     local unitColor = AURA_UNIT_COLORS[unit] or AURA_UNIT_COLORS.player
@@ -1349,8 +1356,11 @@ local function RefreshAuraSoundCategoryFilterCardStyle(card)
             hovered and AURA_UI_THEME.gold[3] or 0.329,
             hovered and 0.56 or 0.86
         )
-        SetAuraThemeText(card.name, hovered and AURA_UI_THEME.ink or AURA_UI_THEME.muted)
+        -- 分类是主要筛选入口，未选中时也必须保持可读；此前的 muted 灰色
+        -- 在深色面板上会被误认为半透明文字。
+        SetAuraThemeText(card.name, AURA_UI_THEME.ink)
     end
+    card.name:SetAlpha(1.00)
     if card.state then
         card.state:Hide()
     end
@@ -1526,7 +1536,7 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
                 card.icon:SetPoint("CENTER", card.iconTile, "CENTER", 0, 0)
                 card.title = ExwindTools.UI:CreateVisualFontString(card, EXFONTFRAME, "GameFontNormalLarge")
                 card.title:SetPoint("TOPLEFT", card.iconTile, "TOPRIGHT", 11, -1)
-                card.title:SetPoint("TOPRIGHT", card, "TOPRIGHT", -58, -17)
+                card.title:SetPoint("TOPRIGHT", card, "TOPRIGHT", -16, -17)
                 card.title:SetJustifyH("LEFT")
                 card.title:SetWordWrap(false)
                 SetAuraThemeText(card.title, AURA_UI_THEME.ink)
@@ -1537,7 +1547,7 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
                 card.count:Hide()
                 card.hint = ExwindTools.UI:CreateVisualFontString(card, EXFONTFRAME, "GameFontNormalSmall")
                 card.hint:SetPoint("TOPLEFT", card.title, "BOTTOMLEFT", 0, -6)
-                card.hint:SetPoint("TOPRIGHT", card, "TOPRIGHT", -58, -41)
+                card.hint:SetPoint("TOPRIGHT", card, "TOPRIGHT", -16, -41)
                 card.hint:SetJustifyH("LEFT")
                 card.hint:SetWordWrap(false)
                 SetAuraThemeText(card.hint, AURA_UI_THEME.muted)
@@ -1575,44 +1585,10 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
                     Common.CommitAuraSoundCategoryCardLSM(card, value)
                 end, true)
                 card.lsm:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 14, 10)
-                card.preview = CreateAuraPrototypeButton(card, 44, 24, L["试听"], function()
+                card.preview = CreateAuraPrototypeButton(card, 70, 24, L["试听"], function()
                     Common.PreviewAuraSoundCategoryCardLSM(card)
                 end)
                 card.preview:SetPoint("LEFT", card.lsm, "RIGHT", 6, 0)
-                card.settings = CreateFrame("Button", nil, card, "BackdropTemplate")
-                card.settings:SetSize(30, 30)
-                card.settings:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -14)
-                card.settings:SetBackdrop(AURA_FLAT_BACKDROP)
-                card.settings:SetBackdropColor(0.035, 0.048, 0.070, 0.88)
-                card.settings:SetBackdropBorderColor(
-                    AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-                    AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-                )
-                card.settings:SetNormalTexture("Interface\\Buttons\\UI-OptionsButton")
-                card.settings:SetHighlightTexture("Interface\\Buttons\\UI-OptionsButton", "ADD")
-                card.settings:SetAlpha(0.88)
-                card.settings:HookScript("OnEnter", function(button)
-                    button:SetAlpha(1.00)
-                    button:SetBackdropBorderColor(
-                        AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3], 0.72
-                    )
-                end)
-                card.settings:HookScript("OnLeave", function(button)
-                    button:SetAlpha(0.88)
-                    button:SetBackdropBorderColor(
-                        AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-                        AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-                    )
-                end)
-                card.settings:SetScript("OnMouseDown", function(button)
-                    local owner = button:GetParent()
-                    if owner then owner._auraSoundCategoryIgnoreClick = true end
-                end)
-                card.settings:SetScript("OnClick", function(button)
-                    local owner = button:GetParent()
-                    Common:ShowAuraSoundCategoryDrawer(owner and owner.categoryKey)
-                end)
-                RaiseInteractiveChild(card.settings, card, 3)
                 local function IgnoreCardClick(button)
                     local owner = button and button:GetParent()
                     if owner then owner._auraSoundCategoryIgnoreClick = true end
@@ -2092,7 +2068,7 @@ function Common.RefreshEncounterVoiceEditor(editor)
     Common.SetAuraSoundDropdownText(editor.source, Common.GetAuraSoundSourceLabel(row.sourceType))
     editor.pack._items = Common.GetAuraSoundPackItems()
     editor.pack._currentValue = row.label
-    Common.SetAuraSoundDropdownText(editor.pack, row.label ~= "" and row.label or L["请选择..."])
+    Common.SetAuraSoundDropdownText(editor.pack, row.label ~= "" and (L[row.label] or row.label) or L["请选择..."])
     editor.lsm._selectedValue = row.customLSM
     Common.SetAuraSoundDropdownText(editor.lsm, row.customLSM ~= "" and row.customLSM or L["请选择..."])
     editor.pack:SetShown(not isLSM)
@@ -2288,10 +2264,8 @@ function Common.RefreshAuraSoundEditorFields(editor)
     -- target fields. Both modes share the same save path.
     if isCatalogAction then
         editor:SetSize(480, 330)
-        editor.categoryInput:ClearAllPoints()
-        editor.categoryInput:SetPoint("TOPLEFT", 18, -88)
         editor.trigger:ClearAllPoints()
-        editor.trigger:SetPoint("TOPLEFT", 216, -88)
+        editor.trigger:SetPoint("TOPLEFT", 18, -88)
         editor.source:ClearAllPoints()
         editor.source:SetPoint("TOPLEFT", 18, -142)
         editor.valueLabel:ClearAllPoints()
@@ -2304,10 +2278,8 @@ function Common.RefreshAuraSoundEditorFields(editor)
         editor.path:SetPoint("TOPLEFT", 18, -218)
     else
         editor:SetSize(540, 420)
-        editor.categoryInput:ClearAllPoints()
-        editor.categoryInput:SetPoint("TOPLEFT", 18, -142)
         editor.trigger:ClearAllPoints()
-        editor.trigger:SetPoint("TOPLEFT", 196, -142)
+        editor.trigger:SetPoint("TOPLEFT", 18, -142)
         editor.source:ClearAllPoints()
         editor.source:SetPoint("TOPLEFT", 18, -196)
         editor.valueLabel:ClearAllPoints()
@@ -2319,7 +2291,9 @@ function Common.RefreshAuraSoundEditorFields(editor)
         editor.path:ClearAllPoints()
         editor.path:SetPoint("TOPLEFT", 18, -272)
     end
-    editor.categoryInput:SetText(row.category == "uncategorized" and "" or row.category)
+    -- 分类仍是 Factory / SavedVariables 的稳定字段，但不在单条声音编辑器开放；
+    -- 编辑声音时绝不触碰它，已有归类会随 action 原样保留。
+    editor.categoryInput:Hide()
     editor.scope._currentValue = row.unit
     Common.SetAuraSoundDropdownText(editor.scope, Common.GetAuraSoundUnitLabel(row))
     editor.auraType._currentValue = row.auraType
@@ -2330,7 +2304,7 @@ function Common.RefreshAuraSoundEditorFields(editor)
     Common.SetAuraSoundDropdownText(editor.source, Common.GetAuraSoundSourceLabel(editor.source._currentValue))
     editor.pack._items = Common.GetAuraSoundPackItems()
     editor.pack._currentValue = tostring(row.label or "")
-    Common.SetAuraSoundDropdownText(editor.pack, editor.pack._currentValue ~= "" and editor.pack._currentValue or L["请选择..."])
+    Common.SetAuraSoundDropdownText(editor.pack, editor.pack._currentValue ~= "" and (L[editor.pack._currentValue] or editor.pack._currentValue) or L["请选择..."])
     editor.lsm._selectedValue = tostring(row.customLSM or "")
     Common.SetAuraSoundDropdownText(editor.lsm, editor.lsm._selectedValue ~= "" and editor.lsm._selectedValue or L["请选择..."])
     editor.path:SetText(tostring(row.customPath or ""))

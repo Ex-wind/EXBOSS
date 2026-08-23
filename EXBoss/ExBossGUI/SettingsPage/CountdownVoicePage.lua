@@ -24,11 +24,6 @@ local SOURCE_ITEMS = {
     { L["语音包"], "pack" },
     { L["LSM音效"], "lsm" },
 }
-local FLOOR_WARNING_SOURCE_ITEMS = {
-    { L["语音包"], "pack" },
-    { L["LSM音效"], "lsm" },
-    { L["自定义路径"], "file" },
-}
 
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["语音设置"], labelSize = 24 },
@@ -36,14 +31,6 @@ local LAYOUT = {
     { key = "pullCountdownEnabled",      type = "checkbox", x = 4, y = 20, w = 70, h = 5, label = L["启用开怪倒数"] },
     { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 4, y = 27, w = 70, h = 5, label = L["为开怪倒数播放语音"] },
     { key = "header_digits", type = "header", x = 1, y = 37, w = 200, h = 5, label = L["数字语音"], labelSize = 20 },
-    { key = "header_floor_warning", type = "header", x = 1, y = 91, w = 200, h = 5, label = L["踩地板提示（GTFO）"], labelSize = 20 },
-    { key = "floorWarningSource", type = "dropdown", x = 4, y = 101, w = 34, h = 5, label = L["来源"], items = FLOOR_WARNING_SOURCE_ITEMS, labelPos = "left" },
-    { key = "floorWarningPack", type = "dropdown", x = 46, y = 101, w = 72, h = 5, label = L["声音"], items = {}, labelPos = "left", search = true },
-    { key = "floorWarningLSM", type = "lsm_sound", x = 46, y = 101, w = 72, h = 5, label = L["声音"], labelPos = "left" },
-    { key = "floorWarningPath", type = "input", x = 46, y = 101, w = 72, h = 5, label = L["路径"], labelPos = "left" },
-    { key = "previewFloorWarning", type = "button", x = 128, y = 101, w = 26, h = 5, label = L["试听"] },
-    { key = "applyFloorWarning", type = "button", x = 160, y = 101, w = 32, h = 5, label = L["应用到全部"] },
-    { key = "floorWarningHint", type = "description", x = 4, y = 110, w = 188, h = 5, label = L["应用会把当前大米角色配置内所有 GTFO 提示逐条写入；之后单独修改任一条，不会影响其他条目。"] },
 }
 
 local root
@@ -77,20 +64,8 @@ local function ApplyDefaults(dst, defaults)
     end
 end
 
-local function GetVoicePackLabelItems()
-    local catalog = ExBoss and ExBoss.Voice and ExBoss.Voice.LabelCatalog
-    if catalog and type(catalog.GetDropdownItems) == "function" then
-        local items = catalog.GetDropdownItems()
-        if type(items) == "table" then return items end
-    end
-    return {}
-end
-
 local function BuildLayout()
     local rows = DeepCopy(LAYOUT)
-    for _, row in ipairs(rows) do
-        if row.key == "floorWarningPack" then row.items = GetVoicePackLabelItems() end
-    end
     local baseY = 47
     for i = 1, MAX_COUNTDOWN_DIGIT do
         rows[#rows + 1] = {
@@ -144,12 +119,6 @@ local function NormalizeDigitSource(value)
     return source
 end
 
-local function NormalizeFloorWarningSource(value)
-    local source = tostring(value or "pack"):lower()
-    if source ~= "lsm" and source ~= "file" then source = "pack" end
-    return source
-end
-
 local function GetPageDB()
     local db = ExwindTools:GetModuleDB(MODULE_KEY, Runtime:GetDefaults())
     ApplyDefaults(db, Runtime:GetDefaults())
@@ -159,12 +128,6 @@ end
 local function CopyRuntimeDBToPageDB()
     local runtimeDB = Runtime:GetDB()
     local pageDB = GetPageDB()
-    local floorDraft = {
-        source = pageDB.floorWarningSource,
-        pack = pageDB.floorWarningPack,
-        lsm = pageDB.floorWarningLSM,
-        path = pageDB.floorWarningPath,
-    }
     for k in pairs(pageDB) do
         pageDB[k] = nil
     end
@@ -176,10 +139,6 @@ local function CopyRuntimeDBToPageDB()
         pageDB["digitSource" .. tostring(i)] = NormalizeDigitSource(runtimeDB.digits and runtimeDB.digits[i] and runtimeDB.digits[i].sourceType or "pack")
         pageDB["digitLSM" .. tostring(i)] = tostring(runtimeDB.digits and runtimeDB.digits[i] and runtimeDB.digits[i].customLSM or "")
     end
-    pageDB.floorWarningSource = NormalizeFloorWarningSource(floorDraft.source)
-    pageDB.floorWarningPack = tostring(floorDraft.pack or "GTFO")
-    pageDB.floorWarningLSM = tostring(floorDraft.lsm or "")
-    pageDB.floorWarningPath = tostring(floorDraft.path or "")
 end
 
 local function SyncPageDBToRuntimeDB()
@@ -234,75 +193,6 @@ local function RefreshDynamicWidgets()
         local enabled = pageDB["digitEnabled" .. tostring(i)] == true
         SetWidgetShown(lsmWidget, source == "lsm")
         SetWidgetUsable(lsmWidget, enabled and source == "lsm")
-    end
-    local floorSource = NormalizeFloorWarningSource(pageDB.floorWarningSource)
-    local floorPack = widgets.floorWarningPack
-    local floorLSM = widgets.floorWarningLSM
-    local floorPath = widgets.floorWarningPath
-    SetWidgetShown(floorPack, floorSource == "pack")
-    SetWidgetShown(floorLSM, floorSource == "lsm")
-    SetWidgetShown(floorPath, floorSource == "file")
-    SetWidgetUsable(floorPack, floorSource == "pack")
-    SetWidgetUsable(floorLSM, floorSource == "lsm")
-    SetWidgetUsable(floorPath, floorSource == "file")
-end
-
-local function BuildFloorWarningTrigger()
-    local db = GetPageDB()
-    local sourceType = NormalizeFloorWarningSource(db.floorWarningSource)
-    local trigger = { enabled = true, sourceType = sourceType }
-    if sourceType == "pack" then
-        trigger.label = tostring(db.floorWarningPack or "")
-        if trigger.label == "" then return nil, L["请选择语音包声音"] end
-    elseif sourceType == "lsm" then
-        trigger.customLSM = tostring(db.floorWarningLSM or "")
-        if trigger.customLSM == "" then return nil, L["请选择 LSM 音效"] end
-    else
-        trigger.customPath = tostring(db.floorWarningPath or "")
-        if trigger.customPath == "" then return nil, L["请输入自定义路径"] end
-    end
-    return trigger
-end
-
-local function NotifyFloorWarningResult(text)
-    if ExBoss and ExBoss.Print and type(ExBoss.Print.Say) == "function" then
-        ExBoss.Print.Say(text)
-    else
-        print("|cff00ffff<EXBOSS>|r " .. tostring(text or ""))
-    end
-end
-
-local function PreviewFloorWarning()
-    local trigger, reason = BuildFloorWarningTrigger()
-    if not trigger then
-        NotifyFloorWarningResult(reason)
-        return
-    end
-    local engine = ExBoss and ExBoss.Voice and ExBoss.Voice.Engine
-    if not (engine and type(engine.TryPlayStandaloneSound) == "function") then
-        NotifyFloorWarningResult(L["语音播放模块未就绪"])
-        return
-    end
-    local ok, err = engine:TryPlayStandaloneSound(trigger, "exboss:floor-warning:preview", { triggerIndex = 0, throttle = false })
-    if not ok then NotifyFloorWarningResult(L["试听失败："] .. tostring(err or "")) end
-end
-
-local function ApplyFloorWarning()
-    local trigger, reason = BuildFloorWarningTrigger()
-    if not trigger then
-        NotifyFloorWarningResult(reason)
-        return
-    end
-    local bossConfig = ExBoss and ExBoss.BossConfig
-    if not (bossConfig and type(bossConfig.ApplyMplusFloorWarningSound) == "function") then
-        NotifyFloorWarningResult(L["光环配置模块未就绪"])
-        return
-    end
-    local ok, changedOrReason = bossConfig:ApplyMplusFloorWarningSound(trigger)
-    if ok then
-        NotifyFloorWarningResult(string.format(L["已应用到 %d 条踩地板提示。"], tonumber(changedOrReason) or 0))
-    else
-        NotifyFloorWarningResult(L["应用失败："] .. tostring(changedOrReason or ""))
     end
 end
 
@@ -375,10 +265,6 @@ if not Page._eventsRegistered then
         local digit = tonumber(key:match("^preview(%d)$"))
         if digit then
             Runtime:PreviewDigit(digit)
-        elseif key == "previewFloorWarning" then
-            PreviewFloorWarning()
-        elseif key == "applyFloorWarning" then
-            ApplyFloorWarning()
         end
     end)
     Page._eventsRegistered = true

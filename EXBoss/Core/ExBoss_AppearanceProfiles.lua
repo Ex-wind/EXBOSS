@@ -1,8 +1,8 @@
 ---@diagnostic disable: undefined-global
 
--- Appearance profiles deliberately own only EXBoss display/module settings.
--- Boss data, Author/User layers and unrelated global preferences must never
--- cross this boundary.
+-- Appearance profiles own exactly the non-Boss/non-trash settings declared by
+-- the settings-page router.  Boss data, Author/User layers and trash data
+-- must never cross this boundary.
 
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then
@@ -20,39 +20,41 @@ local TRANSFER_PREFIX = "!EXBOSSAP1!"
 local MAX_TRANSFER_LENGTH = 250000
 local MAX_VALUE_DEPTH = 40
 local MAX_VALUE_COUNT = 30000
+-- ui.general owns the CVar-backed global switches.  It must remain in every
+-- appearance payload even if a runtime settings-route registration is late or
+-- absent when the profile is exported.
+local REQUIRED_ROOT_PATHS = { "ui.general" }
 
--- This is intentionally an explicit allow-list.  Do not replace it with a
--- walk over ModuleDB: ModuleDB also contains page mirrors and non-appearance
--- state which must remain private to their own systems.
-local MODULE_KEYS = {
-    "ExBoss.BunBar",
-    "ExBoss.TimerBar",
-    "ExBoss.RingProgress",
-    "ExBoss.IconAlert",
-    "ExBoss.CastProgressBar",
-    "ExBoss.ExtraShieldBar",
-    "ExBoss.Countdown",
-    "ExBoss.FlashTextMedium",
-    "ExBoss.Tools.MythicCast",
-    "ExBoss.Tools.InterruptTracker",
-}
-
-local MODULE_KEY_SET = {}
-for _, key in ipairs(MODULE_KEYS) do
-    MODULE_KEY_SET[key] = true
+local function AppearanceSpec()
+    local page = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.GlobalSettingsPage
+    if type(page) ~= "table" or type(page.GetAppearanceProfileSpec) ~= "function" then
+        return nil, "appearance settings route is unavailable"
+    end
+    local raw = page:GetAppearanceProfileSpec()
+    if type(raw) ~= "table" or type(raw.modules) ~= "table" or type(raw.roots) ~= "table" then
+        return nil, "appearance settings route returned an invalid specification"
+    end
+    local spec = { moduleKeys = {}, moduleKeySet = {}, rootPaths = {}, rootPathSet = {} }
+    for _, key in ipairs(raw.modules) do
+        if type(key) == "string" and key ~= "" and not spec.moduleKeySet[key] then
+            spec.moduleKeySet[key] = true
+            spec.moduleKeys[#spec.moduleKeys + 1] = key
+        end
+    end
+    for _, path in ipairs(raw.roots) do
+        if type(path) == "string" and path:match("^[%a_][%w_]*(%.[%a_][%w_]*)*$") and not spec.rootPathSet[path] then
+            spec.rootPathSet[path] = true
+            spec.rootPaths[#spec.rootPaths + 1] = path
+        end
+    end
+    for _, path in ipairs(REQUIRED_ROOT_PATHS) do
+        if not spec.rootPathSet[path] then
+            spec.rootPathSet[path] = true
+            spec.rootPaths[#spec.rootPaths + 1] = path
+        end
+    end
+    return spec
 end
-
-local UI_GENERAL_KEYS = {
-    barDisplayMode = true,
-    showSpellOccurrenceCount = true,
-    panelScale = true,
-}
-
-local VOICE_COLOR_KEYS = {
-    colorSchemes = true,
-    customColors = true,
-    extraCustomColors = true,
-}
 
 local function Trim(value)
     return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -67,6 +69,64 @@ local function Root()
         root.ModuleDB = {}
     end
     return root
+end
+
+-- Keep the CVar-backed general switches on the same round trip that the
+-- pre-refactor exporter used: capture reads their live CVar state into the
+-- exported copy, and apply writes an imported value back immediately.
+-- This is intentionally local to the transferable ui.general root; it never
+-- reads or writes Boss/trash settings.
+local function ReadCVarValue(name)
+    local key = tostring(name or "")
+    if key == "" then return nil end
+    local ok, value
+    if C_CVar and C_CVar.GetCVar then
+        ok, value = pcall(C_CVar.GetCVar, key)
+    end
+    if (not ok or value == nil) and type(GetCVar) == "function" then
+        ok, value = pcall(GetCVar, key)
+    end
+    if not ok or value == nil then return nil end
+    local text = tostring(value)
+    return text ~= "" and text or nil
+end
+
+local function WriteCVarValue(name, value)
+    local key, text = tostring(name or ""), tostring(value or "")
+    if key == "" or text == "" then return false end
+    local ok = false
+    if C_CVar and C_CVar.SetCVar then
+        ok = pcall(C_CVar.SetCVar, key, text)
+        if ok then return true end
+    end
+    if type(SetCVar) == "function" then
+        ok = pcall(SetCVar, key, text)
+        if ok then return true end
+    end
+    return false
+end
+
+local function SyncGeneralCVarsIntoExport(general)
+    if type(general) ~= "table" then return general end
+    local warnings = ReadCVarValue("encounterWarningsEnabled")
+    if warnings ~= nil then
+        general.encounterWarningsEnabled = warnings ~= "0"
+    end
+    local timeline = ReadCVarValue("encounterTimelineEnabled")
+    if timeline ~= nil then
+        general.disableBlizzardEncounterTimeline = timeline == "0"
+    end
+    return general
+end
+
+local function ApplyGeneralCVarsFromImport(general)
+    if type(general) ~= "table" then return end
+    if general.encounterWarningsEnabled ~= nil then
+        WriteCVarValue("encounterWarningsEnabled", general.encounterWarningsEnabled ~= false and "1" or "0")
+    end
+    if general.disableBlizzardEncounterTimeline ~= nil then
+        WriteCVarValue("encounterTimelineEnabled", general.disableBlizzardEncounterTimeline == true and "0" or "1")
+    end
 end
 
 local function IsFiniteNumber(value)
@@ -172,21 +232,6 @@ local function Only(tableValue, allowed)
     return true
 end
 
-local function CopyKnownFields(source, allowed)
-    local out = {}
-    source = type(source) == "table" and source or {}
-    for key in pairs(allowed) do
-        if source[key] ~= nil then
-            local copied, reason = Copy(source[key])
-            if reason then
-                return nil, reason
-            end
-            out[key] = copied
-        end
-    end
-    return out
-end
-
 -- ModuleDB can contain transient runtime fields (for example FlashText's
 -- temporary duration override).  The declared module schema is the only
 -- trustworthy boundary for a transferable module configuration.
@@ -220,14 +265,26 @@ local function ProjectDeclaredModule(moduleKey)
     return Copy(out)
 end
 
+local function ReadRootPath(root, path)
+    local value = root
+    for segment in path:gmatch("[^%.]+") do
+        value = type(value) == "table" and value[segment] or nil
+    end
+    if value == nil then return {} end
+    if type(value) ~= "table" then return nil, "setting root is not a table: " .. path end
+    return Copy(value)
+end
+
 local function CaptureAppearance()
     local root, rootReason = Root()
     if not root then
         return nil, rootReason
     end
+    local spec, specReason = AppearanceSpec()
+    if not spec then return nil, specReason end
 
     local modules = {}
-    for _, key in ipairs(MODULE_KEYS) do
+    for _, key in ipairs(spec.moduleKeys) do
         local value = root.ModuleDB[key]
         if type(value) == "table" then
             local copied, reason = ProjectDeclaredModule(key)
@@ -243,55 +300,41 @@ local function CaptureAppearance()
         end
     end
 
-    local ui = type(root.ui) == "table" and root.ui or {}
-    local uiGeneral, uiReason = CopyKnownFields(ui.general, UI_GENERAL_KEYS)
-    if not uiGeneral then
-        return nil, "ui.general: " .. tostring(uiReason)
-    end
-
-    local voice = type(root.voice) == "table" and root.voice or {}
-    local voiceColors, voiceReason = CopyKnownFields(voice, VOICE_COLOR_KEYS)
-    if not voiceColors then
-        return nil, "voice colors: " .. tostring(voiceReason)
-    end
-
-    local kyrakkaPosition = nil
-    if root.kyrakkaWindFirePosition ~= nil then
-        kyrakkaPosition, rootReason = Copy(root.kyrakkaWindFirePosition)
-        if rootReason then
-            return nil, "Kyrakka position: " .. tostring(rootReason)
+    local settings = {}
+    for _, path in ipairs(spec.rootPaths) do
+        local copied, copyReason = ReadRootPath(root, path)
+        if not copied then return nil, path .. ": " .. tostring(copyReason) end
+        if path == "ui.general" then
+            copied = SyncGeneralCVarsIntoExport(copied)
         end
+        settings[path] = copied
     end
 
     return {
         modules = modules,
-        root = {
-            uiGeneral = uiGeneral,
-            voiceColors = voiceColors,
-            kyrakkaWindFirePosition = kyrakkaPosition,
-        },
+        root = { settings = settings },
     }
 end
 
 local function ValidateAppearance(value)
+    local spec, specReason = AppearanceSpec()
+    if not spec then return false, specReason end
     if type(value) ~= "table" or not Only(value, { modules = true, root = true })
         or type(value.modules) ~= "table" or type(value.root) ~= "table" then
         return false, "invalid appearance configuration"
     end
-    if not Only(value.modules, MODULE_KEY_SET) then
+    if not Only(value.modules, spec.moduleKeySet) then
         return false, "appearance configuration contains an unknown module"
     end
-    if not Only(value.root, { uiGeneral = true, voiceColors = true, kyrakkaWindFirePosition = true })
-        or type(value.root.uiGeneral) ~= "table" or type(value.root.voiceColors) ~= "table" then
+    -- uiGeneral/voiceColors/Kyrakka are accepted only so existing profiles and
+    -- exported strings remain readable.  New captures use root.settings.
+    if not Only(value.root, { settings = true, uiGeneral = true, voiceColors = true, kyrakkaWindFirePosition = true }) then
         return false, "invalid appearance root configuration"
-    end
-    if not Only(value.root.uiGeneral, UI_GENERAL_KEYS) or not Only(value.root.voiceColors, VOICE_COLOR_KEYS) then
-        return false, "appearance configuration contains an unknown global setting"
     end
 
     local state = { seen = {}, count = 0 }
     for key, moduleDB in pairs(value.modules) do
-        if MODULE_KEY_SET[key] ~= true or type(moduleDB) ~= "table" then
+        if spec.moduleKeySet[key] ~= true or type(moduleDB) ~= "table" then
             return false, "invalid module configuration"
         end
         local ok, reason = ValidateValue(moduleDB, state, 0)
@@ -299,18 +342,20 @@ local function ValidateAppearance(value)
             return false, key .. ": " .. tostring(reason)
         end
     end
-    local ok, reason = ValidateValue(value.root.uiGeneral, state, 0)
-    if not ok then
-        return false, "ui.general: " .. tostring(reason)
+    if value.root.settings ~= nil then
+        if type(value.root.settings) ~= "table" or not Only(value.root.settings, spec.rootPathSet) then
+            return false, "appearance configuration contains an unknown setting root"
+        end
+        for path, setting in pairs(value.root.settings) do
+            if type(setting) ~= "table" then return false, "invalid setting root: " .. tostring(path) end
+            local ok, reason = ValidateValue(setting, state, 0)
+            if not ok then return false, path .. ": " .. tostring(reason) end
+        end
     end
-    ok, reason = ValidateValue(value.root.voiceColors, state, 0)
-    if not ok then
-        return false, "voice colors: " .. tostring(reason)
-    end
-    if value.root.kyrakkaWindFirePosition ~= nil then
-        ok, reason = ValidateValue(value.root.kyrakkaWindFirePosition, state, 0)
-        if not ok then
-            return false, "Kyrakka position: " .. tostring(reason)
+    for key, setting in pairs({ uiGeneral = value.root.uiGeneral, voiceColors = value.root.voiceColors, kyrakkaWindFirePosition = value.root.kyrakkaWindFirePosition }) do
+        if setting ~= nil then
+            local ok, reason = ValidateValue(setting, state, 0)
+            if not ok then return false, key .. ": " .. tostring(reason) end
         end
     end
     return true
@@ -392,17 +437,28 @@ local function SaveActiveProfile()
     return true
 end
 
-local function ReplaceKnownFields(target, source, allowed)
-    for key in pairs(allowed) do
-        if source[key] ~= nil then
-            local copied, reason = Copy(source[key])
-            if reason then
-                return false, reason
-            end
+local function MergeSettings(target, source)
+    if type(target) ~= "table" or type(source) ~= "table" then return false, "invalid setting root" end
+    for key, value in pairs(source) do
+        if type(value) == "table" and type(target[key]) == "table" then
+            local ok, reason = MergeSettings(target[key], value)
+            if not ok then return false, reason end
+        else
+            local copied, reason = Copy(value)
+            if reason then return false, reason end
             target[key] = copied
         end
     end
     return true
+end
+
+local function EnsureRootPath(root, path)
+    local target = root
+    for segment in path:gmatch("[^%.]+") do
+        if type(target[segment]) ~= "table" then target[segment] = {} end
+        target = target[segment]
+    end
+    return target
 end
 
 local function ApplyAppearance(appearance)
@@ -421,8 +477,10 @@ local function ApplyAppearance(appearance)
     if not prepared then
         return false, copyReason
     end
+    local spec, specReason = AppearanceSpec()
+    if not spec then return false, specReason end
 
-    for _, key in ipairs(MODULE_KEYS) do
+    for _, key in ipairs(spec.moduleKeys) do
         local source = prepared.modules[key]
         local target = root.ModuleDB[key]
         if source ~= nil and type(target) == "table" then
@@ -437,20 +495,25 @@ local function ApplyAppearance(appearance)
         end
     end
 
-    root.ui = type(root.ui) == "table" and root.ui or {}
-    root.ui.general = type(root.ui.general) == "table" and root.ui.general or {}
-    local ok, fieldReason = ReplaceKnownFields(root.ui.general, prepared.root.uiGeneral, UI_GENERAL_KEYS)
-    if not ok then
-        return false, fieldReason
+    -- Settings roots merge rather than clear: new profile fields apply, while
+    -- unknown future fields and all Boss/trash data remain untouched.
+    for path, source in pairs(prepared.root.settings or {}) do
+        local ok, mergeReason = MergeSettings(EnsureRootPath(root, path), source)
+        if not ok then return false, path .. ": " .. tostring(mergeReason) end
+        if path == "ui.general" then
+            ApplyGeneralCVarsFromImport(source)
+        end
     end
 
-    root.voice = type(root.voice) == "table" and root.voice or {}
-    ok, fieldReason = ReplaceKnownFields(root.voice, prepared.root.voiceColors, VOICE_COLOR_KEYS)
-    if not ok then
-        return false, fieldReason
+    -- Compatibility for pre-router profiles.  These are deliberately merged;
+    -- their old partial root snapshots must never erase newer settings.
+    if type(prepared.root.uiGeneral) == "table" then
+        local ok, mergeReason = MergeSettings(EnsureRootPath(root, "ui.general"), prepared.root.uiGeneral)
+        if not ok then return false, "ui.general: " .. tostring(mergeReason) end
     end
-    if prepared.root.kyrakkaWindFirePosition ~= nil then
-        root.kyrakkaWindFirePosition = prepared.root.kyrakkaWindFirePosition
+    if type(prepared.root.voiceColors) == "table" then
+        local ok, mergeReason = MergeSettings(EnsureRootPath(root, "voice"), prepared.root.voiceColors)
+        if not ok then return false, "voice: " .. tostring(mergeReason) end
     end
     return true
 end
@@ -532,8 +595,10 @@ local function ValidateTransfer(payload)
 end
 
 function Profiles:GetModuleKeys()
+    local spec = AppearanceSpec()
+    if not spec then return {} end
     local out = {}
-    for i, key in ipairs(MODULE_KEYS) do
+    for i, key in ipairs(spec.moduleKeys) do
         out[i] = key
     end
     return out
@@ -592,6 +657,32 @@ function Profiles:ExportActiveProfileString()
     })
 end
 
+-- Older/inactive profiles can predate a route root (or have been created by
+-- the short-lived router build that emitted root.settings = {}).  They must
+-- never export an empty settings section merely because selecting a profile
+-- other than the active one does not run SaveActiveProfile.  Fill only absent
+-- roots from the live capture; existing profile roots remain authoritative.
+local function HydrateMissingAppearanceRoots(appearance)
+    if type(appearance) ~= "table" or type(appearance.root) ~= "table" then
+        return false, "invalid appearance configuration"
+    end
+    local current, captureReason = CaptureAppearance()
+    if not current then return false, captureReason end
+    local currentRoots = current.root and current.root.settings
+    if type(currentRoots) ~= "table" then return false, "current appearance settings are unavailable" end
+
+    local root = appearance.root
+    if type(root.settings) ~= "table" then root.settings = {} end
+    for path, value in pairs(currentRoots) do
+        if root.settings[path] == nil then
+            local copied, copyReason = Copy(value)
+            if copyReason then return false, path .. ": " .. tostring(copyReason) end
+            root.settings[path] = copied
+        end
+    end
+    return true
+end
+
 -- The combined Boss transfer uses this typed payload directly.  Keeping the
 -- codec here private means it cannot accidentally package unrelated settings.
 function Profiles:GetProfilePayload(profileID)
@@ -607,6 +698,8 @@ function Profiles:GetProfilePayload(profileID)
     if type(profile) ~= "table" then return nil, "active appearance profile is unavailable" end
     local appearance, copyReason = Copy(profile.appearance)
     if not appearance then return nil, copyReason end
+    local hydrated, hydrateReason = HydrateMissingAppearanceRoots(appearance)
+    if not hydrated then return nil, hydrateReason end
     return { name = ProfileName(profile, id), appearance = appearance }
 end
 
@@ -626,9 +719,11 @@ function Profiles:GetImportSummary(decoded)
     if type(decoded) ~= "table" or type(decoded.appearance) ~= "table" then
         return nil
     end
+    local spec = AppearanceSpec()
+    if not spec then return nil end
     local moduleCount = 0
     for key in pairs(decoded.appearance.modules or {}) do
-        if MODULE_KEY_SET[key] then
+        if spec.moduleKeySet[key] then
             moduleCount = moduleCount + 1
         end
     end

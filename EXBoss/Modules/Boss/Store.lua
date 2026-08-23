@@ -513,69 +513,6 @@ function BossConfig:CreateMplusDungeonAuraSoundAction(slot, dungeonKey, actionID
     return ok, reason
 end
 
--- 将当前大米角色 User 配置内所有既有 GTFO 地板提示固化为独立覆盖。
--- 此操作刻意不保存任何“全局 GTFO 规则”：应用完成后，每条 Aura action
--- 都有自己的 sourceType / label / customLSM / customPath，后续单独编辑互不影响。
-function BossConfig:ApplyMplusFloorWarningSound(source)
-    source = type(source) == "table" and source or {}
-    local sourceType = tostring(source.sourceType or "pack"):lower()
-    if sourceType ~= "pack" and sourceType ~= "lsm" and sourceType ~= "file" then
-        return false, "invalid sound source"
-    end
-
-    local label = tostring(source.label or "")
-    local customLSM = tostring(source.customLSM or "")
-    local customPath = tostring(source.customPath or "")
-    if sourceType == "pack" and label == "" then return false, "voice-pack label required" end
-    if sourceType == "lsm" and customLSM == "" then return false, "LSM sound required" end
-    if sourceType == "file" and customPath == "" then return false, "custom path required" end
-
-    local slot = self:GetRuntimeSlotForScene("mplus")
-    local api = API()
-    local userID = Selected(slot)
-    if not (slot and userID and api and type(api.GetRuntime) == "function") then
-        return false, "M+ configuration unavailable"
-    end
-    local activated, activationReason = self:EnsureSceneRuntime("mplus")
-    if not activated then return false, activationReason end
-
-    local runtime = api.GetRuntime("mplus")
-    local dungeonOptions = type(runtime) == "table" and runtime.dungeonOptions or nil
-    if type(dungeonOptions) ~= "table" then return false, "M+ dungeon configuration unavailable" end
-
-    -- 先完整收集目标，再开始写入；不能因前一条已覆盖而影响本轮匹配集合。
-    local targets = {}
-    for dungeonKey, options in pairs(dungeonOptions) do
-        local items = type(options) == "table" and type(options.auraSounds) == "table"
-            and options.auraSounds.items or nil
-        if type(items) == "table" then
-            for actionID, action in pairs(items) do
-                if type(actionID) == "string" and type(action) == "table"
-                    and (action.floorWarning == true or tostring(action.label or "") == "GTFO" or tostring(action.customLSM or "") == "GTFO") then
-                    targets[#targets + 1] = { dungeonKey = tostring(dungeonKey), actionID = actionID }
-                end
-            end
-        end
-    end
-    if #targets == 0 then return false, "no GTFO floor-warning actions found" end
-
-    local fields = {
-        sourceType = sourceType,
-        label = sourceType == "pack" and label or "",
-        customLSM = sourceType == "lsm" and customLSM or "",
-        customPath = sourceType == "file" and customPath or "",
-        floorWarning = true,
-    }
-    for _, target in ipairs(targets) do
-        local ok, reason = api.SetMplusDungeonAuraSoundActionFields(
-            userID, target.dungeonKey, target.actionID, fields
-        )
-        if not ok then return false, reason end
-    end
-    RefreshAuraSound()
-    return true, #targets
-end
-
 function BossConfig:IsSceneEnabled(scene)
     local category = tostring(scene or ""):lower()
     EXBOSS12S2 = EXBOSS12S2 or {}; EXBOSS12S2.ui = EXBOSS12S2.ui or {}; EXBOSS12S2.ui.general = EXBOSS12S2.ui.general or {}
