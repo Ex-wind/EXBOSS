@@ -37,14 +37,6 @@ end
 
 local ANCHOR_GROUP_OPTS = GetAnchorGroupOptions()
 
-local LAYOUT_OPTS = {
-    allowedDirections = { "UP", "DOWN" },
-    includeMaxPerRow = false,
-    maxVisibleMin = 1,
-    maxVisibleMax = 5,
-    defaultMaxVisible = 3,
-}
-
 local SLIDER_GROUP_PATHS = {
     layout = "layout",
     timerGroup = "timerGroup",
@@ -52,16 +44,39 @@ local SLIDER_GROUP_PATHS = {
     font_timer = "font_timer",
 }
 
+-- 与 BunBar 共用的模块化首屏：把实际影响施法条整体行为的选项集中，
+-- 条体与两组文字仍各自保留完整的专属编辑器。
+local COMMON_OPTS = {
+    bindRoot = true,
+    poolType = "CastProgressBarModuleCommonSettingsGroup",
+    fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
+    fields = {
+        { path = "layout.direction", type = "dropdown", label = L["增长方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } }, row = 1 },
+        { path = "layout.maxVisible", type = "slider", label = L["最大显示"], min = 1, max = 5, step = 1, row = 1 },
+        { path = "layout.spacing", type = "slider", label = L["条目间距"], min = -24, max = 24, step = 1, row = 1 },
+        { path = "timerGroup.progressMode", type = "dropdown", label = L["进度方向"], items = { { L["剩余时间"], "REMAINING" }, { L["已过时间"], "ELAPSED" } }, row = 2 },
+        { path = "timerGroup.iconSide", type = "dropdown", label = L["图标位置"], items = { { L["左侧"], "LEFT" }, { L["右侧"], "RIGHT" }, { L["居中"], "CENTER" } }, row = 2 },
+        { path = "timerGroup.showIcon", type = "checkbox", label = L["显示图标"], row = 2 },
+        { path = "timerGroup.showBorder", type = "checkbox", label = L["显示边框"], row = 2 },
+    },
+}
+
 local GRID_LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["施法进度条设置"], labelSize = 25 },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 9, w = 200, h = 18, label = L["锚点设置"], opts = ANCHOR_GROUP_OPTS },
-    { key = "layout", type = "widgetlayout", x = 1, y = 29, w = 200, h = 17, measure = true, label = L["排列设置"], opts = LAYOUT_OPTS },
-    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 48, w = 200, h = 50, label = L["计时条外观"], labelSize = 20 },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 101, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 154, w = 200, h = 50, label = L["时间文本"], labelSize = 20 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 48, label = L["模块通用设置"], opts = COMMON_OPTS },
+    { key = "anchor", type = "anchorgroup", x = 1, y = 61, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = ANCHOR_GROUP_OPTS },
+    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 84, w = 200, h = 50, label = L["施法条外观"], labelSize = 20 },
+    { key = "font_spell", type = "fontgroup", x = 1, y = 137, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
+    { key = "font_timer", type = "fontgroup", x = 1, y = 190, w = 200, h = 50, label = L["时间文本"], labelSize = 20 },
 }
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, GRID_LAYOUT)
+
+local function RebindModuleCommon(context)
+    local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
+    local common = state and state.widgets and state.widgets.moduleCommon
+    if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
+end
 
 local function RenderCastProgressPanelPreview(dock)
     local module = GetCastProgressBar()
@@ -89,11 +104,14 @@ local StandardPage = EXUI:CreateStandardModulePage({
     page = Page,
     layout = GRID_LAYOUT,
     getColumns = 200,
-    preview = {
-        height = 172,
-        render = RenderCastProgressPanelPreview,
-        refresh = RefreshCastProgressPanelPreview,
-        release = ReleaseCastProgressPanelPreview,
+    preview = { height = 1, render = RenderCastProgressPanelPreview, refresh = RefreshCastProgressPanelPreview, release = ReleaseCastProgressPanelPreview },
+    previewDock = {
+        dockPolicy = "external-left",
+        anchorResolver = function(contentFrame)
+            local panel = ExBoss.UI and ExBoss.UI.Panel
+            return (panel and panel._frame) or contentFrame:GetParent() or contentFrame
+        end,
+        width = 310, offsetX = -8, offsetY = 0,
     },
     applyScrollSkin = function(scrollFrame)
         if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
@@ -104,6 +122,9 @@ local StandardPage = EXUI:CreateStandardModulePage({
         return {
             groupPaths = SLIDER_GROUP_PATHS,
         }
+    end,
+    afterGridLayout = function(context)
+        RebindModuleCommon(context)
     end,
 })
 

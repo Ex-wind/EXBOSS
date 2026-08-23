@@ -113,6 +113,9 @@ do
     local anchorFrame, anchorController
     local runtimeCollection, worldCollection, panelPreview, panelDock, panelSurface
     local currentSourceKey, currentPayload, runtimeRecord
+    -- 第五种护盾渲染模式：秘密进度直传主原生 StatusBar。
+    -- 它不进入 Collection，只由显式请求该模式的护盾模块使用。
+    local directSecretFrame, directSecretWidget, directSecretActive
 
     local function DB()
         local db = ExwindTools:GetModuleDB(MODULE_KEY)
@@ -186,6 +189,53 @@ do
         return anchorFrame
     end
 
+    local function HideDirectSecretProgress()
+        directSecretActive = false
+        if directSecretFrame then directSecretFrame:Hide() end
+    end
+
+    local function EnsureDirectSecretProgress()
+        if directSecretFrame then return directSecretFrame, directSecretWidget end
+        directSecretFrame = CreateFrame("Frame", "ExBoss_ExtraShieldBar_DirectSecretProgress", UIParent)
+        directSecretFrame:SetFrameStrata("DIALOG")
+        directSecretFrame:SetFrameLevel(200)
+        directSecretFrame:Hide()
+        directSecretWidget = EXUI:CreateTimerBarWidget(directSecretFrame)
+        directSecretWidget:SetPoint("TOPLEFT", directSecretFrame, "TOPLEFT", 0, 0)
+        return directSecretFrame, directSecretWidget
+    end
+
+    local function RenderDirectSecretProgress(payload)
+        local anchor = EnsureAnchor()
+        local db, style = DB(), ResolveTimerStyle()
+        local frame, widget = EnsureDirectSecretProgress()
+        frame:ClearAllPoints()
+        frame:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
+        frame:SetSize(math.max(1, Num(style.width, 220)), math.max(1, Num(style.height, 30)))
+        widget:ApplyStyle({ timerBar = style, text = { label = db.font_spell, time = db.font_timer } })
+        widget:SetIcon(payload.icon or 136197)
+        widget:SetLabel(payload.name or L["护盾"])
+        widget.timeText:ClearDurationBinding()
+        widget.timeText:SetText("")
+        widget.timeText:Hide()
+        widget:SetFillVisible(true)
+        widget.secretBar:Hide()
+        widget.bar:Show()
+        if Enum and Enum.StatusBarInterpolation then
+            widget.bar:SetMinMaxValues(0, math.max(1, Num(payload.maxValue, 1)), Enum.StatusBarInterpolation.Immediate)
+        else
+            widget.bar:SetMinMaxValues(0, math.max(1, Num(payload.maxValue, 1)))
+        end
+        if Enum and Enum.StatusBarInterpolation then
+            widget.bar:SetValue(payload.value, Enum.StatusBarInterpolation.Immediate)
+        else
+            widget.bar:SetValue(payload.value)
+        end
+        if type(widget.bar.SetToTargetValue) == "function" then widget.bar:SetToTargetValue() end
+        directSecretActive = true
+        frame:Show()
+    end
+
     local function BuildComparisonElements(db, payload, comparison)
         if comparison ~= true then return {} end
         local style = db.timerGroup
@@ -220,13 +270,25 @@ do
         payload = type(payload) == "table" and payload or {}
         local db, style = DB(), ResolveTimerStyle()
         local comparison = sample ~= true and payload.secretComparison == true
+        local secretProgress = sample ~= true and payload.secretProgress == true
         local shownText = payload.text ~= nil
+        local progress
+        if secretProgress then
+            -- `value` may be a Blizzard secret number.  Keep it entirely out
+            -- of Lua fallback/clamp code and let TimerBarCollection forward it
+            -- through TimerBarWidget:SetSecretProgress.
+            progress = { mode = "SECRET", value = payload.value, maximum = payload.maxValue, minimum = payload.minValue }
+        elseif comparison then
+            progress = { value = 0, maximum = 1 }
+        else
+            progress = { value = payload.value or 0, maximum = payload.maxValue or 1 }
+        end
         return {
             style = { timerBar = style, text = { label = db.font_spell, time = db.font_timer } },
             icon = { value = payload.icon or 136197 },
             label = payload.name or L["护盾"],
-            time = shownText and { text = payload.text, shown = true } or { shown = false },
-            progress = comparison and { value = 0, maximum = 1 } or { value = payload.value or 0, maximum = payload.maxValue or 1 },
+            time = shownText and { text = payload.text, shown = true } or nil,
+            progress = progress,
             fillVisible = comparison ~= true,
             regionElements = BuildComparisonElements(db, payload, comparison),
             interaction = BuildStandardExtraShieldInteraction(db),
@@ -373,7 +435,9 @@ do
 
     function Mod:RefreshVisuals(options)
         EnsureAnchor()
-        if worldCollection then
+        if directSecretActive and currentPayload then
+            RenderDirectSecretProgress(currentPayload)
+        elseif worldCollection then
             RenderSampleCollection(worldCollection)
             if EXUI.SetEditModeOverlayVisible and EXUI.EditModeState then EXUI:SetEditModeOverlayVisible(EXUI.EditModeState.overlayVisible) end
         else
@@ -389,6 +453,13 @@ do
     function Mod:Show(sourceKey, payload)
         currentSourceKey = tostring(sourceKey or MODULE_KEY)
         currentPayload = type(payload) == "table" and payload or nil
+        if currentPayload and currentPayload.progressMode == "SECRET_DIRECT_PROGRESS" then
+            if runtimeCollection then runtimeCollection:SetItems({}, GetLayout()) end
+            EnsureAnchor():Hide()
+            RenderDirectSecretProgress(currentPayload)
+            return
+        end
+        HideDirectSecretProgress()
         if not worldCollection then RenderRuntime() end
     end
 
@@ -397,6 +468,10 @@ do
     function Mod:Hide(sourceKey)
         if sourceKey ~= nil and tostring(sourceKey) ~= tostring(currentSourceKey or "") then return end
         currentSourceKey, currentPayload = nil, nil
+        if directSecretActive then
+            HideDirectSecretProgress()
+            return
+        end
         if not worldCollection then RenderRuntime() end
     end
 

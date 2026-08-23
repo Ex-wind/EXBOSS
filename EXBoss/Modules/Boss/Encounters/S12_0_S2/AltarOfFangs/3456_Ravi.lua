@@ -30,7 +30,6 @@ do
     local shieldIconTexture = nil
     local StartShieldWatch = nil
     local RefreshShieldBar = nil
-
     local function GetExtraShieldBar()
         return ExBoss and ExBoss.UI and ExBoss.UI.ExtraShieldBar or nil
     end
@@ -153,9 +152,9 @@ do
             return
         end
 
-        local absorbAmount = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or nil
-        if absorbAmount == nil then
-            return
+        local absorbAmount = nil
+        if UnitGetTotalAbsorbs then
+            absorbAmount = UnitGetTotalAbsorbs(unit)
         end
 
         if not shieldMaxValue then
@@ -168,6 +167,7 @@ do
                 icon = GetSpellIcon(),
                 value = absorbAmount,
                 maxValue = shieldMaxValue,
+                progressMode = "SECRET_DIRECT_PROGRESS",
             })
         end
     end
