@@ -3,6 +3,7 @@
 ---@diagnostic disable: undefined-global, undefined-field, need-check-nil
 -- =============================================================
 -- Core/ExBoss_Alert.lua
+-- TEST
 -- 统一文字提示 API。
 --
 -- 只做显示通道路由，不做 Boss / 机制判断。
