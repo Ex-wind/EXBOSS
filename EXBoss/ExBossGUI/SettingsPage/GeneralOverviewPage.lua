@@ -108,23 +108,24 @@ local LAYOUT = {
     { key = "header_8111", type = "header", x = 1, y = 4, w = 200, h = 6, label = L["通用设置"], labelSize = 20 },
     { key = "barDisplayMode", type = "dropdown", x = 1, y = 17, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
     { key = "disableBlizzardEncounterTimeline", type = "checkbox", x = 1, y = 23, w = 76, h = 6, label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
-    { key = "autoDisableCAAInBoss", type = "checkbox", x = 1, y = 30, w = 76, h = 6, label = L["首领战时自动关闭战斗音频预警"], parentKey = "ui.general" },
-    { key = "hideTankBossAlertsForDps", type = "checkbox", x = 1, y = 36, w = 76, h = 6, label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
-    { key = "hideTankBossAlertsForHeal", type = "checkbox", x = 1, y = 43, w = 76, h = 6, label = L["治疗职责下不提示坦克技能"], parentKey = "ui.general" },
-    { key = "showSpellOccurrenceCount", type = "checkbox", x = 1, y = 50, w = 73, h = 6, label = L["法术名称显示次数"], parentKey = "ui.general" },
-    { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 57, w = 86, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
-    { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 1, y = 64, w = 127, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
-    { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 71, w = 44, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
-    { key = "header_5292", type = "header", x = 1, y = 82, w = 197, h = 10, label = L["音频输出选项"], labelSize = 20 },
-    { key = "channel", type = "dropdown", x = 1, y = 95, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
-    { key = "volume", type = "slider", x = 55, y = 95, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
-    { key = "label_5567", type = "label", x = 1, y = 107, w = 95, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
-    { key = "header_auto_gossip", type = "header", x = 1, y = 114, w = 197, h = 10, label = L["自动对话"], labelSize = 20 },
-    { key = "autoGossipEnabled", type = "checkbox", x = 1, y = 120, w = 76, h = 6, label = L["启用自动对话"], parentKey = "autoGossip", subKey = "enabled" },
-    { key = "autoGossipAcademyBuff", type = "checkbox", x = 1, y = 127, w = 102, h = 6, label = L["[大秘境] 自动对话学院(AA)BUFF"], parentKey = "autoGossip", subKey = "academyBuff" },
-    { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 133, w = 102, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
-    { key = "autoGossipPosRescue", type = "checkbox", x = 1, y = 139, w = 102, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
-    { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 145, w = 102, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
+    { key = "disableEXBossInRaid", type = "checkbox", x = 1, y = 30, w = 76, h = 6, label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
+    { key = "autoDisableCAAInBoss", type = "checkbox", x = 1, y = 36, w = 76, h = 6, label = L["首领战时自动关闭战斗音频预警"], parentKey = "ui.general" },
+    { key = "hideTankBossAlertsForDps", type = "checkbox", x = 1, y = 43, w = 76, h = 6, label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
+    { key = "hideTankBossAlertsForHeal", type = "checkbox", x = 1, y = 50, w = 76, h = 6, label = L["治疗职责下不提示坦克技能"], parentKey = "ui.general" },
+    { key = "showSpellOccurrenceCount", type = "checkbox", x = 1, y = 57, w = 73, h = 6, label = L["法术名称显示次数"], parentKey = "ui.general" },
+    { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 64, w = 86, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
+    { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 1, y = 71, w = 127, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
+    { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 78, w = 44, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
+    { key = "header_5292", type = "header", x = 1, y = 89, w = 197, h = 10, label = L["音频输出选项"], labelSize = 20 },
+    { key = "channel", type = "dropdown", x = 1, y = 102, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
+    { key = "volume", type = "slider", x = 55, y = 102, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
+    { key = "label_5567", type = "label", x = 1, y = 114, w = 95, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
+    { key = "header_auto_gossip", type = "header", x = 1, y = 121, w = 197, h = 10, label = L["自动对话"], labelSize = 20 },
+    { key = "autoGossipEnabled", type = "checkbox", x = 1, y = 127, w = 76, h = 6, label = L["启用自动对话"], parentKey = "autoGossip", subKey = "enabled" },
+    { key = "autoGossipAcademyBuff", type = "checkbox", x = 1, y = 134, w = 102, h = 6, label = L["[大秘境] 自动对话学院(AA)BUFF"], parentKey = "autoGossip", subKey = "academyBuff" },
+    { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 140, w = 102, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
+    { key = "autoGossipPosRescue", type = "checkbox", x = 1, y = 146, w = 102, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
+    { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 152, w = 102, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
 }
 
 local function NormalizeBarDisplayMode(mode)
@@ -149,6 +150,14 @@ local function EnsureRootDB()
         general.bossAlertsEnabledMplus = true
     else
         general.bossAlertsEnabledMplus = (general.bossAlertsEnabledMplus == true)
+    end
+    -- The visible checkbox is deliberately named as the user's action
+    -- (disable in raid).  Preserve the old positive flag for one-time
+    -- migration only, without deleting or rewriting it.
+    if general.disableEXBossInRaid == nil then
+        general.disableEXBossInRaid = (general.bossAlertsEnabledRaid ~= true)
+    else
+        general.disableEXBossInRaid = (general.disableEXBossInRaid == true)
     end
     if general.autoDisableCAAInBoss == nil then
         general.autoDisableCAAInBoss = false
@@ -289,6 +298,9 @@ local function ApplyBossSceneToggleChange()
     end
 
     if sceneEnabled == false then
+        if ExBoss and ExBoss.ApplyBossAutoCAASetting then
+            ExBoss.ApplyBossAutoCAASetting(false)
+        end
         if sched and sched.EndBoss then
             sched:EndBoss()
         end

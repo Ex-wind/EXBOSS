@@ -516,8 +516,14 @@ end
 function BossConfig:IsSceneEnabled(scene)
     local category = tostring(scene or ""):lower()
     EXBOSS12S2 = EXBOSS12S2 or {}; EXBOSS12S2.ui = EXBOSS12S2.ui or {}; EXBOSS12S2.ui.general = EXBOSS12S2.ui.general or {}
+    local general = EXBOSS12S2.ui.general
+    if general.disableEXBossInRaid == nil then
+        general.disableEXBossInRaid = (general.bossAlertsEnabledRaid ~= true)
+    else
+        general.disableEXBossInRaid = (general.disableEXBossInRaid == true)
+    end
     return category == "mplus" and EXBOSS12S2.ui.general.bossAlertsEnabledMplus ~= false
-        or category == "raid" and EXBOSS12S2.ui.general.bossAlertsEnabledRaid ~= false
+        or category == "raid" and general.disableEXBossInRaid ~= true
 end
 function BossConfig:IsCurrentSceneEnabled()
     local _, instanceType = GetInstanceInfo()

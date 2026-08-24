@@ -1718,11 +1718,16 @@ local function IsBossSceneEnabledForCurrentInstance()
     EXBOSS12S2.ui.general = EXBOSS12S2.ui.general or {}
     local g = EXBOSS12S2.ui.general
     if g.bossAlertsEnabledRaid == nil then g.bossAlertsEnabledRaid = false end
+    if g.disableEXBossInRaid == nil then
+        g.disableEXBossInRaid = (g.bossAlertsEnabledRaid ~= true)
+    else
+        g.disableEXBossInRaid = (g.disableEXBossInRaid == true)
+    end
     if g.bossAlertsEnabledMplus == nil then g.bossAlertsEnabledMplus = true end
 
     local _, instanceType = GetInstanceInfo()
     if instanceType == "raid" then
-        return g.bossAlertsEnabledRaid ~= false
+        return g.disableEXBossInRaid ~= true
     end
     if instanceType == "party" then
         return g.bossAlertsEnabledMplus ~= false
@@ -2893,6 +2898,9 @@ function Scheduler:EndBoss()
     end
     if ExBoss.UI.CastProgressBar and ExBoss.UI.CastProgressBar.Hide then
         ExBoss.UI.CastProgressBar:Hide()
+    end
+    if ExBoss.UI.RingProgress and ExBoss.UI.RingProgress.Hide then
+        ExBoss.UI.RingProgress:Hide()
     end
     self._active                                        = {}
     self._nextTimerID                                   = 1

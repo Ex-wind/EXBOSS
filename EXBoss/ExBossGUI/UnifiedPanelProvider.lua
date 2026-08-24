@@ -43,6 +43,15 @@ function Provider:ApplyRoute(route)
     if not wasShown then
         BossPanel:SetTab(BossPanel:GetCurrentTab())
     end
+
+    -- Unified Shell 是 EXBoss 的默认入口；日志提示必须在这里触发，而不是只留在旧独立面板路径。
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.05, function()
+            if BossPanel._frame and BossPanel._frame:IsShown() and ExBoss.HandleChangelogPopupOnUIOpen then
+                ExBoss:HandleChangelogPopupOnUIOpen()
+            end
+        end)
+    end
 end
 
 function Provider:Hide()

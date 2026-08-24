@@ -17,8 +17,6 @@ ExBoss_MetaData = {
 
 @EN@ @H2@ TEST
 @EN@ - TEST UPDATE
-
-@EN@ [EN_1]`
         ]],
     },
 }

@@ -31,6 +31,11 @@ local function EnsureGeneralDB()
     else
         g.bossAlertsEnabledRaid = (g.bossAlertsEnabledRaid == true)
     end
+    if g.disableEXBossInRaid == nil then
+        g.disableEXBossInRaid = (g.bossAlertsEnabledRaid ~= true)
+    else
+        g.disableEXBossInRaid = (g.disableEXBossInRaid == true)
+    end
     if g.autoDisableCAAInBoss == nil then
         g.autoDisableCAAInBoss = false
     else
@@ -62,6 +67,29 @@ local function EnsureGeneralDB()
         g.disableBlizzardEncounterTimeline = (g.disableBlizzardEncounterTimeline == true)
     end
     return g
+end
+
+-- This is the same scene decision used by Scheduler.  Keep the encounter
+-- entrypoint and the Combat Audio Alert side effect behind it too, so a
+-- disabled raid scene does not leave an EXBoss-owned side effect behind.
+local function IsCurrentBossSceneEnabled()
+    local bossCfg = ExBoss and ExBoss.BossConfig
+    if bossCfg and type(bossCfg.IsCurrentSceneEnabled) == "function" then
+        local ok, enabled = pcall(bossCfg.IsCurrentSceneEnabled, bossCfg)
+        if ok then
+            return enabled ~= false
+        end
+    end
+
+    local g = EnsureGeneralDB()
+    local _, instanceType = GetInstanceInfo()
+    if instanceType == "raid" then
+        return g.disableEXBossInRaid ~= true
+    end
+    if instanceType == "party" then
+        return g.bossAlertsEnabledMplus ~= false
+    end
+    return true
 end
 
 local function IsFixedTimelineEncounterForCAA(encounterID)
@@ -276,6 +304,9 @@ end
 function ExBoss.ApplyBossAutoCAASetting(forceIsBossEncounter)
     local g = EnsureGeneralDB()
     local enabled = (g.autoDisableCAAInBoss == true)
+    if not IsCurrentBossSceneEnabled() then
+        enabled = false
+    end
     local isBoss = (forceIsBossEncounter == true)
     if forceIsBossEncounter == nil and ExwindTools and ExwindTools.State then
         isBoss = (ExwindTools.State.IsBossEncounter == true)
@@ -436,6 +467,13 @@ end)
 
 -- ── ENCOUNTER_START：启动计时引擎 ────────────────────────────
 ExwindTools:RegisterEvent("ENCOUNTER_START", "ExBoss_Init_EncStart", function(_, encounterID)
+    if not IsCurrentBossSceneEnabled() then
+        local scheduler = ExBoss and ExBoss.Timeline and ExBoss.Timeline.Scheduler
+        if scheduler and scheduler.EndBoss then
+            scheduler:EndBoss()
+        end
+        return
+    end
     _autoCAACurrentEncounterID = tonumber(encounterID) or encounterID
     if ExBoss and ExBoss.ApplyBossAutoCAASetting then
         ExBoss.ApplyBossAutoCAASetting(true)
