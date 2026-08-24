@@ -10,6 +10,38 @@ end
 -- added 2026-08-19 20:56
 -- added 2026-08-19 21:08
 -- added 2026-08-21 22:59
+-- added 2026-08-25 localized gap fill
+L["%d 个 action"] = true
+L["%s · 分类管理"] = true
+L["● 当前筛选"] = true
+L["此分类暂时没有 action"] = true
+L["点击筛选"] = true
+L["多个声音（待统一）"] = true
+L["勾选 action 归入此分类；音效仅在上方卡片设置。"] = true
+L["进度方向"] = true
+L["其他分类"] = true
+L["请先选择 LSM 音效"] = true
+L["施法条外观"] = true
+L["搜索法术、ID、单位、分类..."] = true
+L["条目间距"] = true
+L["图标位置"] = true
+L["显示全部动作"] = true
+L["已过时间"] = true
+L["已选择 %d / %d 个 action"] = true
+L["应用"] = true
+L["最大显示"] = true
+L["LSM 音效"] = true
+L["错误"] = true
+L["当前声音"] = true
+L["堆叠"] = true
+L["光环 Action"] = true
+L["机制"] = true
+L["减益"] = true
+L["控制"] = true
+L["筛选结果"] = true
+L["显示 %d / %d 个 action"] = true
+L["增/减益"] = true
+L["增益"] = true
 L["默认外观"] = true
 L["外观配置"] = true
 L["导入的外观"] = true

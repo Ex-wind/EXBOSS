@@ -10,6 +10,26 @@ end
 -- added 2026-08-19 20:56
 -- added 2026-08-19 21:08
 -- added 2026-08-21 22:59
+-- added 2026-08-25 localized gap fill
+L["%d 个 action"] = "%d actions"
+L["%s · 分类管理"] = "%s · Category Management"
+L["● 当前筛选"] = "● Current Filter"
+L["此分类暂时没有 action"] = "No actions in this category yet"
+L["点击筛选"] = "Click to filter"
+L["多个声音（待统一）"] = "Multiple sounds (pending consolidation)"
+L["勾选 action 归入此分类；音效仅在上方卡片设置。"] = "Select actions to assign them to this category; sounds are configured only on the card above."
+L["进度方向"] = "Progress Direction"
+L["其他分类"] = "Other Categories"
+L["请先选择 LSM 音效"] = "Please select an LSM sound first"
+L["施法条外观"] = "Cast Bar Appearance"
+L["搜索法术、ID、单位、分类..."] = "Search spells, IDs, units, categories..."
+L["条目间距"] = "Item Spacing"
+L["图标位置"] = "Icon Position"
+L["显示全部动作"] = "Show All Actions"
+L["已过时间"] = "Elapsed Time"
+L["已选择 %d / %d 个 action"] = "%d / %d actions selected"
+L["应用"] = "Apply"
+L["最大显示"] = "Maximum Displayed"
 L["默认外观"] = "Default Appearance"
 L["外观配置"] = "Appearance Profile"
 L["导入的外观"] = "Imported Appearance"
