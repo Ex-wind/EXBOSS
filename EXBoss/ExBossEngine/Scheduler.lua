@@ -536,9 +536,15 @@ local function IsCastProgressBarGloballyEnabled()
     if not (CastBar and type(CastBar.ShowSequence) == "function" and type(CastBar.ShowEntry) == "function") then
         return false
     end
-    -- 施法进度条已取消模块总开关，存在即强制启用。旧版 db.enabled 留在
-    -- Scheduler 会使缺字段的现有配置被 fail-closed，导致 Boss 永远不下发读条。
-    return true
+    -- 旧配置没有 enabled 时保持旧行为（启用）；只有用户明确关闭才停用。
+    local db = nil
+    if ExwindTools and type(ExwindTools.GetModuleDB) == "function" then
+        local ok, moduleDB = pcall(ExwindTools.GetModuleDB, ExwindTools, "ExBoss.CastProgressBar", { enabled = true })
+        if ok and type(moduleDB) == "table" then
+            db = moduleDB
+        end
+    end
+    return type(db) ~= "table" or db.enabled ~= false
 end
 
 local function DoesTargetAlertWantObservedBossCast(timer)

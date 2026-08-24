@@ -7,8 +7,8 @@ if not ExwindTools or type(ExwindTools.RegisterEvent) ~= "function" then
 end
 
 local MODULE_KEY = "ExBoss.DenOfNalorakk.HarshWinds"
--- 模块只声明副本语义 key；实际 mapID / instanceID 由 ExwindDB 集中维护。
-local DUNGEON_KEY = "den_of_nalorakk"
+-- EXDB 的纳洛拉克条目仅以 instanceID 登记，没有可查询的语义 key。
+local DUNGEON_INSTANCE_ID = 2825
 local SPELL_ID = 1252825
 local TIMER_ID = "exboss:den_of_nalorakk:harsh_winds"
 local BAR_DURATION = 50
@@ -24,8 +24,8 @@ end
 
 local function GetDungeonMeta()
     local exdb = _G.EXDB
-    if exdb and type(exdb.GetInstanceNoteMetaByKey) == "function" then
-        return exdb:GetInstanceNoteMetaByKey(DUNGEON_KEY)
+    if exdb and type(exdb.GetInstanceNoteMetaByInstanceID) == "function" then
+        return exdb:GetInstanceNoteMetaByInstanceID(DUNGEON_INSTANCE_ID)
     end
     return nil
 end

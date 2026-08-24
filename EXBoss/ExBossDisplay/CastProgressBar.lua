@@ -23,6 +23,8 @@ end
 -- 可直接替换本表；禁止另建页面默认值或运行时默认值。
 local EX_DEFAULTS = {
     anchor = {
+        -- root schema 从 anchor 声明组投影到 ModuleDB 根；缺省保持启用。
+        enabled = true,
         anchorX = 7,
         anchorY = -235,
         attachToCustom = false,
@@ -133,7 +135,7 @@ local EX_DEFAULTS = {
 local FONT_FIELDS = { "font", "size", "r", "g", "b", "a", "enabled", "autoWidth", "fixedWidth", "maxWidth", "justifyH", "justifyV", "outline", "shadow", "shadowColorR", "shadowColorG", "shadowColorB", "shadowColorA", "shadowX", "shadowY", "rotation", "gradientEnabled", "gradientStart", "gradientLength", "drawLayer", "drawSubLevel", "x", "y" }
 local TIMER_FIELDS = { "width", "height", "texture", "barColorR", "barColorG", "barColorB", "barColorA", "barBgColorR", "barBgColorG", "barBgColorB", "barBgColorA", "showBorder", "borderTexture", "borderColorR", "borderColorG", "borderColorB", "borderColorA", "borderSize", "borderPadding", "showIcon", "iconSide", "iconWidth", "iconHeight", "iconOffsetX", "iconOffsetY", "showIconBorder", "iconBorderTexture", "iconBorderColorR", "iconBorderColorG", "iconBorderColorB", "iconBorderColorA", "iconBorderSize", "iconBorderPadding", "fillDirection", "progressMode" }
 local DEFAULT_SCHEMA = {
-    { group = "anchor",       root = true, fields = { "anchorX", "anchorY", "attachToCustom", "customAttachTarget" } },
+    { group = "anchor",       root = true, fields = { "enabled", "anchorX", "anchorY", "attachToCustom", "customAttachTarget" } },
     { group = "font_spell", fields = FONT_FIELDS },
     { group = "font_timer", fields = FONT_FIELDS },
     { group = "layout", fields = { "direction", "maxPerRow", "maxVisible", "spacing", "wrapDirection" } },
@@ -1062,6 +1064,10 @@ Ensure = function()
 end
 
 function CastBar:ShowEntry(entry, forcedRemaining)
+    if DB().enabled == false then
+        self:Hide()
+        return
+    end
     Ensure()
     if type(entry) ~= "table" then
         self:Hide()
@@ -1093,6 +1099,10 @@ function CastBar:ShowEntry(entry, forcedRemaining)
 end
 
 function CastBar:ShowSequence(sequence, opts)
+    if DB().enabled == false then
+        self:Hide()
+        return
+    end
     Ensure()
     if type(sequence) ~= "table" or #sequence == 0 then
         return
@@ -1158,6 +1168,15 @@ end
 
 function CastBar:RefreshVisuals(options)
     if not anchorFrame then
+        return
+    end
+    if DB().enabled == false and not worldEditing then
+        -- 关闭开关时终止现有序列，不保留任何仍会在之后推进的运行时状态。
+        self:Hide()
+        if options == nil or options.rebuildPanelPreview == true then
+            RenderPanelPreview()
+        end
+        ExwindTools.UI:RefreshEditableModule("EXBoss", "castprogressbar")
         return
     end
     if worldEditing then
@@ -1327,8 +1346,13 @@ local STANDARD_CONFIG_BINDING = EXUI:RegisterStandardConfigBinding({
     },
 })
 
-local function RefreshActiveSurfaces()
-    return STANDARD_CONFIG_BINDING.reapplyExisting()
+local function RefreshActiveSurfaces(_, changedPath, phase)
+    local patched = STANDARD_CONFIG_BINDING.reapplyExisting()
+    if changedPath == "enabled" then
+        -- 标准 binding 只会重套已有 Item；总开关还必须终止当前运行序列。
+        CastBar:RefreshVisuals({ rebuildPanelPreview = phase == "committed" })
+    end
+    return patched
 end
 EXUI:RegisterModuleValueController(MODULE_KEY, { RefreshActiveSurfaces = RefreshActiveSurfaces })
 

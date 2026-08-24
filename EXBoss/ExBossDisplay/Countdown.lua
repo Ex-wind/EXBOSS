@@ -60,14 +60,17 @@ end
 local function GetRowHeight(db)
     local icon = type(db.icon) == "table" and db.icon or {}
     local text = type(db.font_text) == "table" and db.font_text or {}
+    local time = type(db.font_time) == "table" and db.font_time or {}
     -- The collection Body is the actual row, not the historical 54px edit
     -- hitbox.  This makes stackGap, maxVisible and UP/DOWN one direct layout
     -- contract with no hidden conversion layer.
     local iconHeight = math.max(1, SafeNum(icon.height, 30))
     local textHeight = math.max(1, SafeNum(text.size, 24))
-    local textY = SafeNum(text.y, 0)
-    local lower = math.min(-iconHeight * .5, textY - textHeight * .5)
-    local upper = math.max(iconHeight * .5, textY + textHeight * .5)
+    local timeHeight = math.max(1, SafeNum(time.size, 22))
+    local iconY = SafeNum(icon.y, 0)
+    local timeY = SafeNum(time.y, 0)
+    local lower = math.min(iconY - iconHeight * .5, -textHeight * .5, timeY - timeHeight * .5)
+    local upper = math.max(iconY + iconHeight * .5, textHeight * .5, timeY + timeHeight * .5)
     return math.max(1, upper - lower)
 end
 
@@ -88,6 +91,13 @@ local EX_DEFAULTS = {
         shadowColorB = 0, shadowColorA = 1, shadowX = 2, shadowY = -2, rotation = 0, gradientEnabled = false,
         gradientStart = 0, gradientLength = 0, x = 0, y = -7.197392933818,
     },
+    -- 数字是独立控件：只继承倒数事件色，不和技能名称共用字体或位置配置。
+    font_time = {
+        font = "默认", size = 22, r = 1, g = 1, b = 1, a = 1, enabled = true, autoWidth = false, fixedWidth = 64, maxWidth = 0,
+        justifyH = "CENTER", justifyV = "MIDDLE", outline = "OUTLINE", shadow = true, shadowColorR = 0, shadowColorG = 0,
+        shadowColorB = 0, shadowColorA = 1, shadowX = 2, shadowY = -2, rotation = 0, gradientEnabled = false,
+        gradientStart = 0, gradientLength = 0, x = 0, y = 0,
+    },
 }
 local FONT_FIELDS = { "font", "size", "r", "g", "b", "a", "enabled", "autoWidth", "fixedWidth", "maxWidth", "justifyH", "justifyV",
     "outline", "shadow", "shadowColorR", "shadowColorG", "shadowColorB", "shadowColorA", "shadowX", "shadowY", "rotation",
@@ -96,6 +106,7 @@ ExwindTools:DeclareModuleDefaults(MODULE_KEY, EX_DEFAULTS, {
     { group = "module", root = true, fields = { "enabled", "showDecimal", "stackMax_1205", "stackGap", "growDir", "anchorX_1205", "anchorY_1205", "attachToCustom", "customAttachTarget" } },
     { group = "icon", fields = { "showIcon", "iconID", "reverse", "width", "height", "x", "y", "showBorder", "borderTexture", "borderColorR", "borderColorG", "borderColorB", "borderColorA", "borderSize", "borderPadding", "enableCrop", "cropLeft", "cropTop", "showCooldown", cooldown = { "edgeAlpha", "showBling", "showEdge", "showSwipe", "swipeAlpha" } } },
     { group = "font_text", fields = FONT_FIELDS },
+    { group = "font_time", fields = FONT_FIELDS },
 })
 
 local ANCHOR_SCHEMA = {
@@ -112,41 +123,60 @@ local function EnsureAnchorController()
 end
 function Countdown:GetStandardAnchorGroupOptions() EnsureAnchorController(); return anchorGroupOptions end
 
--- 文本区域是倒数整体的唯一坐标原点；图标永远固定在它的左侧。
-local function GetSpellNameStartAnchor(db)
-    local text = type(db.font_text) == "table" and db.font_text or {}
-    local textWidth = math.max(1, SafeNum(text.fixedWidth, LABEL_WIDTH))
-    return -textWidth * .5, 0
-end
-
-local function IconBaseAnchor(db)
-    local icon = db.icon or {}
-    local startX, startY = GetSpellNameStartAnchor(db)
-    return startX - SIDE_GAP - math.max(8, SafeNum(icon.width, 30)) * .5, startY
+-- 名称的原生 FontString 是唯一定位原点。图标和时间直接锚定其左右边缘，
+-- 因而名称长短由客户端自动带动；Lua 不读取或测量普通／秘密名称。
+local function GetRowGeometry(db)
+    local icon = type(db.icon) == "table" and db.icon or {}
+    local time = type(db.font_time) == "table" and db.font_time or {}
+    local timeWidth = math.max(48, SafeNum(time.fixedWidth, TIME_WIDTH))
+    local timeOffsetX = SIDE_GAP + SafeNum(time.x, 0)
+    return {
+        timeWidth = timeWidth,
+        iconOffsetX = -SIDE_GAP + SafeNum(icon.x, 0),
+        iconOffsetY = SafeNum(icon.y, 0),
+        timeOffsetX = timeOffsetX,
+        timeOffsetY = SafeNum(time.y, 0),
+    }
 end
 local INTERACTION_SCHEMA = {
     ["core.icon"] = {
-        guiKey = "icon", movable = false, tooltip = L["倒计时图标"],
-        anchor = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0 },
+        guiKey = "icon", movable = true, tooltip = L["倒计时图标"],
+        position = {
+            x = "icon.x", y = "icon.y",
+            toStorage = function(_, position) return { x = position.x + SIDE_GAP, y = position.y } end,
+        },
     },
     ["core.label"] = { guiKey = "font_text", movable = false, tooltip = L["提示文字"], textRole = "label" },
+    ["core.time"] = {
+        guiKey = "font_time", movable = true, tooltip = L["倒计时数字"], textRole = "time",
+        position = {
+            x = "font_time.x", y = "font_time.y",
+            toStorage = function(_, position) return { x = position.x - SIDE_GAP, y = position.y } end,
+        },
+    },
 }
 local CONFIG_SCHEMA_PATHS = {
     ["stackMax_1205"] = true, ["stackGap"] = true, ["growDir"] = true,
-    ["icon.width"] = true, ["icon.height"] = true, ["icon.alpha"] = true, ["icon.rotation"] = true,
+    ["icon.width"] = true, ["icon.height"] = true, ["icon.x"] = true, ["icon.y"] = true, ["icon.alpha"] = true, ["icon.rotation"] = true,
     ["icon.cropLeft"] = true, ["icon.cropRight"] = true, ["icon.cropTop"] = true, ["icon.cropBottom"] = true, ["icon.borderSize"] = true, ["icon.borderPadding"] = true,
     ["icon.cooldown.swipeAlpha"] = true, ["icon.cooldown.edgeAlpha"] = true,
     ["font_text.size"] = true, ["font_text.shadowX"] = true, ["font_text.shadowY"] = true, ["font_text.fixedWidth"] = true, ["font_text.maxWidth"] = true,
     ["font_text.gradientStart"] = true, ["font_text.gradientLength"] = true, ["font_text.rotation"] = true, ["font_text.autoWidth"] = true,
+    ["font_time.size"] = true, ["font_time.x"] = true, ["font_time.y"] = true, ["font_time.shadowX"] = true, ["font_time.shadowY"] = true,
+    ["font_time.fixedWidth"] = true, ["font_time.maxWidth"] = true, ["font_time.gradientStart"] = true, ["font_time.gradientLength"] = true,
+    ["font_time.rotation"] = true, ["font_time.autoWidth"] = true,
 }
-Countdown.StandardSliderContract = { groupPaths = { moduleCommon = "", icon = "icon", font_text = "font_text" } }
+Countdown.StandardSliderContract = { groupPaths = { moduleCommon = "", icon = "icon", font_text = "font_text", font_time = "font_time" } }
 
 local function BuildInteraction(db)
     local interaction = EXUI:BuildStandardPreviewInteraction("Icon", db, INTERACTION_SCHEMA)
-    local x, y = IconBaseAnchor(db)
+    local geometry = GetRowGeometry(db)
     local slot = interaction.slots["core.icon"]
-    slot.positionMode, slot.relativeSlot = "anchor", "core.root"
-    slot.anchor = { point = "CENTER", relativePoint = "CENTER", x = x, y = y }
+    slot.positionMode, slot.relativeSlot = "anchor", "core.label.content"
+    slot.anchor = { point = "RIGHT", relativePoint = "LEFT", x = geometry.iconOffsetX, y = geometry.iconOffsetY }
+    local time = interaction.slots["core.time"]
+    time.positionMode, time.relativeSlot = "anchor", "core.label.content"
+    time.anchor = { point = "LEFT", relativePoint = "RIGHT", x = geometry.timeOffsetX, y = geometry.timeOffsetY }
     return interaction
 end
 local function BuildLayout(db)
@@ -158,49 +188,47 @@ local function BuildLayout(db)
 end
 local function BuildPresentation(record, mode)
     local db, icon = DB(), DB().icon or {}
-    local iconX, iconY = IconBaseAnchor(db)
+    local geometry = GetRowGeometry(db)
     local static = mode ~= "runtime"
-    -- 普通名称可作为原生 DurationTextBinding 的固定前缀。暴雪时间轴的
-    -- Secret 名称不能在 tainted 回调内传给 SetTextFormat，故保留为独立的
-    -- 原生标签；两者都使用同一组固定槽位，绝不测量名称宽度。
+    -- Normal and Secret labels deliberately share the same fixed centre slot.
+    -- Secret text is still passed through the native label path, but it never
+    -- needs to be inspected or measured to position the icon or time text.
     local label = record.text
     if record.textMode ~= "SECRET" then label = label or "" end
-    local isSecret = record.textMode == "SECRET"
-    local prefix = not isSecret and (label ~= "" and (label .. " ") or "") or nil
     local remaining = math.max(0, SafeNum(record.remaining, 5))
     local staticTime = db.showDecimal == false and tostring(math.ceil(remaining)) or string.format("%.1f", remaining)
-    -- Static preview records are normally non-secret.  Keep this branch safe
-    -- as well if a secret record is ever supplied by a future preview caller.
-    local staticText = isSecret and staticTime or (prefix .. staticTime)
-    local cooldown = static and { static = true, remaining = remaining, duration = math.max(remaining, SafeNum(record.duration, 5)), text = staticText }
+    local cooldown = static and { static = true, remaining = remaining, duration = math.max(remaining, SafeNum(record.duration, 5)), text = staticTime }
         or { mode = "DURATION", duration = record.durationObject, clearIfZero = true }
-    local textWidth = math.max(1, SafeNum((db.font_text or {}).fixedWidth, LABEL_WIDTH))
-    local secretTimeWidth = math.max(48, math.min(TIME_WIDTH, math.floor(textWidth * .36)))
-    local secretLabelWidth = math.max(1, textWidth - secretTimeWidth - SIDE_GAP)
     local labelStyle = ApplyEventColor(CopyStyle(db.font_text, 0, 0), record.color)
-    local countdownStyle = ApplyEventColor(CopyStyle(db.font_text, 0, 0), record.color)
-    if isSecret then
-        -- 固定槽位的宽度只来自用户配置，不能也不需要从 Secret 名称读取。
-        labelStyle.autoWidth, labelStyle.fixedWidth, labelStyle.justifyH = false, secretLabelWidth, "LEFT"
-        countdownStyle.autoWidth, countdownStyle.fixedWidth, countdownStyle.justifyH = false, secretTimeWidth, "CENTER"
-    end
+    local countdownStyle = ApplyEventColor(CopyStyle(db.font_time or EX_DEFAULTS.font_time, 0, 0), record.color)
+    -- 不能为名称设置固定 Bounds；其原生内容区域必须保持实际字宽，才能让
+    -- 两侧锚点在 Secret 名称下也由客户端正确更新。
+    labelStyle.autoWidth, labelStyle.unboundedWidth, labelStyle.justifyH = true, true, "CENTER"
+    countdownStyle.autoWidth, countdownStyle.fixedWidth, countdownStyle.justifyH = false, geometry.timeWidth, "CENTER"
     return {
         style = { icon = icon, text = { label = labelStyle, countdown = countdownStyle } },
-        icon = record.icon, label = isSecret and label or "", countdownTextPrefix = prefix, cooldown = cooldown,
-        countdownTextVisible = true, cooldownDone = not static, bodySize = { width = BODY_WIDTH, height = GetRowHeight(db) },
+        icon = record.icon, label = label, cooldown = cooldown,
+        countdownTextVisible = true, cooldownDone = not static,
+        bodySize = { width = BODY_WIDTH, height = GetRowHeight(db) },
         declaredBounds = { left = -BODY_WIDTH * .5, right = BODY_WIDTH * .5, bottom = -GetRowHeight(db) * .5, top = GetRowHeight(db) * .5 },
+        -- 名称锚点可携带 Secret 几何；保留已经建立的边框视觉，但禁止
+        -- Backdrop 在之后读取该 Secret 尺寸并重算九宫格坐标。
+        suppressIconBorderGeometry = true,
+        -- label/time 被提升为 IconWidget 外的同级控件，才能让图标安全地
+        -- 锚定名称的真实 FontString 边缘而不形成父子锚点环。
+        detachedCoreSlots = { label = true, time = true },
         coreLayout = {
-            icon = { anchor = { point = "CENTER", relativeElement = "core.root", relativePoint = "CENTER", x = iconX, y = iconY } },
-            time = {
-                bounds = { width = isSecret and secretTimeWidth or textWidth, height = GetRowHeight(db) },
-                anchor = isSecret
-                    and { point = "LEFT", relativeElement = "core.label", relativePoint = "RIGHT", x = SIDE_GAP, y = 0 }
-                    or { point = "LEFT", relativeElement = "core.icon", relativePoint = "RIGHT", x = SIDE_GAP, y = 0 },
+            label = {
+                clearBounds = true,
+                anchor = { point = "CENTER", relativeElement = "core.root", relativePoint = "CENTER", x = 0, y = 0 },
             },
-            label = isSecret and {
-                bounds = { width = secretLabelWidth, height = GetRowHeight(db) },
-                anchor = { point = "LEFT", relativeElement = "core.icon", relativePoint = "RIGHT", x = SIDE_GAP, y = 0 },
-            } or nil,
+            icon = {
+                anchor = { point = "RIGHT", relativeElement = "core.label.content", relativePoint = "LEFT", x = geometry.iconOffsetX, y = geometry.iconOffsetY },
+            },
+            time = {
+                bounds = { width = geometry.timeWidth, height = GetRowHeight(db) },
+                anchor = { point = "LEFT", relativeElement = "core.label.content", relativePoint = "RIGHT", x = geometry.timeOffsetX, y = geometry.timeOffsetY },
+            },
         },
         interaction = BuildInteraction(db), runtimeTooltip = (not static and record.spellID) and { spellID = record.spellID } or nil,
     }
@@ -292,7 +320,7 @@ local function BuildPanelPresentation(_, mode)
 end
 local function EnsurePanelSurface()
     if not panelSurface then panelSurface = EXUI:CreateStandardPreviewSurface({ moduleKey = MODULE_KEY, kind = "icon", buildPresentation = BuildPanelPresentation,
-        interactionSchema = INTERACTION_SCHEMA }) end
+        interactionSchema = INTERACTION_SCHEMA, requiredPositionGuiKeys = { "icon", "font_time" } }) end
     return panelSurface
 end
 local function ResizePanelDock()

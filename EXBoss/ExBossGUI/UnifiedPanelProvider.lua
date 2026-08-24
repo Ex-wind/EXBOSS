@@ -47,7 +47,10 @@ function Provider:ApplyRoute(route)
     -- Unified Shell 是 EXBoss 的默认入口；日志提示必须在这里触发，而不是只留在旧独立面板路径。
     if C_Timer and C_Timer.After then
         C_Timer.After(0.05, function()
-            if BossPanel._frame and BossPanel._frame:IsShown() and ExBoss.HandleChangelogPopupOnUIOpen then
+            -- 以共享 Shell 的当前 Provider 为准。BossPanel._frame 是内容 root，
+            -- 在切页/刷新期间可能暂时不处于 IsShown 状态，不能据此跳过日志检查。
+            if Shell.Frame and Shell.Frame:IsShown() and Shell.ActiveProvider == "boss"
+                and ExBoss.HandleChangelogPopupOnUIOpen then
                 ExBoss:HandleChangelogPopupOnUIOpen()
             end
         end)

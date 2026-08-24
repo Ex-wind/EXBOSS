@@ -69,8 +69,9 @@ local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["屏幕倒计时"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 64, label = L["模块通用设置"], opts = COMMON_OPTS },
     { key = "anchor", type = "anchorgroup", x = 1, y = 77, w = 200, h = 25, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 105, w = 200, h = 50, label = L["图标外观"], opts = { hidePositionControls = true } },
+    { key = "icon", type = "icongroup", x = 1, y = 105, w = 200, h = 50, label = L["图标外观"] },
     { key = "font_text", type = "fontgroup", x = 1, y = 158, w = 200, h = 50, label = L["提示文字"], labelSize = 20 },
+    { key = "font_time", type = "fontgroup", x = 1, y = 211, w = 200, h = 50, label = L["倒计时数字"], labelSize = 20 },
 }
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)

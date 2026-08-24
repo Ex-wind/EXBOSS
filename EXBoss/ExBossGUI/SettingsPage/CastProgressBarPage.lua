@@ -51,6 +51,7 @@ local COMMON_OPTS = {
     poolType = "CastProgressBarModuleCommonSettingsGroup",
     fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = {
+        { path = "enabled", type = "checkbox", label = L["启用"], row = 1 },
         { path = "layout.direction", type = "dropdown", label = L["增长方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } }, row = 1 },
         { path = "layout.maxVisible", type = "slider", label = L["最大显示"], min = 1, max = 5, step = 1, row = 1 },
         { path = "layout.spacing", type = "slider", label = L["条目间距"], min = -24, max = 24, step = 1, row = 1 },

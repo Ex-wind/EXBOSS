@@ -66,6 +66,18 @@ local function ResolveLocalizedName(metadata, fallback)
     return metadata.enUS or metadata.nameEN or metadata.name or fallback
 end
 
+local function FindSourceEntry(sourceName, idField, id)
+    local database = rawget(_G, "EXDB")
+    local source = database and database[sourceName]
+    if type(source) ~= "table" then return nil end
+    for _, entry in ipairs(source) do
+        if type(entry) == "table" and tonumber(entry[idField]) == id then
+            return entry
+        end
+    end
+    return nil
+end
+
 local function ResolveSpellToken(idText)
     local spellID = tonumber(idText)
     if not spellID then return "%s:" .. tostring(idText or "") end
@@ -78,25 +90,25 @@ end
 
 local function ResolveInstanceToken(idText)
     local mapID = tonumber(idText)
-    local database = ExwindTools and ExwindTools.DB_Static
-    if not mapID or not database then return "%i:" .. tostring(idText or "") end
-    return string.format("|cffffb84d%s|r", ResolveLocalizedName(database:GetInstanceNoteMetaByMapID(mapID), "%i:" .. idText))
+    if not mapID then return "%i:" .. tostring(idText or "") end
+    local entry = FindSourceEntry("InstanceNoteInstanceSource", "mapID", mapID)
+    return string.format("|cffffb84d%s|r", ResolveLocalizedName(entry, "%i:" .. idText))
 end
 
 local function ResolveEncounterToken(idText)
     local encounterID = tonumber(idText)
-    local database = ExwindTools and ExwindTools.DB_Static
-    if not encounterID or not database then return "%e:" .. tostring(idText or "") end
-    return string.format("|cffffb84d%s|r", ResolveLocalizedName(database:GetEncounterNoteMeta(encounterID), "%e:" .. idText))
+    if not encounterID then return "%e:" .. tostring(idText or "") end
+    local entry = FindSourceEntry("InstanceNoteEncounterSource", "encounterID", encounterID)
+    return string.format("|cffffb84d%s|r", ResolveLocalizedName(entry, "%e:" .. idText))
 end
 
 local function ResolveNPCToken(idText)
     local npcID = tonumber(idText)
     if not npcID then return "%n:" .. tostring(idText or "") end
-    local entries = rawget(_G, "EXBOSS_TRASH_CD_LOCALE")
-    local entry = entries and entries[npcID]
-    local name = entry and (entry[GetChangelogLocale()] or entry.enUS or entry.zhCN)
-    return name and string.format("|cffffb84d%s|r", name) or ("%n:" .. idText)
+    local database = rawget(_G, "EXDB")
+    local source = database and database.NPCNameSource
+    local entry = type(source) == "table" and source[npcID] or nil
+    return string.format("|cffffb84d%s|r", ResolveLocalizedName(entry, "%n:" .. idText))
 end
 
 local function TransformLine(line)
