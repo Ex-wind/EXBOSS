@@ -8,59 +8,59 @@ local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI or _G.ExwindToolsUI
 if not EXUI then return end
-local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, k) return k end })
+local L                           = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, k) return k end })
 
 ExBoss.UI.Panel.GlobalTrashCDPage = ExBoss.UI.Panel.GlobalTrashCDPage or {}
-local Page = ExBoss.UI.Panel.GlobalTrashCDPage
+local Page                        = ExBoss.UI.Panel.GlobalTrashCDPage
 
 -- 仅用于 Grid 的页面事件；TrashCD 设置的唯一持久 owner 是 Store 的
 -- Factory -> Author -> User 链路，不能再把页面草稿放进 ModuleDB。
-local EDITOR_KEY     = "ExBoss.TrashCD.Settings.Editor"
-local BASE_GRID_COLS = 200
-local TARGET_CELL_PX = 18
-local LAYOUT_CACHE   = {}
-local standardPreview = nil
+local EDITOR_KEY                  = "ExBoss.TrashCD.Settings.Editor"
+local BASE_GRID_COLS              = 200
+local TARGET_CELL_PX              = 18
+local LAYOUT_CACHE                = {}
+local standardPreview             = nil
 local ToggleScreenNameplatePreview
 local StopScreenNameplatePreview
 
-Page._editorDraft = Page._editorDraft or nil
-Page._editorActive = false
-Page._editorRevision = Page._editorRevision or 0
+Page._editorDraft                 = Page._editorDraft or nil
+Page._editorActive                = false
+Page._editorRevision              = Page._editorRevision or 0
 
 -- =============================================================
 -- 默认值
 -- =============================================================
-local DEFAULTS = {
-    hideLongTimerBarEnabled      = false,
-    hideLongTimerBarSeconds      = 0,
+local DEFAULTS                    = {
+    hideLongTimerBarEnabled       = false,
+    hideLongTimerBarSeconds       = 0,
     hideNameplateIconAboveSeconds = 0,
     keepTimerBarAfterReadyEnabled = true,
     keepTimerBarAfterReadySeconds = 10,
-    nameplateGrowthSide          = "left",
-    nameplateIcon = {
-        borderColorA  = 1,
-        borderColorB  = 0,
-        borderColorG  = 0,
-        borderColorR  = 0,
-        borderPadding = 0,
-        borderSize    = 1,
-        borderTexture = "EX_WhiteBorder",
-        height        = 26,
-        reverse       = false,
-        showBorder    = true,
-        showIcon      = true,
-        spacing       = 2,
+    nameplateGrowthSide           = "left",
+    nameplateIcon                 = {
+        borderColorA       = 1,
+        borderColorB       = 0,
+        borderColorG       = 0,
+        borderColorR       = 0,
+        borderPadding      = 0,
+        borderSize         = 1,
+        borderTexture      = "EX_WhiteBorder",
+        height             = 26,
+        reverse            = false,
+        showBorder         = true,
+        showIcon           = true,
+        spacing            = 2,
         readyBorderEnabled = true,
         readyBorderColorR  = 0.20,
         readyBorderColorG  = 0.85,
         readyBorderColorB  = 0.20,
         readyBorderColorA  = 1,
-        width         = 26,
-        x             = 6,
-        y             = 0,
+        width              = 26,
+        x                  = 6,
+        y                  = 0,
     },
-    nameplateIconStrata          = "DIALOG",
-    nameplateIconText = {
+    nameplateIconStrata           = "DIALOG",
+    nameplateIconText             = {
         a       = 1,
         b       = 1,
         font    = "",
@@ -84,47 +84,74 @@ local NAMEPLATE_GROWTH_SIDE_ITEMS = {
 }
 
 local NAMEPLATE_ICON_STRATA_ITEMS = {
-    { "BACKGROUND", "BACKGROUND" },
-    { "LOW", "LOW" },
-    { "MEDIUM", "MEDIUM" },
-    { "HIGH", "HIGH" },
-    { "DIALOG", "DIALOG" },
-    { "FULLSCREEN", "FULLSCREEN" },
+    { "BACKGROUND",        "BACKGROUND" },
+    { "LOW",               "LOW" },
+    { "MEDIUM",            "MEDIUM" },
+    { "HIGH",              "HIGH" },
+    { "DIALOG",            "DIALOG" },
+    { "FULLSCREEN",        "FULLSCREEN" },
     { "FULLSCREEN_DIALOG", "FULLSCREEN_DIALOG" },
-    { "TOOLTIP", "TOOLTIP" },
+    { "TOOLTIP",           "TOOLTIP" },
 }
 
 -- =============================================================
 -- 布局
 -- =============================================================
-local LAYOUT = {
-    { key = "header_main",      type = "header",   x = 1,  y = 1,  w = 200, h = 6,  label = L["小怪内置CD姓名版图标"], labelSize = 22 },
+local LAYOUT                      = {
+    { key = "header_main", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["小怪内置CD姓名版图标"], labelSize = 22 },
     {
-      key = "nameplateIcon",
-      type = "icongroup",
-      x = 1,
-      y = 11,
-      w = 200,
-      h = 50,
-      label = L["图标位置与外观"],
-      -- Spell icons are selected by the TrashCD business rows.  This appearance
-      -- page must never expose a global iconID that could replace those spells.
-      opts = { enableOffset = true, hideIconID = true }
+        key = "nameplateIcon",
+        type = "icongroup",
+        x = 1,
+        y = 11,
+        w = 200,
+        h = 50,
+        label = L["图标位置与外观"],
+        opts = { enableOffset = true, hideIconID = true }
     },
 
     -- IconGroup never implemented enableSpacing.  Keep this as a real field
     -- under nameplateIcon, with its own lifecycle below, so the value reaches
     -- the same runtime and panel positioning formula.
-    { key = "nameplateIconSpacing", subKey = "spacing", parentKey = "nameplateIcon", type = "slider", x = 1, y = 63, w = 96, h = 5,
-      min = 0, max = 50, step = 1, label = L["图标间距"], labelPos = "top" },
-    { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 63, w = 96, h = 5, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" },
-    { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 69, w = 96, h = 5, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" },
-    { key = "hideNameplateIconAboveSeconds", type = "input", x = 103, y = 69, w = 96, h = 5,
-      label = L["隐藏剩余超过 X 秒的图标（0=关闭）"], labelPos = "top" },
-    { key = "screenNameplatePreview", type = "button", x = 1, y = 75, w = 200, h = 5,
-      label = L["屏幕敌方姓名版预览 开/关"], func = function() ToggleScreenNameplatePreview() end },
+    {
+        key = "nameplateIconSpacing",
+        subKey = "spacing",
+        parentKey = "nameplateIcon",
+        type = "slider",
+        x = 1,
+        y = 65,
+        w = 96,
+        h = 5, -- 调整 y：63 → 65
+        min = 0,
+        max = 50,
+        step = 1,
+        label = L["图标间距"],
+        labelPos = "top"
+    },
+    { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 65, w = 96, h = 5, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" }, -- 调整 y：63 → 65
+    { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 75, w = 96, h = 5, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" }, -- 调整 y：69 → 75
+    {
+        key = "hideNameplateIconAboveSeconds",
+        type = "input",
+        x = 103,
+        y = 75,
+        w = 96,
+        h = 5, -- 调整 y：69 → 75
+        label = L["隐藏剩余超过 X 秒的图标（0=关闭）"],
+        labelPos = "top"
+    },
+    {
+        key = "screenNameplatePreview",
+        type = "button",
+        x = 1,
+        y = 84,
+        w = 200,
+        h = 5, -- 调整 y：75 → 84
+        label = L["屏幕敌方姓名版预览 开/关"],
+        func = function() ToggleScreenNameplatePreview() end
+    },
 
-    { key = "nameplateIconText", type = "fontgroup",  x = 1, y = 82, w = 200, h = 50, label = L["倒数时间文本"] },
+    { key = "nameplateIconText", type = "fontgroup", x = 1, y = 91, w = 200, h = 50, label = L["倒数时间文本"] }, -- 调整 y：82 → 91
 }
 
 -- =============================================================
@@ -270,12 +297,20 @@ end
 -- 业务/结构的字段误当作 panel 的轻量视觉更新。
 local LIVE_SLIDER_FIELDS = {
     nameplateIcon = {
-        width = true, height = true, x = true, y = true,
-        borderSize = true, borderPadding = true, spacing = true,
+        width = true,
+        height = true,
+        x = true,
+        y = true,
+        borderSize = true,
+        borderPadding = true,
+        spacing = true,
     },
     nameplateIconText = {
-        size = true, x = true, y = true,
-        shadowX = true, shadowY = true,
+        size = true,
+        x = true,
+        y = true,
+        shadowX = true,
+        shadowY = true,
     },
 }
 
@@ -461,9 +496,9 @@ function Page:Render(contentFrame)
         sc:SetHeight(1)
         sf:SetScrollChild(sc)
         Page._scrollFrame = sf
-        Page._scrollChild  = sc
+        Page._scrollChild = sc
 
-        local dock = CreateFrame("Frame", "ExBoss_TrashCDNameplatePreviewDock", contentFrame, "BackdropTemplate")
+        local dock        = CreateFrame("Frame", "ExBoss_TrashCDNameplatePreviewDock", contentFrame, "BackdropTemplate")
         dock:SetHeight(160)
         dock:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
         dock:SetBackdropBorderColor(0.20, 0.62, 0.90, 0.45)
@@ -497,8 +532,8 @@ function Page:Render(contentFrame)
 
     sf:SetParent(contentFrame)
     sf:ClearAllPoints()
-    sf:SetPoint("TOPLEFT",     dock, "BOTTOMLEFT", 0, -6)
-    sf:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24,  4)
+    sf:SetPoint("TOPLEFT", dock, "BOTTOMLEFT", 0, -6)
+    sf:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24, 4)
     sf:SetVerticalScroll(0)
     sf:Show()
 
@@ -518,8 +553,8 @@ function Page:Render(contentFrame)
         sc:SetPoint("TOPLEFT", 0, 0)
         sc:Show()
         if ExwindTools.UI then
-            ExwindTools.UI.ActivePageFrame  = sc
-            ExwindTools.UI.CurrentModule    = EDITOR_KEY
+            ExwindTools.UI.ActivePageFrame = sc
+            ExwindTools.UI.CurrentModule   = EDITOR_KEY
         end
         RefreshPanelPreview()
         local cols = ResolveGridCols(sc:GetWidth())
