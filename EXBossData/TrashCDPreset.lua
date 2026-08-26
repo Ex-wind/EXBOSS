@@ -463,24 +463,6 @@ _G.EXBOSS_TRASH_CD_PRESET = {
                 voice1Label = "躲头",
                 remark = "",
             },
-            [1297763] = {
-                enabled = nil,
-                showBunBar = nil,
-                showTimerBar = nil,
-                showNameplate = nil,
-                ringEnabled = nil,
-                bossStages = "",
-                customName = "",
-                countdownText = "",
-                countdownEnabled = nil,
-                castProgressBarEnabled = nil,
-                castProgressBarRenameEnabled = nil,
-                castProgressBarRenameText = "",
-                timerBarName = "",
-                voice1Enabled = nil,
-                voice1Label = "",
-                remark = "",
-            },
         },
         [137969] = {
             [271555] = {
@@ -2622,7 +2604,7 @@ _G.EXBOSS_TRASH_CD_PRESET = {
 }
 
 _G.EXBossData = _G.EXBossData or {}
-_G.EXBOSS_TRASH_CD_PRESET_SOURCE_CONTRACT = { ["algorithm"] = "sha256", ["scope"] = { ["dataMapIDs"] = { 249, 250, 399, 584, 585, 586, 587, 588 }, ["season"] = "12.1 S2" }, ["sha256"] = "bf435e5dbb807a4faf6b6c6db93581e9a7fa12f2bc8b2f88e28bf09db2aace94", ["version"] = 1 }
+_G.EXBOSS_TRASH_CD_PRESET_SOURCE_CONTRACT = { ["algorithm"] = "sha256", ["scope"] = { ["dataMapIDs"] = { 249, 250, 399, 584, 585, 586, 587, 588 }, ["season"] = "12.1 S2" }, ["sha256"] = "7a347d22ac6f25caccaf0fdddc9eb65f8164076f56542fb564749ce7334eec4b", ["version"] = 1 }
 function _G.EXBossData.GetTrashCDPresetSourceContract()
     return _G.EXBOSS_TRASH_CD_PRESET_SOURCE_CONTRACT
 end

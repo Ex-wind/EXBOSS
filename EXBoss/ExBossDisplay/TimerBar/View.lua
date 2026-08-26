@@ -890,8 +890,9 @@ local function BuildTimerBarPresentation(timer, priority, now)
         },
         icon = { value = icon },
         label = name or "???",
-        -- 运行/编辑/面板都直接写同一个 TimerBarWidget 内建 TimeText；不再创建 preview TextWidget。
-        time = { text = FormatTime(remaining), shown = true },
+        -- 计时到点时条体仍留在时间轴上，但不能留下 "0.0" 时间文字。
+        -- nil 会让 Collection 清空并隐藏内建 TimeText，不影响本体、图标或进度条。
+        time = remaining > 0 and { text = FormatTime(remaining), shown = true } or nil,
         progress = { value = progressValue, maximum = progressMaximum },
         regionElements = regionElements,
         interaction = BuildStandardTimerBarInteraction(db),

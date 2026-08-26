@@ -1586,8 +1586,11 @@ local function ApplyPlacement(node, targetX, targetY, remaining, introKind, isQu
     if node.NameText then
         node.NameText:SetShown(cfg.showName)
     end
+    -- 实战条到达时间轴终点后仍可等待施放/调度清理；只隐藏时间文字，
+    -- 节点本体、图标与其他视觉状态保持正常显示。
+    local showTimeText = cfg.showTimer and remaining > 0
     if node.TimeText then
-        node.TimeText:SetShown(cfg.showTimer)
+        node.TimeText:SetShown(showTimeText)
     end
     if node.TimeBG then
         node.TimeBG:SetShown(false)
@@ -1607,7 +1610,7 @@ local function ApplyPlacement(node, targetX, targetY, remaining, introKind, isQu
         node:SetScale(1)
         node:Show()
     end
-    if updateText and node.TimeText and node.TimeText:IsShown() then
+    if updateText and showTimeText and node.TimeText then
         local txt = FormatTime(remaining)
         local db = DB()
         local timeFont = (type(db.font_timer) == "table") and db.font_timer or DEFAULT_FONT_TIME
