@@ -45,12 +45,22 @@ local function CloneRuleList(rows)
     return out
 end
 
+local function NormalizeOptionalBoolean(value)
+    if type(value) == "boolean" then
+        return value
+    end
+    return nil
+end
+
 local function NormalizeLayer1Rule(rule)
     rule = type(rule) == "table" and rule or {}
     return {
         level = rule.level,
         power = rule.power,
         nonElite = rule.nonElite == true,
+        isLieutenant = NormalizeOptionalBoolean(rule.isLieutenant),
+        hasCreatureFamily = NormalizeOptionalBoolean(rule.hasCreatureFamily),
+        coPresenceNPCIDs = type(rule.coPresenceNPCIDs) == "table" and rule.coPresenceNPCIDs or nil,
         hasCastSpell = rule.hasCastSpell == true,
         hasChannelSpell = rule.hasChannelSpell == true,
         cannotInterrupt = rule.cannotInterrupt == true,

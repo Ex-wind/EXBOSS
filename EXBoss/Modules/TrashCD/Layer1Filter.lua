@@ -107,6 +107,8 @@ function Mod.HasPrimaryIdentityData(row)
     end
     if row.power ~= nil and row.power ~= "" then return true end
     if row.nonElite == true then return true end
+    if type(row.isLieutenant) == "boolean" then return true end
+    if type(row.hasCreatureFamily) == "boolean" then return true end
     return false
 end
 
@@ -425,6 +427,26 @@ function Mod.MatchRow(row, obs, runtime, dungeonMapID, options)
         return false, 0, 0, "classification missing for elite row"
     end
 
+    local function checkBoolean(templateValue, observedValue)
+        if type(templateValue) ~= "boolean" then
+            return true
+        end
+        strength = strength + 1
+        if type(observedValue) ~= "boolean" then
+            return true
+        end
+        if templateValue == observedValue then
+            score = score + 1
+            return true
+        end
+        return false, string.format("db=%s obs=%s", tostring(templateValue), tostring(observedValue))
+    end
+
+    ok, reason = checkBoolean(row.isLieutenant, obs.isLieutenant)
+    if not ok then return false, 0, 0, "lieutenant " .. tostring(reason) end
+    ok, reason = checkBoolean(row.hasCreatureFamily, obs.hasCreatureFamily)
+    if not ok then return false, 0, 0, "creature-family " .. tostring(reason) end
+
     local cdSupportsCast = nil
     local cdSupportsChannel = nil
 
@@ -502,6 +524,7 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
                 name = tostring(t.name or "?"),
                 score = score,
                 strength = strength,
+                coPresenceNPCIDs = matchRow.coPresenceNPCIDs,
                 row = t,
             }
         end

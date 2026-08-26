@@ -12,6 +12,7 @@ local Data = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
 local Layer1 = ExBoss.TrashCD and ExBoss.TrashCD.Layer1Filter or nil
 local Layer2 = ExBoss.TrashCD and ExBoss.TrashCD.Layer2Filter or nil
 local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
+local CoPresence = ExBoss.TrashCD and ExBoss.TrashCD.CoPresence or nil
 
 local function NormalizeNameKey(name)
     if Data and type(Data.NormalizeNameKey) == "function" then
@@ -39,6 +40,13 @@ function Mod.ApplyLayer2Candidates(candidates, obs, runtime, mapID, now)
     return candidates
 end
 
+function Mod.ApplyCoPresenceCandidates(candidates, runtime, mapID)
+    if CoPresence and type(CoPresence.FilterCandidates) == "function" then
+        return CoPresence.FilterCandidates(candidates, runtime, mapID)
+    end
+    return candidates, false
+end
+
 function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now)
     -- 先保留阶段、地图、等级等可信 L1 条件，单独跳过数量池。
     -- bossCounts 只能缩小预览候选，不能制造可锁身份。
@@ -46,6 +54,10 @@ function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now
         ignoreBossCounts = true,
     })
     local layer1Candidates = Mod.BuildLayer1Candidates(obs, currentDungeonKey, rows, mapID, runtime)
+    local trustedCoPresenceApplied = false
+    trustedLayer1Candidates, trustedCoPresenceApplied = Mod.ApplyCoPresenceCandidates(trustedLayer1Candidates, runtime, mapID)
+    local coPresenceApplied = false
+    layer1Candidates, coPresenceApplied = Mod.ApplyCoPresenceCandidates(layer1Candidates, runtime, mapID)
     local layer2Candidates = Mod.ApplyLayer2Candidates(layer1Candidates, obs, runtime, mapID, now)
     local resolved = type(layer2Candidates) == "table" and #layer2Candidates == 1 and layer2Candidates[1] or nil
     -- 可信 L1（不含 bossCounts）本身唯一可锁；bossCounts 造成的唯一仍只是预览。
@@ -62,7 +74,7 @@ function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now
     local resolutionSource = nil
     if resolved then
         if trustedL1Resolved then
-            resolutionSource = "layer1-unique"
+            resolutionSource = trustedCoPresenceApplied and "layer1-co-presence" or "layer1-unique"
         elseif layer2Resolved then
             resolutionSource = "layer2-evidence"
         else
@@ -85,5 +97,6 @@ function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now
         resolved = resolved,
         resolutionSource = resolutionSource,
         identityLockEligible = identityLockEligible,
+        coPresenceApplied = coPresenceApplied == true or trustedCoPresenceApplied == true,
     }
 end

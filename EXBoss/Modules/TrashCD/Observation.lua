@@ -25,6 +25,27 @@ local function IsNameplateInCombat(unit, refresh)
     return false
 end
 
+local function GetUnitIsLieutenant(unit)
+    if type(UnitIsLieutenant) ~= "function" then
+        return nil
+    end
+    local result = UnitIsLieutenant(unit)
+    if type(result) == "boolean" then
+        return result
+    end
+    return nil
+end
+
+local function GetUnitHasCreatureFamily(unit)
+    if type(UnitCreatureFamily) ~= "function" then
+        return nil
+    end
+    -- UnitCreatureFamily's returned name and ID are secret under unit identity
+    -- restrictions. Do not retain, format, compare, or otherwise inspect the
+    -- return; the nil-presence predicate is the only permitted L1 signal.
+    return UnitCreatureFamily(unit) ~= nil
+end
+
 local function RequestRuntimeRefresh(runtime, reason)
     if type(runtime) ~= "table" then
         return
@@ -549,6 +570,8 @@ function Mod.CollectObservedUnit(unit)
         level = lv,
         power = pw,
         unitClassification = uc,
+        isLieutenant = GetUnitIsLieutenant(unit),
+        hasCreatureFamily = GetUnitHasCreatureFamily(unit),
         inCombat = inCombat,
         preCombatChanneling = preCombatChanneling,
     }

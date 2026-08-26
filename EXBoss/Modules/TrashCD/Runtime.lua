@@ -20,6 +20,7 @@ local NameplateMarker = ExBoss.TrashCD and ExBoss.TrashCD.NameplateMarker or nil
 local TrashCache = ExBoss.TrashCD and ExBoss.TrashCD.TrashCache or nil
 local State = ExBoss.TrashCD and ExBoss.TrashCD.State or nil
 local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
+local CoPresence = ExBoss.TrashCD and ExBoss.TrashCD.CoPresence or nil
 local HealthThreshold = ExBoss.Modules and ExBoss.Modules.Boss and ExBoss.Modules.Boss.HealthThreshold or nil
 
 local MAX_NAMEPLATES = 40
@@ -686,6 +687,9 @@ local function ClearRuntimeIdentityLock(runtime)
     if type(runtime) ~= "table" then
         return
     end
+    if CoPresence and type(CoPresence.UnregisterRuntime) == "function" then
+        CoPresence.UnregisterRuntime(runtime)
+    end
     runtime.identityLockedNPCID = nil
     runtime.identityLockedMapID = nil
     runtime.identityLockedAt = nil
@@ -763,6 +767,9 @@ end
 local function UntrackNameplate(unit)
     RemoveThreatRefreshesForUnit(unit)
     local runtime = GetRuntimeObs(unit)
+    if CoPresence and type(CoPresence.UnregisterRuntime) == "function" then
+        CoPresence.UnregisterRuntime(runtime)
+    end
     local keepPending = false
     if State and type(State.OnNameplateRemoved) == "function" then
         State.OnNameplateRemoved(unit)
@@ -938,6 +945,21 @@ function Mod:RefreshUnitMarker(unit)
     UpdateUnitNameplate(unit, resolved, runtime)
 end
 
+function Mod:RefreshUnresolvedNameplatesForCoPresence(mapID, sourceUnit)
+    if self._running ~= true or not tonumber(mapID) then
+        return
+    end
+    for i = 1, MAX_NAMEPLATES do
+        local unit = "nameplate" .. i
+        if unit ~= sourceUnit and IsHostileNameplate(unit) then
+            local runtime = GetRuntimeObs(unit)
+            if type(runtime) == "table" and not tonumber(runtime.identityLockedNPCID) then
+                self:ScheduleUnitRefresh(unit, 0.01, "co-presence-lock", true)
+            end
+        end
+    end
+end
+
 function Mod:RefreshUnit(unit, reason, forceSnapshot)
     unit = NormalizeNameplateUnit(unit)
     if not unit then
@@ -996,6 +1018,11 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
     local runtime = GetRuntimeObs(unit)
     local result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
     local resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
+    local coPresenceJustRegistered = false
+    if runtime and tonumber(runtime.identityLockedNPCID)
+        and CoPresence and type(CoPresence.MarkRuntimeLocked) == "function" then
+        coPresenceJustRegistered = CoPresence.MarkRuntimeLocked(runtime, trashMapID, runtime.identityLockedNPCID) == true
+    end
     -- 预览候选不能占用 bossCounts 名额；只有已经上锁的真实身份才写 Population。
     if runtime and tonumber(runtime.identityLockedNPCID)
         and resolved and Population and type(Population.MarkResolved) == "function" then
@@ -1116,6 +1143,10 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
     if identityJustLocked and runtime and runtime.activeCastStartAt
         and Output and type(Output.PlayRuntimeCastStartVoice) == "function" then
         Output.PlayRuntimeCastStartVoice(runtime, runtime.activeCastKind)
+    end
+
+    if coPresenceJustRegistered then
+        self:RefreshUnresolvedNameplatesForCoPresence(trashMapID, unit)
     end
 
     local displayResolved = resolved
@@ -1239,6 +1270,9 @@ function Mod:Stop()
     end
     if TrashCache and type(TrashCache.Reset) == "function" then
         TrashCache.Reset()
+    end
+    if CoPresence and type(CoPresence.Reset) == "function" then
+        CoPresence.Reset()
     end
     if State and type(State.Reset) == "function" then
         State.Reset()
