@@ -708,15 +708,6 @@ _G.EXBOSS_TRASH_CD_DATA = {
                 npcID = 190206,
                 name = "灰烬先知烈焰鞭笞者",
                 spells = {
-                    [373972] = {
-                        spellID = 373972,
-                        name = "荣耀烈焰",
-                        nameEN = "",
-                        castTime = nil,
-                        channelTime = 15,
-                        first = nil,
-                        cd = nil,
-                    },
                     [385536] = {
                         spellID = 385536,
                         name = "燃焰弹幕",
