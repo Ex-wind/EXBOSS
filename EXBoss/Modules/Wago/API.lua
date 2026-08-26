@@ -105,8 +105,10 @@ function EXBossWagoAPI:ImportProfile(text)
     local ok, result, switched = ImportBundleAndActivate(transfer.bundle)
     if not ok then return false, result end
     -- A v7 bundle restores its appearance and role assignments by default.
-    -- Match the built-in import page so every consumer sees the new selection.
-    if switched and type(ReloadUI) == "function" then ReloadUI() end
+    -- Wago Creator owns the single reload after its whole import batch; this
+    -- API must not interrupt that batch with its own ReloadUI call.
+    -- Direct consumers can use this flag to reload after their own batch.
+    result.reloadRequired = switched == true
     return true, result
 end
 
