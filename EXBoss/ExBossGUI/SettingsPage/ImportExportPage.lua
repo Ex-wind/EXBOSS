@@ -28,7 +28,7 @@ local ROLE_ORDER = { "mplus_tank", "mplus_heal", "mplus_dps", "raid_tank", "raid
 
 local scrollFrame, scrollChild, exportPopup, uiBuilt
 local exportNameInput, exportAppearanceCheck, exportAppearanceDropdown, exportMplusCheck, exportRaidCheck, exportStatus
-local importInputBox, importSummary, importStatus, importAppearanceCheck, importLegacyCheck, importSection, importButton
+local importInputBox, importSummary, importStatus, importAppearanceCheck, importLegacyCheck, importSection, importButton, apiImportButton
 local importRoleChecks, parsedTransfer
 local importNameRows = {}
 
@@ -274,6 +274,10 @@ local function LayoutImportControls()
     end
     if importButton then
         importButton:ClearAllPoints(); importButton:SetPoint("TOPLEFT", 14, y)
+        y = y - 44
+    end
+    if apiImportButton then
+        apiImportButton:ClearAllPoints(); apiImportButton:SetPoint("TOPLEFT", 14, y)
         y = y - 44
     end
     if importStatus then
@@ -569,6 +573,31 @@ local function DoImport()
     SetStatus(importStatus, L["已导入。旧版字符串不会自动切换配置。"], true)
 end
 
+-- This is deliberately separate from the normal import workflow: it calls
+-- the public Wago API with the exact string in the box, so it exposes the
+-- returned failure reason that a third-party wrapper may otherwise swallow.
+local function DoPublicAPIImport()
+    local raw = Trim(importInputBox and importInputBox:GetText() or "")
+    if raw == "" then SetStatus(importStatus, L["请先粘贴导出字符串"], false); return end
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then
+        SetStatus(importStatus, L["战斗中不能导入或切换配置"], false); return
+    end
+    local api = _G.EXBossWagoAPI
+    if type(api) ~= "table" or type(api.ImportProfile) ~= "function" then
+        SetStatus(importStatus, L["Wago API 不可用"], false); return
+    end
+    local ok, result = api:ImportProfile(raw)
+    if not ok then
+        SetStatus(importStatus, L["Wago API 导入失败："] .. tostring(result), false)
+        return
+    end
+    if type(result) == "table" and result.reloadRequired == true then
+        SetStatus(importStatus, L["Wago API 导入成功，正在重载界面"], true)
+        if type(ReloadUI) == "function" then ReloadUI(); return end
+    end
+    SetStatus(importStatus, L["Wago API 导入成功"], true)
+end
+
 local function DefaultExportChecks()
     local _, instanceType = GetInstanceInfo()
     if instanceType == "raid" then return false, true end
@@ -632,6 +661,8 @@ local function EnsureUI(contentFrame)
     end
     importButton = CreateActionButton(importSection, L["执行导入"], DoImport, THEME.Success)
     importButton:SetSize(140, 36); importButton:SetPoint("BOTTOMLEFT", 14, 46)
+    apiImportButton = CreateActionButton(importSection, L["测试：通过 Wago API 导入"], DoPublicAPIImport, THEME.Primary)
+    apiImportButton:SetSize(200, 36); apiImportButton:SetPoint("BOTTOMLEFT", 164, 46)
     importStatus = EXUI:CreateVisualFontString(importSection, EXFONTFRAME, "GameFontHighlightSmall")
     importStatus:SetPoint("BOTTOMLEFT", 14, 16); importStatus:SetPoint("BOTTOMRIGHT", -14, 16); importStatus:SetJustifyH("LEFT"); importStatus:SetTextColor(unpack(THEME.TextSub)); importStatus:SetText("")
 

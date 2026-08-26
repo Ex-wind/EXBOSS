@@ -8,6 +8,28 @@ local PREFIX = "[EXBoss Author] "
 
 local function IE() return ExBoss and ExBoss.Voice and ExBoss.Voice.ImportExport end
 
+local function Trim(value)
+    local text = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    return text ~= "" and text or nil
+end
+
+-- The in-game form asks the user for every imported name. A third-party
+-- button has no such form, so create a stable, readable non-conflicting name
+-- instead of silently failing when the receiving character has a default or
+-- previously imported configuration with the same display name.
+local function UniqueImportedName(preferred, isAvailable, reserved)
+    local base = Trim(preferred) or "Imported Configuration"
+    reserved = reserved or {}
+    local candidate, index = base, 0
+    while reserved[candidate] == true or isAvailable(candidate) ~= true do
+        index = index + 1
+        if index > 10000 then return nil, "could not allocate imported configuration name" end
+        candidate = base .. (index == 1 and " (Imported)" or " (Imported " .. tostring(index) .. ")")
+    end
+    reserved[candidate] = true
+    return candidate
+end
+
 local function SelectAllAssignedSlots(scene)
     local selected = {}
     for slot in pairs(type(scene) == "table" and scene.assignments or {}) do
@@ -16,22 +38,59 @@ local function SelectAllAssignedSlots(scene)
     return selected
 end
 
+local function PairPreferredName(bundleName, scene, pair)
+    local packageName = Trim(bundleName)
+    if packageName then
+        if type(scene) == "table" and #(scene.pairs or {}) > 1 then
+            return packageName .. " - " .. (Trim(pair and pair.author and pair.author.name) or Trim(pair and pair.id) or "Configuration")
+        end
+        return packageName
+    end
+    return Trim(pair and pair.author and pair.author.name) or Trim(pair and pair.id) or "Imported Configuration"
+end
+
+local function AppearancePreferredName(bundle)
+    local appearanceName = Trim(type(bundle) == "table" and bundle.appearance and bundle.appearance.name)
+        or "Imported Appearance"
+    local packageName = Trim(type(bundle) == "table" and bundle.name)
+    return packageName and packageName .. " - " .. appearanceName or appearanceName
+end
+
+local function BuildPairImportNames(bossCfg, category, scene, bundleName)
+    local names, reserved = {}, {}
+    for _, pair in ipairs(type(scene) == "table" and scene.pairs or {}) do
+        local name, reason = UniqueImportedName(PairPreferredName(bundleName, scene, pair), function(candidate)
+            return bossCfg:IsAuthorConfigurationNameAvailable(category, candidate) == true
+        end, reserved)
+        if not name then return nil, reason end
+        names[pair.id] = name
+    end
+    return names
+end
+
 local function ImportBundleAndActivate(bundle)
     local profiles = ExBoss and ExBoss.AppearanceProfiles
     local bossCfg = ExBoss and ExBoss.BossConfig
-    local result = { appearance = false, mplus = nil, raid = nil }
+    local result = { appearance = false, mplus = nil, raid = nil, names = {} }
     local switched = false
 
     if bundle.appearance ~= nil then
         if type(profiles) ~= "table" or type(profiles.ImportProfilePayload) ~= "function"
-            or type(profiles.ActivateProfile) ~= "function" then
+            or type(profiles.ActivateProfile) ~= "function" or type(profiles.IsProfileNameAvailable) ~= "function" then
             return false, "appearance profile import unavailable"
         end
-        local ok, profileID = profiles:ImportProfilePayload(bundle.appearance)
+        local appearanceName, nameReason = UniqueImportedName(AppearancePreferredName(bundle), function(candidate)
+            return profiles:IsProfileNameAvailable(candidate) == true
+        end)
+        if not appearanceName then return false, nameReason end
+        local ok, profileID = profiles:ImportProfilePayload({
+            name = appearanceName,
+            appearance = bundle.appearance.appearance,
+        })
         if not ok then return false, profileID end
         local activated, reason = profiles:ActivateProfile(profileID)
         if not activated then return false, reason end
-        result.appearance, switched = true, true
+        result.appearance, result.names.appearance, switched = true, appearanceName, true
     end
 
     for _, category in ipairs({ "mplus", "raid" }) do
@@ -41,11 +100,14 @@ local function ImportBundleAndActivate(bundle)
                 return false, "Boss configuration import unavailable"
             end
             local selectedSlots = SelectAllAssignedSlots(scene)
+            local namesByPairID, nameReason = BuildPairImportNames(bossCfg, category, scene, bundle.name)
+            if not namesByPairID then return false, nameReason end
             local ok, importResult = bossCfg:ImportSelectedScene(
-                category, scene.pairs, scene.assignments, selectedSlots, {}
+                category, scene.pairs, scene.assignments, selectedSlots, namesByPairID
             )
             if not ok then return false, importResult end
             result[category] = importResult
+            result.names[category] = namesByPairID
             switched = switched or (tonumber(importResult.assignments) or 0) > 0
         end
     end
@@ -55,6 +117,28 @@ local function ImportBundleAndActivate(bundle)
         if not ok then return false, reason end
     end
     return true, result, switched
+end
+
+local function ImportLegacyAndName(ie, profile)
+    local bossCfg = ExBoss and ExBoss.BossConfig
+    if type(bossCfg) ~= "table" or type(bossCfg.IsAuthorConfigurationNameAvailable) ~= "function" then
+        return false, "Boss configuration import unavailable"
+    end
+    local importedName, reason = UniqueImportedName(profile.author and profile.author.name, function(candidate)
+        return bossCfg:IsAuthorConfigurationNameAvailable(profile.category, candidate) == true
+    end)
+    if not importedName then return false, reason end
+    local ok, result = ie:ImportUserConfigurationPayload({
+        version = 6,
+        payloadType = "exboss_author_user_values",
+        profile = profile,
+    }, importedName)
+    if not ok then return false, result end
+    if type(result) == "table" then
+        result.importName = importedName
+        result.reloadRequired = false
+    end
+    return true, result
 end
 
 local function Refs()
@@ -92,11 +176,7 @@ function EXBossWagoAPI:ImportProfile(text)
     local transfer, reason = ie:DecodeTransfer(text)
     if not transfer then return false, reason end
     if transfer.kind == "legacyBoss" then
-        return ie:ImportUserConfigurationPayload({
-            version = 6,
-            payloadType = "exboss_author_user_values",
-            profile = transfer.profile,
-        })
+        return ImportLegacyAndName(ie, transfer.profile)
     end
     if transfer.kind ~= "bundle" or type(transfer.bundle) ~= "table" then
         return false, "unsupported configuration payload"
