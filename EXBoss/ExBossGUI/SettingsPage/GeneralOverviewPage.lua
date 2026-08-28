@@ -32,6 +32,11 @@ local BAR_MODE_OPTIONS = {
     { L["两者都隐藏"], "none" },
 }
 
+local BAR_SOURCE_OPTIONS = {
+    { L["Boss 技能"], "boss" },
+    { L["小怪技能"], "trash" },
+}
+
 local function ReadCVarValue(name)
     local key = tostring(name or "")
     if key == "" then
@@ -107,6 +112,8 @@ end
 local LAYOUT = {
     { key = "header_8111", type = "header", x = 1, y = 4, w = 200, h = 6, label = L["通用设置"], labelSize = 20 },
     { key = "barDisplayMode", type = "dropdown", x = 1, y = 17, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
+    { key = "bunBarSources", type = "multiselect", x = 68, y = 17, w = 63, h = 6, label = L["束状条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
+    { key = "timerBarSources", type = "multiselect", x = 135, y = 17, w = 63, h = 6, label = L["计时条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
     { key = "disableBlizzardEncounterTimeline", type = "checkbox", x = 1, y = 23, w = 76, h = 6, label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
     { key = "disableEXBossInRaid", type = "checkbox", x = 1, y = 30, w = 76, h = 6, label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
     { key = "autoDisableCAAInBoss", type = "checkbox", x = 1, y = 36, w = 76, h = 6, label = L["首领战时自动关闭战斗音频预警"], parentKey = "ui.general" },
@@ -136,6 +143,15 @@ local function NormalizeBarDisplayMode(mode)
     return "bun"
 end
 
+local function EnsureBarSourceSelections(selections)
+    if type(selections) ~= "table" then
+        return { boss = true, trash = true }
+    end
+    selections.boss = (selections.boss == true)
+    selections.trash = (selections.trash == true)
+    return selections
+end
+
 local function EnsureRootDB()
     EXBOSS12S2 = EXBOSS12S2 or {}
     EXBOSS12S2.ui = EXBOSS12S2.ui or {}
@@ -146,6 +162,8 @@ local function EnsureRootDB()
 
     local general = EXBOSS12S2.ui.general
     general.barDisplayMode = NormalizeBarDisplayMode(general.barDisplayMode)
+    general.bunBarSources = EnsureBarSourceSelections(general.bunBarSources)
+    general.timerBarSources = EnsureBarSourceSelections(general.timerBarSources)
     if general.bossAlertsEnabledMplus == nil then
         general.bossAlertsEnabledMplus = true
     else
@@ -372,8 +390,12 @@ end
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
-local function RefreshActiveSurfaces()
+local function RefreshActiveSurfaces(changedPath)
     local rootDB = EnsureRootDB()
+    if changedPath == "ui.general.bunBarSources" or changedPath == "ui.general.timerBarSources" then
+        -- Scheduler 在每个既有分发点读取该选择；不需要也不能重启当前 Boss 时间轴。
+        return
+    end
     local general = rootDB.ui and rootDB.ui.general or {}
     WriteCVarValue("encounterWarningsEnabled", general.encounterWarningsEnabled == true and "1" or "0")
     WriteCVarValue("Sound_EnableEncounterWarningsSounds", general.encounterWarningSoundsEnabled == true and "1" or "2")

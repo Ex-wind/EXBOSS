@@ -70,6 +70,14 @@ local function UnitAffectingCombatSafe(unit)
     return UnitAffectingCombat(unit) == true
 end
 
+-- 生命周期追踪只在 Runtime 调试已开启时直接输出；不参与任何判断。
+local function DebugTrace(msg)
+    local runtime = ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if runtime and type(runtime.AppendExternalDebug) == "function" then
+        runtime.AppendExternalDebug("TrashCD State", msg, true)
+    end
+end
+
 function Mod.Reset()
     wipe(Mod._units)
     Mod._lastCombatLogUnitDiedAt = 0
@@ -114,10 +122,28 @@ function Mod.OnNameplateRemoved(unit)
         return nil
     end
     local now = GetTime()
+    local wasInCombat = row.inCombat == true
     row.active = false
+    -- 姓名板移除由 Runtime 的缓存流程处理，不把它当作“脱战回调”。
+    -- 否则下一次轮询会对已移除的 token 再刷新一次，并可能提前清掉 5 秒恢复缓存。
+    row.inCombat = false
     row.removedAt = now
     row.lastUpdateAt = now
+    DebugTrace(string.format("removed unit=%s wasCombat=%s (no combat-leave callback)",
+        tostring(unit), tostring(wasInCombat)))
     return row
+end
+
+-- State 只检测状态变化；实际刷新、计时建立和清理由 Runtime 接手。
+function Mod.SetCombatStateCallback(callback)
+    Mod._combatStateCallback = type(callback) == "function" and callback or nil
+end
+
+local function NotifyCombatStateChanged(unit, inCombat, row)
+    local callback = Mod._combatStateCallback
+    if type(callback) == "function" then
+        callback(unit, inCombat == true, row)
+    end
 end
 
 function Mod.RefreshUnitCombat(unit, now)
@@ -140,6 +166,7 @@ function Mod.RefreshUnitCombat(unit, now)
     row.lastCombatCheckedAt = now
     row.lastUpdateAt = now
 
+    local combatStateChanged = false
     if exists then
         if row.deadAt ~= nil then
             row.active = false
@@ -147,6 +174,10 @@ function Mod.RefreshUnitCombat(unit, now)
             row.lastSeenAt = now
             if wasInCombat == true then
                 row.lastCombatLeftAt = now
+                combatStateChanged = true
+            end
+            if combatStateChanged then
+                NotifyCombatStateChanged(unit, false, row)
             end
             return false, row
         end
@@ -160,8 +191,10 @@ function Mod.RefreshUnitCombat(unit, now)
         if row.inCombat == true and wasInCombat ~= true then
             row.engagedAt = row.engagedAt or now
             row.lastCombatEnteredAt = now
+            combatStateChanged = true
         elseif row.inCombat ~= true and wasInCombat == true then
             row.lastCombatLeftAt = now
+            combatStateChanged = true
         end
     else
         row.active = false
@@ -171,7 +204,15 @@ function Mod.RefreshUnitCombat(unit, now)
         end
         if wasInCombat == true then
             row.lastCombatLeftAt = now
+            combatStateChanged = true
         end
+    end
+
+    if combatStateChanged then
+        DebugTrace(string.format("combat-transition unit=%s %s->%s active=%s dead=%s",
+            tostring(unit), tostring(wasInCombat), tostring(row.inCombat == true),
+            tostring(row.active == true), tostring(row.deadAt ~= nil)))
+        NotifyCombatStateChanged(unit, row.inCombat == true, row)
     end
 
     return row.inCombat == true, row
@@ -217,8 +258,10 @@ function Mod.OnUnitDead(unit)
     end
     local now = GetTime()
     row.active = false
+    row.inCombat = false
     row.deadAt = now
     row.lastUpdateAt = now
+    DebugTrace(string.format("unit-dead unit=%s", tostring(unit)))
     return row
 end
 

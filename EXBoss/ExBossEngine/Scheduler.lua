@@ -1710,6 +1710,14 @@ local function IsBunBarEnabledByGlobal()
     return mode == "both" or mode == "bun"
 end
 
+local function IsTimerAllowedOnBarBySource(timer, barKind)
+    local policy = ExBoss and ExBoss.DisplayPolicy
+    if policy and type(policy.ShouldShowTimerOnBar) == "function" then
+        return policy.ShouldShowTimerOnBar(timer, barKind) == true
+    end
+    return true
+end
+
 local function IsBossSceneEnabledForCurrentInstance()
     local bossCfg = ExBoss and ExBoss.BossConfig
     if bossCfg and type(bossCfg.IsCurrentSceneEnabled) == "function" then
@@ -5112,14 +5120,18 @@ function Scheduler:_OnUpdate(elapsed)
         end
 
         if action ~= "remove" then
-            if not timer.bunBarShown and timer.showBunBar and IsBunBarEnabledByGlobal() and now >= (timer.castTime - ResolveBunBarLeadTime()) then
+            if not timer.bunBarShown and timer.showBunBar and IsBunBarEnabledByGlobal()
+                and IsTimerAllowedOnBarBySource(timer, "bun")
+                and now >= (timer.castTime - ResolveBunBarLeadTime()) then
                 timer.bunBarShown = true
                 if ExBoss.UI.BunBar and ExBoss.UI.BunBar.AddTimer then
                     ExBoss.UI.BunBar:AddTimer(timer)
                 end
             end
 
-            if not timer.timerBarShown and timer.showTimerBar and IsTimerBarEnabledByGlobal() and ShouldShowTimerBarNow(timer, now) then
+            if not timer.timerBarShown and timer.showTimerBar and IsTimerBarEnabledByGlobal()
+                and IsTimerAllowedOnBarBySource(timer, "timer")
+                and ShouldShowTimerBarNow(timer, now) then
                 timer.timerBarShown = true
                 timer.timerBarDuration = ResolveTimerBarDisplayDuration(timer, now)
                 if ExBoss.UI.TimerBar and ExBoss.UI.TimerBar.AddTimer then

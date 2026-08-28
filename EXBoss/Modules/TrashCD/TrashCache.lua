@@ -6,11 +6,20 @@ ExBoss.TrashCD = ExBoss.TrashCD or {}
 local Mod = ExBoss.TrashCD.TrashCache or {}
 ExBoss.TrashCD.TrashCache = Mod
 local State = ExBoss.TrashCD and ExBoss.TrashCD.State or nil
+local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
 
 local RESTORE_WINDOW = 5.0
 local NEW_COMBAT_BLOCK_WINDOW = 1.0
 local RECENT_DEAD_WINDOW = 1.0
 local MAX_PENDING = 24
+
+-- 仅供排查缓存与预占名额的生命周期；Runtime 未开调试时不会输出。
+local function DebugTrace(msg)
+    local runtime = ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if runtime and type(runtime.AppendExternalDebug) == "function" then
+        runtime.AppendExternalDebug("TrashCD Cache", msg, true)
+    end
+end
 
 Mod._active = Mod._active or {}
 Mod._pending = Mod._pending or {}
@@ -39,12 +48,50 @@ local function NormalizeNameplateUnit(unit)
     return "nameplate" .. index
 end
 
+-- 身份一旦由 L2 锁定，即使脱战时排程资料已清空，也仍是可缓存的有效怪物。
+local function GetRuntimeNPCID(runtime)
+    if type(runtime) ~= "table" then
+        return nil
+    end
+    local lockedNPCID = tonumber(runtime.identityLockedNPCID)
+    if lockedNPCID then
+        return lockedNPCID
+    end
+    -- 同场超时得出的暂定身份不是真实身份，不能进入姓名板恢复缓存。
+    if tonumber(runtime._coPresenceProvisionalNPCID) then
+        return nil
+    end
+    return tonumber(runtime.matchedNPCID)
+end
+
+local function ExpirePendingRecovery(row)
+    if type(row) ~= "table" then
+        return
+    end
+    local runtime = type(row.runtimeRef) == "table" and row.runtimeRef or nil
+    if runtime then
+        runtime._trashCachePendingRecovery = nil
+        -- 缓存已到期且没有恢复：归还活着但失联单位的临时数量预留。
+        -- 已确认死亡的预留由 Population 保持正式消耗，不会归还。
+        local released = false
+        if Population and type(Population.ReleaseRuntimeReservation) == "function" then
+            released = Population.ReleaseRuntimeReservation(runtime, "trash-cache-expired") == true
+        end
+        DebugTrace(string.format("expired sourceUnit=%s npc=%s releasedReservation=%s",
+            tostring(row.sourceUnit or "?"), tostring(row.npcID or "?"), tostring(released)))
+    end
+    if type(row.cancelFn) == "function" and runtime then
+        row.cancelFn(runtime)
+    end
+end
+
 local function CleanupExpired(now)
     now = tonumber(now) or GetTime()
     for i = #Mod._pending, 1, -1 do
         local row = Mod._pending[i]
         if type(row) ~= "table" or now >= (tonumber(row.expiresAt) or 0) then
             table.remove(Mod._pending, i)
+            ExpirePendingRecovery(row)
         end
     end
     for unit, deadAt in pairs(Mod._recentDeadByUnit) do
@@ -58,7 +105,10 @@ local function HasMeaningfulRuntime(runtime)
     if type(runtime) ~= "table" then
         return false
     end
-    if tonumber(runtime.matchedNPCID) then
+    if tonumber(runtime._coPresenceProvisionalNPCID) and not tonumber(runtime.identityLockedNPCID) then
+        return false
+    end
+    if GetRuntimeNPCID(runtime) then
         return true
     end
     if runtime.scheduleInitialized == true or runtime.scheduleSignature ~= nil then
@@ -131,14 +181,17 @@ function Mod.OnUnitDead(unit)
         return
     end
     local now = GetTime()
+    local removedPending = 0
     Mod._recentDeadByUnit[unit] = now
     Mod._active[unit] = nil
     for i = #Mod._pending, 1, -1 do
         local row = Mod._pending[i]
         if type(row) == "table" and tostring(row.sourceUnit or "") == unit then
             table.remove(Mod._pending, i)
+            removedPending = removedPending + 1
         end
     end
+    DebugTrace(string.format("unit-dead unit=%s removedPending=%s", tostring(unit), tostring(removedPending)))
 end
 
 function Mod.OnNameplateRemoved(unit, runtime, cancelFn)
@@ -150,7 +203,7 @@ function Mod.OnNameplateRemoved(unit, runtime, cancelFn)
         local isDead = Mod._recentDeadByUnit[unit] ~= nil
         ExwindTools:SendEvent("EXBOSS_MOB_RESET", {
             unit   = unit,
-            npcID  = tonumber(runtime and runtime.matchedNPCID),
+            npcID  = GetRuntimeNPCID(runtime),
             mapID  = tonumber(runtime and runtime.matchedMapID),
             reason = isDead and "died" or "removed",
         })
@@ -168,7 +221,8 @@ function Mod.OnNameplateRemoved(unit, runtime, cancelFn)
         return false
     end
 
-    local npcID = tonumber(runtime and runtime.matchedNPCID)
+    -- 脱战后 matchedNPCID 可能已被排程清理；身份锁才是这里的权威回退值。
+    local npcID = GetRuntimeNPCID(runtime)
     if not npcID then
         return false
     end
@@ -191,9 +245,11 @@ function Mod.OnNameplateRemoved(unit, runtime, cancelFn)
         activeSpellID = tonumber(runtime.activeSpellID),
         lastSucceededSpellID = tonumber(runtime.lastSucceededSpellID),
         snapshot = snapshot,
+        cancelFn = cancelFn,
     }
     Mod._pending[#Mod._pending + 1] = pendingRow
     runtime._trashCachePendingRecovery = true
+    DebugTrace(string.format("queued sourceUnit=%s npc=%s expiresIn=%.1f", tostring(unit), tostring(npcID), RESTORE_WINDOW))
 
     while #Mod._pending > MAX_PENDING do
         table.remove(Mod._pending, 1)
@@ -203,10 +259,7 @@ function Mod.OnNameplateRemoved(unit, runtime, cancelFn)
             for i = #Mod._pending, 1, -1 do
                 if Mod._pending[i] == pendingRow then
                     table.remove(Mod._pending, i)
-                    runtime._trashCachePendingRecovery = nil
-                    if type(cancelFn) == "function" then
-                        cancelFn(runtime)
-                    end
+                    ExpirePendingRecovery(pendingRow)
                     break
                 end
             end
@@ -291,5 +344,7 @@ function Mod.TryRestoreRuntime(unit, runtime, resolved)
     if scheduler and type(scheduler.RebindTrashRuntime) == "function" and oldRuntime then
         rebound = tonumber(scheduler:RebindTrashRuntime(oldRuntime, runtime)) or 0
     end
+    DebugTrace(string.format("restored unit=%s npc=%s from=%s rebound=%s", tostring(unit), tostring(npcID),
+        tostring(row.sourceUnit or "?"), tostring(rebound)))
     return true
 end

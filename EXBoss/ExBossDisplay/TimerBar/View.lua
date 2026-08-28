@@ -1227,6 +1227,12 @@ function TimerBar:StartExternalTimer(timer)
     if type(timer) ~= "table" or timer.id == nil then
         return false
     end
+    local policy = ExBoss and ExBoss.DisplayPolicy
+    if policy and type(policy.ShouldShowTimerOnBar) == "function"
+        and policy.ShouldShowTimerOnBar(timer, "timer") ~= true then
+        self:StopExternalTimer(timer.id)
+        return false
+    end
     externalTimers[timer.id] = timer
     if activeBars[timer.id] then
         self:RefreshTimer(timer)

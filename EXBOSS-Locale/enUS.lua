@@ -325,6 +325,8 @@ L["姓名版图标位置"] = "Nameplate Icon Position"
 L["模拟姓名版血条"] = "Simulated Nameplate Health Bar"
 L["内置冷却"] = "Built-in Cooldown"
 L["小怪技能"] = "Trash Ability"
+L["Boss 技能"] = "Boss Ability"
+L["计时条显示"] = "Show on Timer Bar"
 
 L["有效血量对比"] = "Effective Health Comparison"
 L["%s断"] = "%s Interrupt"

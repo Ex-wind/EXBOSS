@@ -1848,6 +1848,12 @@ function BunBar:StartExternalTimer(timer)
     if type(timer) ~= "table" or timer.id == nil then
         return false
     end
+    local policy = ExBoss and ExBoss.DisplayPolicy
+    if policy and type(policy.ShouldShowTimerOnBar) == "function"
+        and policy.ShouldShowTimerOnBar(timer, "bun") ~= true then
+        self:StopExternalTimer(timer.id)
+        return false
+    end
     timer._mode = "external"
     if activeNodes[timer.id] then
         ReleaseNode(timer.id)

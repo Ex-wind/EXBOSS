@@ -3,13 +3,39 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.8.25.0013",
+    version = "v26.8.28.0712",
     changelog = {
-        version = "v26.8.25.0013",
-        title = "v26.8.25.0013 更新日志",
-        publishedAt = "2026-08-25 00:13",
+        version = "v26.8.28.0712",
+        title = "v26.8.28.0712 更新日志",
+        publishedAt = "2026-08-28 07:12",
         fontSize = 14,
         content = [[
+@H1@ v26.8.28.0712
+
+@CN@ @H2@ 通用
+@CN@ - 临时修复 %i:1762 的一些小怪问题
+@CN@ - 仍然有一些小怪没修复 我们会在这两天陆续修复
+@CN@ - 怪物数量的预锁定现在会在5秒缓存后释放
+@CN@ - 删除了所有依赖仇恨事件的逻辑 现在依赖怪物战斗的State Transition来做CallBack
+
+@CN@ @H2@ 公告
+@CN@ - 我们注意到了暴雪对一些怪物的判断逻辑进行了改动修复 我们正在针对这些怪物的推理逻辑重做中 预计24小时内修复完成
+
+@CN@ @H2@ WAGO
+@CN@ - 升级了导入API到V7 如果你是配置分享作者
+@CN@ 该使用新的EXBossWagoAPI:ImportProfile()来导入配置 (建议重新生成字符串)
+
+@EN@ @H2@ General
+@EN@ - Temporarily fixed issues affecting some trash mobs in %i:1762. More mobs still need fixes and will be addressed over the next two days.
+@EN@ - Trash-mob count pre-reservations are now released after the 5-second cache expires.
+@EN@ - Removed all threat-event-based logic. Runtime updates now rely on trash combat State Transition callbacks.
+
+@EN@ @H2@ Announcement
+@EN@ - We have noticed that Blizzard changed the identification behavior for certain mobs. We are rebuilding the inference logic for those trash and expect to complete the fixes within 24 hours.
+
+@EN@ @H2@ WAGO
+@EN@ - Updated the import API to V7. If you are a profile-sharing author, use the new EXBossWagoAPI:ImportProfile() to import profiles. Regenerating your export strings is recommended.
+
 @H1@ v26.8.25.0013
 
 @CN@ @H2@ 通用

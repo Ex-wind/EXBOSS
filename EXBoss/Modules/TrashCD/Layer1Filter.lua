@@ -8,6 +8,10 @@ local Mod = ExBoss.TrashCD.Layer1Filter or {}
 ExBoss.TrashCD.Layer1Filter = Mod
 ExBoss.Trash.Layer1Filter = Mod
 
+function Mod.GetLastDebug()
+    return Mod._lastDebug
+end
+
 local Data = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
 local Rules = ExBoss.TrashCD and ExBoss.TrashCD.InferenceRules or nil
 local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
@@ -499,6 +503,17 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
     local normalizedDungeonKey = GetCanonicalDungeonKey(currentDungeonKey, mapID)
     local out = {}
     local dungeonRows = GetDungeonRows(rows, normalizedDungeonKey)
+    local trace = type(runtime) == "table" and runtime._debugTrace == true
+    local debug = trace and {
+        totalRows = #rows,
+        dungeonRows = #dungeonRows,
+        testedRows = 0,
+        matchedRows = 0,
+        normalizedDungeonKey = normalizedDungeonKey,
+        mapID = mapID,
+        ignoreBossCounts = type(options) == "table" and options.ignoreBossCounts == true,
+        samples = {},
+    } or nil
     for i = 1, #dungeonRows do
         local t = dungeonRows[i]
         local matchRow = t
@@ -517,6 +532,9 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
             end
         end
         local ok, score, strength, reason = Mod.MatchRow(matchRow, obs, runtime, mapID, options)
+        if debug then
+            debug.testedRows = debug.testedRows + 1
+        end
         if ok then
             out[#out + 1] = {
                 dungeon = tostring(t.dungeon or ""),
@@ -526,6 +544,17 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
                 strength = strength,
                 coPresenceNPCIDs = matchRow.coPresenceNPCIDs,
                 row = t,
+            }
+            if debug then
+                debug.matchedRows = debug.matchedRows + 1
+            end
+        elseif debug and #debug.samples < 8 then
+            debug.samples[#debug.samples + 1] = {
+                npcID = tonumber(t.npcID),
+                name = tostring(t.name or "?"),
+                reason = (tostring(reason or "?"):gsub("\n", " ")),
+                level = t.level,
+                power = t.power,
             }
         end
     end
@@ -559,6 +588,11 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
         end
         return tostring(a.name) < tostring(b.name)
     end)
+
+    if debug then
+        debug.matchedRows = #out
+        Mod._lastDebug = debug
+    end
 
     return out
 end

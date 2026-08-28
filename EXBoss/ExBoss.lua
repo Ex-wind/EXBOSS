@@ -43,6 +43,55 @@ ExBoss.TrashCD = ExBoss.TrashCD or {}
 ExBoss.TargetAlert = ExBoss.TargetAlert or {}
 ExBoss._initLoaded = ExBoss._initLoaded or false
 
+-- 全局时间轴条目的来源分流策略。必须在 Boss 模块、Scheduler 与显示层之前存在，
+-- 因为少数副本机制会直接调用条目的 ExternalTimer 入口而绕过 Scheduler。
+ExBoss.DisplayPolicy = ExBoss.DisplayPolicy or {}
+local DisplayPolicy = ExBoss.DisplayPolicy
+
+local function GetBarSourceSelections(barKind)
+    local root = _G.EXBOSS12S2
+    local general = type(root) == "table" and type(root.ui) == "table" and type(root.ui.general) == "table"
+        and root.ui.general or nil
+    if type(general) ~= "table" then
+        return nil
+    end
+
+    if barKind == "bun" then
+        return general.bunBarSources
+    end
+    if barKind == "timer" then
+        return general.timerBarSources
+    end
+    return nil
+end
+
+function DisplayPolicy.GetTimerSourceKind(timer)
+    if type(timer) ~= "table" then
+        return "boss"
+    end
+
+    -- displaySource 是绕过 Scheduler 的独立机制显式声明的类别；普通时间轴
+    -- 则同时检查原始 source 与 TrashCD 附加的元数据，避免把带小怪元数据的
+    -- Blizzard 时间轴事件误归为 Boss。
+    if timer.displaySource == "trash"
+        or timer.source == "trash"
+        or timer.trashMeta ~= nil
+        or timer.trashRuntime ~= nil
+        or timer.trashSpellData ~= nil then
+        return "trash"
+    end
+    return "boss"
+end
+
+function DisplayPolicy.ShouldShowTimerOnBar(timer, barKind)
+    local selections = GetBarSourceSelections(barKind)
+    -- 旧 SavedVariables、损坏的值或未知目的地保持原有行为：两类都显示。
+    if type(selections) ~= "table" then
+        return true
+    end
+    return selections[DisplayPolicy.GetTimerSourceKind(timer)] == true
+end
+
 -- 时间轴注册入口必须在 Boss 数据文件加载前可用；
 -- toc 中 Bosses/*.lua 早于 Scheduler.lua，因此在这里先提供稳定 stub。
 ExBoss.Timeline._bosses = ExBoss.Timeline._bosses or {}

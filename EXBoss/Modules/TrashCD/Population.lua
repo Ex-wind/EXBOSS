@@ -28,6 +28,19 @@ local function GetState()
     return ExwindTools and ExwindTools.State or nil
 end
 
+-- 仅供排查预占名额生命周期；Runtime 未开调试时 AppendExternalDebug 不会输出。
+local function DebugTrace(msg)
+    local runtime = ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if runtime and type(runtime.AppendExternalDebug) == "function" then
+        runtime.AppendExternalDebug("TrashCD Population", msg, true)
+    end
+end
+
+local function RuntimeLabel(runtime)
+    return string.format("unit=%s npc=%s", tostring(type(runtime) == "table" and runtime._debugUnit or "?"),
+        tostring(type(runtime) == "table" and runtime._populationNPCID or "?"))
+end
+
 local function GetCurrentMapID(explicitMapID)
     local mapID = tonumber(explicitMapID)
     if mapID and mapID > 0 then
@@ -152,7 +165,12 @@ local function ReleaseRuntimeReservation(runtime)
         local remaining = tonumber(pool[npcID])
         if remaining ~= nil then
             pool[npcID] = math.min(math.max(0, math.floor(initial)), math.max(0, remaining) + 1)
+            DebugTrace(string.format("release %s map=%s stage=%s remaining=%s->%s",
+                RuntimeLabel(runtime), tostring(mapID), tostring(stage), tostring(remaining), tostring(pool[npcID])))
         end
+    else
+        DebugTrace(string.format("release-skipped %s revision=%s currentRevision=%s map=%s stage=%s",
+            RuntimeLabel(runtime), tostring(revision), tostring(Mod._reservationRevision), tostring(mapID), tostring(stage)))
     end
     return true
 end
@@ -160,6 +178,8 @@ end
 local function ReserveRuntime(runtime, row, mapID, stage, npcID, initial, source)
     local remaining = GetRemaining(row, mapID, stage)
     if remaining == nil or remaining <= 0 then
+        DebugTrace(string.format("reserve-refused unit=%s npc=%s map=%s stage=%s remaining=%s",
+            tostring(runtime and runtime._debugUnit or "?"), tostring(npcID), tostring(mapID), tostring(stage), tostring(remaining)))
         ClearRuntimeReservation(runtime, source)
         return false
     end
@@ -174,6 +194,8 @@ local function ReserveRuntime(runtime, row, mapID, stage, npcID, initial, source
     runtime._populationRevision = Mod._reservationRevision
     runtime._populationDeathConsumed = nil
     runtime._populationResolutionSource = source
+    DebugTrace(string.format("reserve %s map=%s stage=%s remaining=%s->%s source=%s",
+        RuntimeLabel(runtime), tostring(mapID), tostring(stage), tostring(remaining), tostring(pool[npcID]), tostring(source)))
     return true
 end
 
@@ -202,6 +224,19 @@ function Mod.MarkResolved(runtime, candidate, explicitMapID, source, inCombat)
         return
     end
     ReserveRuntime(runtime, row, mapID, stage, npcID, initial, source)
+end
+
+-- 姓名板失联后的临时预留必须归还；已确认死亡的预留则转为正式消耗，不能归还。
+function Mod.ReleaseRuntimeReservation(runtime, source)
+    if type(runtime) ~= "table" then
+        return false
+    end
+    local released = false
+    if runtime._populationReserved == true and runtime._populationDeathConsumed ~= true then
+        released = ReleaseRuntimeReservation(runtime) == true
+    end
+    ClearRuntimeReservation(runtime, source or "runtime-released")
+    return released
 end
 
 function Mod.SelectPriority(candidates, obs, runtime, explicitMapID)
@@ -238,6 +273,8 @@ function Mod.OnUnitDead(runtime)
     end
     -- 名额已在成功识别时预占；死亡只消费 runtime，不能再次扣减。
     runtime._populationDeathConsumed = true
+    DebugTrace(string.format("death-consumed %s map=%s stage=%s",
+        RuntimeLabel(runtime), tostring(runtime._populationMapID), tostring(runtime._populationStage)))
     return true
 end
 

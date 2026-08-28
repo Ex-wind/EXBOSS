@@ -26,9 +26,7 @@ local HealthThreshold = ExBoss.Modules and ExBoss.Modules.Boss and ExBoss.Module
 local MAX_NAMEPLATES = 40
 local SNAPSHOT_RETRY_DELAY = 0.12
 local MARKER_REFRESH_DELAY = 1.0
-local THREAT_REFRESH_TICK = 0.05
-local THREAT_REFRESH_BATCH = 5
-local THREAT_FOLLOWUP_DELAY = 0.10
+local COPRESENCE_TENTATIVE_DELAY = 0.50
 
 local function IsNameplateInCombat(unit, refresh)
     if State and type(State.IsUnitInCombat) == "function" then
@@ -48,13 +46,10 @@ Mod._observedByUnit = Mod._observedByUnit or {}
 Mod._runtimeByUnit = Mod._runtimeByUnit or {}
 Mod._pendingUnitRefresh = Mod._pendingUnitRefresh or {}
 Mod._pendingMarkerRefresh = Mod._pendingMarkerRefresh or {}
-Mod._pendingThreatRefreshByKey = Mod._pendingThreatRefreshByKey or {}
-Mod._pendingThreatRefreshQueue = Mod._pendingThreatRefreshQueue or {}
-Mod._pendingThreatRefreshElapsed = tonumber(Mod._pendingThreatRefreshElapsed) or 0
 Mod._debug = Mod._debug == true
-Mod._debugNextPrintAt = Mod._debugNextPrintAt or {}
+Mod._debugLastSignatureByUnit = Mod._debugLastSignatureByUnit or {}
 Mod._debugBuffer = Mod._debugBuffer or {}
-Mod._debugBufferMax = tonumber(Mod._debugBufferMax) or 400
+Mod._debugBufferMax = tonumber(Mod._debugBufferMax) or 800
 Mod._debugCopyFrame = Mod._debugCopyFrame
 
 local CancelRuntimeScriptEvents
@@ -67,26 +62,6 @@ local function WipeTable(t)
         t[k] = nil
     end
     return t
-end
-
-local function RemoveThreatRefreshesForUnit(unit)
-    if type(unit) ~= "string" then
-        return
-    end
-    local index = unit:match("^nameplate(%d+)$")
-    if not index then
-        return
-    end
-    unit = "nameplate" .. index
-    local byKey = type(Mod._pendingThreatRefreshByKey) == "table" and Mod._pendingThreatRefreshByKey or nil
-    if not byKey then
-        return
-    end
-    for key, record in pairs(byKey) do
-        if type(record) == "table" and record.unit == unit then
-            byKey[key] = nil
-        end
-    end
 end
 
 local function NormalizeNameKey(name)
@@ -111,40 +86,49 @@ local function NormalizeNameplateUnit(unit)
     return "nameplate" .. index
 end
 
-local function DebugPrint(msg)
-    return
+local function AppendBufferLine(tag, msg, echoToChat)
+    local buffer = type(Mod._debugBuffer) == "table" and Mod._debugBuffer or {}
+    Mod._debugBuffer = buffer
+    local limit = math.max(50, math.floor(tonumber(Mod._debugBufferMax) or 400))
+    local line = string.format("[%s] %s", tostring(tag or "Debug"), tostring(msg or ""))
+    buffer[#buffer + 1] = line
+    while #buffer > limit do
+        table.remove(buffer, 1)
+    end
+    if echoToChat == true and DEFAULT_CHAT_FRAME and type(DEFAULT_CHAT_FRAME.AddMessage) == "function" then
+        DEFAULT_CHAT_FRAME:AddMessage(line)
+    end
 end
 
-local function AppendBufferLine(tag, msg, echoToChat)
-    return
+local function DebugPrint(msg)
+    if Mod._debug ~= true then
+        return
+    end
+    -- 详细诊断只保存在缓冲区。战斗中的仇恨/刷新事件会非常频繁，
+    -- 不能把内部过程逐条输出到聊天框。
+    AppendBufferLine("TrashCD", msg, false)
+end
+
+local function DebugChat(msg)
+    if Mod._debug ~= true then
+        return
+    end
+    AppendBufferLine("TrashCD", msg, true)
 end
 
 local function CacheDebug(msg)
-    return
+    if Mod._debug == true then
+        AppendBufferLine("TrashCD Cache", msg, false)
+    end
 end
 
 local function IsDeathDebugEnabled()
-    return false
-end
-
-local function ShouldLogScheduleDecision(resolvedNPCID, canSchedule, keepLockedRuntime, runtime)
-    if resolvedNPCID then
-        return true
-    end
-    if canSchedule == true or keepLockedRuntime == true then
-        return true
-    end
-    if type(runtime) ~= "table" then
-        return false
-    end
-    if runtime.activeCastStartAt ~= nil or runtime.pendingSucceeded == true or runtime.pendingInterrupted == true then
-        return true
-    end
-    return false
+    return Mod._debug == true
 end
 
 function Mod.ClearDebugBuffer()
     Mod._debugBuffer = {}
+    Mod._debugLastSignatureByUnit = {}
 end
 
 function Mod.GetDebugBufferText()
@@ -243,7 +227,9 @@ function Mod.ShowDebugCopy()
 end
 
 function Mod.AppendExternalDebug(tag, msg, echoToChat)
-    return
+    if Mod._debug == true then
+        AppendBufferLine(tag or "External", msg, echoToChat == true)
+    end
 end
 
 function Mod.SetDebug(...)
@@ -253,11 +239,10 @@ function Mod.SetDebug(...)
     end
     Mod._debug = enabled == true
     if Mod._debug then
-        DebugPrint("debug=on")
-        if Mod.RefreshTargetDebug then
-            Mod:RefreshTargetDebug("debug-on")
-        end
+        Mod.ClearDebugBuffer()
+        DebugChat("debug=on（输出身份／战斗状态／缓存／名额生命周期；关闭：/run ExBoss.TrashCD.Runtime:SetDebug(false)）")
     else
+        AppendBufferLine("TrashCD", "debug=off", true)
         return
     end
 end
@@ -305,19 +290,91 @@ local function BuildLayer2DecisionSummary(debug, maxCount)
     return table.concat(parts, ", ")
 end
 
+local function BuildCandidateDebugSummary(candidates, maxCount)
+    if type(candidates) ~= "table" or #candidates == 0 then
+        return "-"
+    end
+    local parts = {}
+    for i = 1, math.min(maxCount or 6, #candidates) do
+        local candidate = candidates[i]
+        local row = type(candidate) == "table" and candidate.row or nil
+        local companions = type(candidate) == "table" and candidate.coPresenceNPCIDs or nil
+        companions = type(companions) == "table" and companions
+            or type(row) == "table" and row.coPresenceNPCIDs or nil
+        local companionIDs = {}
+        for npcID in pairs(type(companions) == "table" and companions or {}) do
+            local id = tonumber(npcID)
+            if id then companionIDs[#companionIDs + 1] = id end
+        end
+        table.sort(companionIDs)
+        parts[#parts + 1] = string.format(
+            "%s(%s)[score=%s/%s,lt=%s,fam=%s,co=%s]",
+            tostring(candidate and candidate.name or "?"),
+            tostring(candidate and candidate.npcID or "?"),
+            tostring(candidate and candidate.score or "?"),
+            tostring(candidate and candidate.strength or "?"),
+            tostring(type(row) == "table" and row.isLieutenant or "nil"),
+            tostring(type(row) == "table" and row.hasCreatureFamily or "nil"),
+            #companionIDs > 0 and table.concat(companionIDs, "/") or "-"
+        )
+    end
+    return table.concat(parts, ", ")
+end
+
+local function BuildCandidateIDSignature(candidates)
+    if type(candidates) ~= "table" or #candidates == 0 then
+        return "-"
+    end
+    local parts = {}
+    for i = 1, #candidates do
+        parts[#parts + 1] = tostring(candidates[i] and candidates[i].npcID or "?")
+    end
+    return table.concat(parts, "/")
+end
+
+local function BuildCoPresenceSignature(debug)
+    if type(debug) ~= "table" then
+        return "-"
+    end
+    local locked = type(debug.lockedNPCIDs) == "table" and table.concat(debug.lockedNPCIDs, "/") or "-"
+    return table.concat({
+        tostring(debug.reason or "?"),
+        tostring(debug.inputCount or "?"),
+        tostring(debug.outputCount or "?"),
+        locked,
+    }, "/")
+end
+
+local function BuildMatchDebugSignature(unit, context)
+    local obs = type(context.obs) == "table" and context.obs or {}
+    local result = type(context.result) == "table" and context.result or {}
+    local accepted = type(context.accepted) == "table" and context.accepted or nil
+    local runtime = type(context.runtime) == "table" and context.runtime or nil
+    return table.concat({
+        tostring(unit or "?"),
+        tostring(obs.level), tostring(obs.power), tostring(obs.unitClassification),
+        tostring(obs.isLieutenant), tostring(obs.hasCreatureFamily),
+        tostring(obs.sawCastStart == true), tostring(obs.sawChannelStart == true), tostring(obs.sawInterrupted == true),
+        tostring(obs.inCombat == true),
+        BuildCandidateIDSignature(result.layer1Candidates),
+        BuildCandidateIDSignature(result.candidates),
+        tostring(type(result.resolved) == "table" and result.resolved.npcID or "nil"),
+        tostring(accepted and accepted.npcID or "nil"),
+        tostring(runtime and runtime.identityLockedNPCID or "nil"),
+        tostring(context.acceptedSource or "nil"),
+        BuildCoPresenceSignature(result.coPresenceDebug),
+    }, "\31")
+end
+
 local function PrintMatchDebug(unit, context)
     if not Mod._debug or type(context) ~= "table" then
         return
     end
-    if unit ~= "target" then
+    local signature = BuildMatchDebugSignature(unit, context)
+    if Mod._debugLastSignatureByUnit[unit] == signature then
         return
     end
-    local now = GetTime()
-    local nextAt = tonumber(Mod._debugNextPrintAt[unit]) or 0
-    if now < nextAt then
-        return
-    end
-    Mod._debugNextPrintAt[unit] = now + 0.8
+    Mod._debugLastSignatureByUnit[unit] = signature
 
     local obs = type(context.obs) == "table" and context.obs or {}
     local result = type(context.result) == "table" and context.result or {}
@@ -326,11 +383,38 @@ local function PrintMatchDebug(unit, context)
     local resolved = type(result.resolved) == "table" and result.resolved or nil
     local layer1 = type(result.layer1Candidates) == "table" and #result.layer1Candidates or 0
     local layer2 = type(result.candidates) == "table" and #result.candidates or 0
-    local finalText = resolved and
-    string.format("%s(%s)", tostring(resolved.name or "?"), tostring(resolved.npcID or "?")) or "???"
+    local inferredText = resolved and
+        string.format("%s(%s)", tostring(resolved.name or "?"), tostring(resolved.npcID or "?")) or "none"
+    local accepted = type(context.accepted) == "table" and context.accepted or nil
+    local acceptedText = accepted and
+        string.format("%s(%s)", tostring(accepted.name or "?"), tostring(accepted.npcID or "?")) or "none"
+    local coPresenceDebug = type(result.coPresenceDebug) == "table" and result.coPresenceDebug or nil
+
+    -- 聊天框只保留一条、且仅在身份/候选/观测状态变化时输出。
+    -- 这样开启调试后可以直接看，而不会被每次仇恨刷新淹没。
+    DebugChat(string.format(
+        "match unit=%s reason=%s obs=[L%s P%s lt=%s fam=%s cast=%s ch=%s int=%s combat=%s] L1=%s L2=%s inferred=%s accepted=%s source=%s lock=%s co=%s",
+        tostring(unit or "?"),
+        tostring(context.reason or "?"),
+        tostring(obs.level or "nil"),
+        tostring(obs.power or "nil"),
+        tostring(obs.isLieutenant),
+        tostring(obs.hasCreatureFamily),
+        FormatBool(obs.sawCastStart == true),
+        FormatBool(obs.sawChannelStart == true),
+        FormatBool(obs.sawInterrupted == true),
+        FormatBool(obs.inCombat == true),
+        BuildCandidateSummary(result.layer1Candidates, 3),
+        BuildCandidateSummary(result.candidates, 3),
+        inferredText,
+        acceptedText,
+        tostring(context.acceptedSource or "none"),
+        tostring(type(context.runtime) == "table" and context.runtime.identityLockedNPCID or "none"),
+        tostring(coPresenceDebug and coPresenceDebug.applied == true or false)
+    ))
 
     DebugPrint(string.format(
-        "unit=%s reason=%s inst=%s map=%s playerMap=%s zone=%s dungeon=%s stage=%s mplus=%s final=%s",
+        "unit=%s reason=%s inst=%s map=%s playerMap=%s zone=%s dungeon=%s stage=%s mplus=%s inferred=%s",
         tostring(unit or "?"),
         tostring(context.reason or "?"),
         tostring(context.instanceID or "nil"),
@@ -340,12 +424,14 @@ local function PrintMatchDebug(unit, context)
         tostring(context.dungeonKey or ""),
         tostring(GetStateValue("DungeonBossProgressIndex") or "nil"),
         FormatBool(GetStateValue("InMythicPlus") == true),
-        finalText
+        inferredText
     ))
     DebugPrint(string.format(
-        "obs level=%s power=%s cast=%s channel=%s interrupt=%s combat=%s",
+        "obs level=%s power=%s lieutenant=%s creatureFamily=%s cast=%s channel=%s interrupt=%s combat=%s",
         tostring(obs.level or "nil"),
         tostring(obs.power or "nil"),
+        tostring(obs.isLieutenant),
+        tostring(obs.hasCreatureFamily),
         FormatBool(obs.sawCastStart == true),
         FormatBool(obs.sawChannelStart == true),
         FormatBool(obs.sawInterrupted == true),
@@ -376,10 +462,43 @@ local function PrintMatchDebug(unit, context)
 
     if type(result.layer1Candidates) == "table" and #result.layer1Candidates > 0 then
         DebugPrint("L1候选: " .. BuildCandidateSummary(result.layer1Candidates, 5))
+        DebugPrint("L1特征: " .. BuildCandidateDebugSummary(result.layer1Candidates, 6))
     end
 
     if type(result.candidates) == "table" and #result.candidates > 0 then
         DebugPrint("L2候选: " .. BuildCandidateSummary(result.candidates, 5))
+        DebugPrint("L2特征: " .. BuildCandidateDebugSummary(result.candidates, 6))
+    end
+
+    if coPresenceDebug then
+        local parts = {}
+        for i = 1, #(coPresenceDebug.candidates or {}) do
+            local row = coPresenceDebug.candidates[i]
+            local required = type(row.requiredNPCIDs) == "table" and table.concat(row.requiredNPCIDs, "/") or "-"
+            parts[#parts + 1] = string.format("%s:req=%s:match=%s", tostring(row.npcID or "?"), required,
+                tostring(row.matched == true))
+        end
+        DebugPrint(string.format(
+            "coPresence map=%s reason=%s locked=%s input=%s output=%s applied=%s candidates=%s",
+            tostring(coPresenceDebug.mapID or "nil"),
+            tostring(coPresenceDebug.reason or "?"),
+            type(coPresenceDebug.lockedNPCIDs) == "table" and table.concat(coPresenceDebug.lockedNPCIDs, "/") or "-",
+            tostring(coPresenceDebug.inputCount or "nil"),
+            tostring(coPresenceDebug.outputCount or "nil"),
+            tostring(coPresenceDebug.applied == true),
+            #parts > 0 and table.concat(parts, ",") or "-"
+        ))
+    end
+
+    if context.acceptedSource or context.identityJustLocked ~= nil then
+        DebugPrint(string.format(
+            "identity accepted=%s source=%s lockEligible=%s justLocked=%s locked=%s",
+            type(context.accepted) == "table" and tostring(context.accepted.npcID or "nil") or "nil",
+            tostring(context.acceptedSource or "nil"),
+            tostring(result.identityLockEligible == true),
+            tostring(context.identityJustLocked == true),
+            tostring(type(context.runtime) == "table" and context.runtime.identityLockedNPCID or "nil")
+        ))
     end
 
     if type(layer2Debug) == "table" and type(layer2Debug.decisions) == "table" and #layer2Debug.decisions > 0 then
@@ -719,7 +838,11 @@ local function AcceptRuntimeIdentity(runtime, result, mapID)
     if lockedNPCID then
         -- 同一 nameplate 已锁后不可被一次新的推理翻转；若出现矛盾 L2，保留锁以便调试。
         if inferredLockEligible and inferredNPCID and inferredNPCID ~= lockedNPCID then
-            DebugPrint(string.format("identity-lock-conflict locked=%s layer2=%s", tostring(lockedNPCID), tostring(inferredNPCID)))
+            local conflictSignature = tostring(lockedNPCID) .. ":" .. tostring(inferredNPCID)
+            if runtime._debugLastIdentityConflict ~= conflictSignature then
+                runtime._debugLastIdentityConflict = conflictSignature
+                DebugPrint(string.format("identity-lock-conflict locked=%s layer2=%s", tostring(lockedNPCID), tostring(inferredNPCID)))
+            end
         end
         local lockedCandidate = type(runtime.identityLockedCandidate) == "table" and runtime.identityLockedCandidate or nil
         if lockedCandidate and tonumber(lockedCandidate.npcID) == lockedNPCID then
@@ -765,7 +888,7 @@ local function UpdateUnitNameplate(unit, resolved, runtime)
 end
 
 local function UntrackNameplate(unit)
-    RemoveThreatRefreshesForUnit(unit)
+    Mod._debugLastSignatureByUnit[unit] = nil
     local runtime = GetRuntimeObs(unit)
     if CoPresence and type(CoPresence.UnregisterRuntime) == "function" then
         CoPresence.UnregisterRuntime(runtime)
@@ -809,101 +932,6 @@ function Mod:ScheduleUnitRefresh(unit, delay, reason, forceSnapshot)
         self._pendingUnitRefresh[key] = nil
         if self._running == true then
             self:RefreshUnit(unit, reason or "delayed", forceSnapshot == true)
-        end
-    end)
-end
-
-function Mod:QueueThreatRefresh(unit, reason, delay, forceSnapshot)
-    unit = NormalizeNameplateUnit(unit)
-    if not unit then
-        return false
-    end
-
-    local key = tostring(unit) .. ":" .. tostring(reason or "threat")
-    local dueAt = GetTime() + math.max(0, tonumber(delay) or 0)
-    local byKey = self._pendingThreatRefreshByKey
-    local queue = self._pendingThreatRefreshQueue
-    local existing = byKey[key]
-
-    if type(existing) == "table" then
-        if dueAt < (tonumber(existing.dueAt) or dueAt) then
-            existing.dueAt = dueAt
-        end
-        if forceSnapshot == true then
-            existing.forceSnapshot = true
-        end
-        return false
-    end
-
-    local record = {
-        key = key,
-        unit = unit,
-        reason = tostring(reason or "threat"),
-        dueAt = dueAt,
-        forceSnapshot = forceSnapshot == true,
-    }
-    byKey[key] = record
-    queue[#queue + 1] = record
-    return true
-end
-
-function Mod:ProcessThreatRefreshQueue(now)
-    local queue = self._pendingThreatRefreshQueue
-    local byKey = self._pendingThreatRefreshByKey
-    if type(queue) ~= "table" or #queue == 0 then
-        return 0
-    end
-
-    now = tonumber(now) or GetTime()
-    local processed = 0
-    local remaining = {}
-
-    for i = 1, #queue do
-        local record = queue[i]
-        if type(record) == "table" and byKey[record.key] == record then
-            if processed < THREAT_REFRESH_BATCH and now >= (tonumber(record.dueAt) or now) then
-                byKey[record.key] = nil
-                processed = processed + 1
-                if self._running == true then
-                    self:RefreshUnit(record.unit, record.reason, record.forceSnapshot == true)
-                end
-            else
-                remaining[#remaining + 1] = record
-            end
-        end
-    end
-
-    self._pendingThreatRefreshQueue = remaining
-    return processed
-end
-
-function Mod:EnsureThreatRefreshDriver()
-    self._threatRefreshFrame = self._threatRefreshFrame or CreateFrame("Frame")
-    if self._threatRefreshFrame:GetScript("OnUpdate") then
-        return
-    end
-    self._pendingThreatRefreshElapsed = 0
-    self._threatRefreshFrame:SetScript("OnUpdate", function(_, elapsed)
-        Mod._pendingThreatRefreshElapsed = (tonumber(Mod._pendingThreatRefreshElapsed) or 0) + (tonumber(elapsed) or 0)
-        if Mod._pendingThreatRefreshElapsed < THREAT_REFRESH_TICK then
-            return
-        end
-        Mod._pendingThreatRefreshElapsed = 0
-
-        if Mod._running ~= true then
-            if type(Mod._pendingThreatRefreshQueue) == "table" then
-                Mod._pendingThreatRefreshQueue = {}
-            end
-            if type(Mod._pendingThreatRefreshByKey) == "table" then
-                wipe(Mod._pendingThreatRefreshByKey)
-            end
-            Mod._threatRefreshFrame:SetScript("OnUpdate", nil)
-            return
-        end
-
-        Mod:ProcessThreatRefreshQueue(GetTime())
-        if type(Mod._pendingThreatRefreshQueue) ~= "table" or #Mod._pendingThreatRefreshQueue == 0 then
-            Mod._threatRefreshFrame:SetScript("OnUpdate", nil)
         end
     end)
 end
@@ -1016,8 +1044,46 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
     local traits = GetMobTraits()
     local traitRows = type(traits.rows) == "table" and traits.rows or {}
     local runtime = GetRuntimeObs(unit)
+    if type(runtime) == "table" then
+        runtime._debugUnit = unit
+        runtime._debugTrace = Mod._debug == true
+    end
     local result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
     local resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
+    local isCoPresenceProvisional = false
+    local tentativeSession = type(runtime) == "table" and tonumber(runtime._coPresenceTentativeSession) or nil
+    if not resolved and obs.inCombat == true
+        and runtime and not tonumber(runtime.identityLockedNPCID)
+        and tentativeSession ~= nil
+        and tonumber(runtime._coPresenceTentativeReadySession) == tentativeSession
+        and CoPresence and type(CoPresence.GetTentativeFallback) == "function" then
+        local tentative = CoPresence.GetTentativeFallback(result.candidates, runtime, trashMapID)
+        if tentative then
+            local previousProvisionalNPCID = tonumber(runtime._coPresenceProvisionalNPCID)
+            resolved = tentative
+            resolutionSource = "co-presence-timeout"
+            isCoPresenceProvisional = true
+            runtime._coPresenceProvisionalNPCID = tonumber(tentative.npcID)
+            runtime._coPresenceProvisionalSource = resolutionSource
+            if previousProvisionalNPCID ~= tonumber(tentative.npcID) then
+                DebugChat(string.format("co-presence-provisional unit=%s npc=%s", tostring(unit),
+                    tostring(tentative.npcID)))
+            end
+        end
+    end
+    if runtime and tonumber(runtime.identityLockedNPCID) then
+        runtime._coPresenceProvisionalNPCID = nil
+        runtime._coPresenceProvisionalSource = nil
+    elseif runtime and resolved and not isCoPresenceProvisional then
+        runtime._coPresenceProvisionalNPCID = nil
+        runtime._coPresenceProvisionalSource = nil
+    end
+    if not resolved and obs.inCombat == true
+        and runtime and not tonumber(runtime.identityLockedNPCID)
+        and CoPresence and type(CoPresence.HasCompanionRequirement) == "function"
+        and CoPresence.HasCompanionRequirement(result.candidates) then
+        self:ScheduleCoPresenceTentativeFallback(unit, runtime)
+    end
     local coPresenceJustRegistered = false
     if runtime and tonumber(runtime.identityLockedNPCID)
         and CoPresence and type(CoPresence.MarkRuntimeLocked) == "function" then
@@ -1041,6 +1107,10 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
         result = result,
         layer1Debug = layer1Debug,
         layer2Debug = layer2Debug,
+        runtime = runtime,
+        accepted = resolved,
+        acceptedSource = resolutionSource,
+        identityJustLocked = identityJustLocked,
     })
     local resolvedNPCID = tonumber(type(resolved) == "table" and resolved.npcID or nil)
     local restored = false
@@ -1064,59 +1134,6 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
     if type(runtime) == "table" then
         runtime._debugUnit = unit
     end
-    if Mod._debug == true and ShouldLogScheduleDecision(resolvedNPCID, canSchedule, keepLockedRuntime, runtime) then
-        local threat = nil
-        local detailedThreatStatus = nil
-        local detailedThreatPct = nil
-        local detailedThreatRawPct = nil
-        local detailedThreatValue = nil
-        if type(UnitThreatSituation) == "function" then
-            local okThreat, value = pcall(UnitThreatSituation, "player", unit)
-            if okThreat then
-                threat = value
-            end
-        end
-        if type(UnitDetailedThreatSituation) == "function" then
-            local okDetailed, _, status, pct, rawPct, threatValue = pcall(UnitDetailedThreatSituation, "player", unit)
-            if okDetailed then
-                detailedThreatStatus = status
-                detailedThreatPct = pct
-                detailedThreatRawPct = rawPct
-                detailedThreatValue = threatValue
-            end
-        end
-        DebugPrint(string.format(
-            "schedule-check unit=%s resolved=%s canSchedule=%s unitCombat=%s playerCombat=%s threat=%s detailedStatus=%s pct=%s rawPct=%s value=%s activeCast=%s pendingSuccess=%s pendingInterrupt=%s action=%s",
-            tostring(unit or "?"),
-            tostring(resolvedNPCID or "nil"),
-            FormatBool(canSchedule == true),
-            FormatBool(obs.inCombat == true),
-            FormatBool(UnitAffectingCombat("player") == true),
-            tostring(threat or "nil"),
-            tostring(detailedThreatStatus or "nil"),
-            tostring(detailedThreatPct or "nil"),
-            tostring(detailedThreatRawPct or "nil"),
-            tostring(detailedThreatValue or "nil"),
-            FormatBool(type(runtime) == "table" and runtime.activeCastStartAt ~= nil),
-            FormatBool(type(runtime) == "table" and runtime.pendingSucceeded == true),
-            FormatBool(type(runtime) == "table" and runtime.pendingInterrupted == true),
-            (resolvedNPCID and canSchedule) and "sync" or (keepLockedRuntime and "keep-locked" or "reset")
-        ))
-        if resolvedNPCID == nil then
-            DebugPrint(string.format(
-                "schedule-candidates unit=%s L1=%s L2=%s matchedNPC=%s kept=%s",
-                tostring(unit or "?"),
-                BuildCandidateSummary(type(result.layer1Candidates) == "table" and result.layer1Candidates or nil, 5),
-                BuildCandidateSummary(type(result.candidates) == "table" and result.candidates or nil, 5),
-                tostring(type(runtime) == "table" and runtime.matchedNPCID or "nil"),
-                BuildCandidateSummary(type(layer2Debug) == "table" and layer2Debug.kept or nil, 5)
-            ))
-            if type(layer2Debug) == "table" and type(layer2Debug.decisions) == "table" and #layer2Debug.decisions > 0 then
-                DebugPrint("schedule-layer2 unit=" .. tostring(unit or "?") .. " " .. BuildLayer2DecisionSummary(layer2Debug, 6))
-            end
-        end
-    end
-
     if resolvedNPCID and canSchedule then
         if runtime and resolved.name then
             runtime.lastResolvedName = resolved.name
@@ -1204,6 +1221,7 @@ function Mod:RefreshTargetDebug(reason)
     local traitRows = type(traits.rows) == "table" and traits.rows or {}
     local runtime = Mod._targetDebugRuntime or {}
     Mod._targetDebugRuntime = runtime
+    runtime._debugTrace = true
     local result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
     local Layer1 = ExBoss.TrashCD and ExBoss.TrashCD.Layer1Filter or nil
     local Layer2 = ExBoss.TrashCD and ExBoss.TrashCD.Layer2Filter or nil
@@ -1262,12 +1280,6 @@ function Mod:Stop()
     WipeTable(self._runtimeByUnit)
     WipeTable(self._pendingUnitRefresh)
     WipeTable(self._pendingMarkerRefresh)
-    WipeTable(self._pendingThreatRefreshByKey)
-    self._pendingThreatRefreshQueue = {}
-    self._pendingThreatRefreshElapsed = 0
-    if self._threatRefreshFrame then
-        self._threatRefreshFrame:SetScript("OnUpdate", nil)
-    end
     if TrashCache and type(TrashCache.Reset) == "function" then
         TrashCache.Reset()
     end
@@ -1288,6 +1300,67 @@ function Mod:EnsureRunning()
         self:Start()
     end
     return self._running == true
+end
+
+-- State 每次检测到单个姓名板进战或脱战时，由 Runtime 重新采样。
+-- 进入战斗会建立计时；脱离战斗会走 SyncUnitCDTimers(nil) 清掉旧计时。
+if State and type(State.SetCombatStateCallback) == "function" then
+    State.SetCombatStateCallback(function(unit, inCombat)
+        if Mod._running == true then
+            Mod:OnCoPresenceCombatTransition(unit)
+            DebugChat(string.format("state-callback unit=%s inCombat=%s action=refresh", tostring(unit),
+                tostring(inCombat == true)))
+            Mod:ScheduleUnitRefresh(unit, 0.01,
+                inCombat == true and "state-combat-enter" or "state-combat-leave", true)
+        end
+    end)
+end
+
+local function ResetCoPresenceTentativeSession(runtime)
+    if type(runtime) ~= "table" then
+        return
+    end
+    runtime._coPresenceTentativeSession = (tonumber(runtime._coPresenceTentativeSession) or 0) + 1
+    runtime._coPresenceTentativeTimerSession = nil
+    runtime._coPresenceTentativeReadySession = nil
+    runtime._coPresenceProvisionalNPCID = nil
+    runtime._coPresenceProvisionalSource = nil
+end
+
+function Mod:OnCoPresenceCombatTransition(unit)
+    ResetCoPresenceTentativeSession(GetRuntimeObs(unit))
+end
+
+function Mod:ScheduleCoPresenceTentativeFallback(unit, runtime)
+    unit = NormalizeNameplateUnit(unit)
+    if not unit or type(runtime) ~= "table" or not C_Timer or type(C_Timer.After) ~= "function" then
+        return false
+    end
+    local session = tonumber(runtime._coPresenceTentativeSession)
+    if session == nil then
+        session = 0
+        runtime._coPresenceTentativeSession = session
+    end
+    if tonumber(runtime._coPresenceTentativeTimerSession) == session
+        or tonumber(runtime._coPresenceTentativeReadySession) == session then
+        return false
+    end
+    runtime._coPresenceTentativeTimerSession = session
+    C_Timer.After(COPRESENCE_TENTATIVE_DELAY, function()
+        if Mod._running ~= true then
+            return
+        end
+        local currentRuntime = type(Mod._runtimeByUnit) == "table" and Mod._runtimeByUnit[unit] or nil
+        if currentRuntime ~= runtime
+            or tonumber(runtime._coPresenceTentativeSession) ~= session
+            or (State and type(State.IsUnitInCombat) == "function" and State.IsUnitInCombat(unit, false) ~= true) then
+            return
+        end
+        runtime._coPresenceTentativeReadySession = session
+        DebugPrint(string.format("co-presence-timeout-ready unit=%s session=%s", tostring(unit), tostring(session)))
+        Mod:RefreshUnit(unit, "co-presence-timeout", true)
+    end)
+    return true
 end
 
 local function MarkRuntimeObservation(unit, key)
@@ -1338,41 +1411,6 @@ local function Register(event, owner, func)
     end
 end
 
-local function OnThreatListUpdate(_, event, unit)
-    unit = NormalizeNameplateUnit(unit)
-    if unit and Mod:EnsureRunning() then
-        Mod:QueueThreatRefresh(unit, "threat-list-update", 0, true)
-        Mod:QueueThreatRefresh(unit, "threat-followup", THREAT_FOLLOWUP_DELAY, true)
-        Mod:EnsureThreatRefreshDriver()
-        if Mod._debug == true then
-            local unitName = UnitExists(unit) and UnitName(unit) or "nil"
-            local unitCombat = IsNameplateInCombat(unit)
-            local threat = nil
-            local detailedThreatStatus = nil
-            if type(UnitThreatSituation) == "function" then
-                local okThreat, value = pcall(UnitThreatSituation, "player", unit)
-                if okThreat then
-                    threat = value
-                end
-            end
-            if type(UnitDetailedThreatSituation) == "function" then
-                local okDetailed, _, status = pcall(UnitDetailedThreatSituation, "player", unit)
-                if okDetailed then
-                    detailedThreatStatus = status
-                end
-            end
-            DebugPrint(string.format(
-                "threat-event unit=%s name=%s unitCombat=%s threat=%s detailedStatus=%s",
-                tostring(unit),
-                tostring(unitName or "nil"),
-                FormatBool(unitCombat),
-                tostring(threat or "nil"),
-                tostring(detailedThreatStatus or "nil")
-            ))
-        end
-    end
-end
-
 Register("PLAYER_ENTERING_WORLD", "ExBoss_Trash_Observation_PEW", function()
     if ShouldRunRuntime() then
         Mod:Start()
@@ -1409,7 +1447,7 @@ Register("NAME_PLATE_UNIT_ADDED", "ExBoss_Trash_Observation_NPA", function(_, un
     unit = NormalizeNameplateUnit(unit)
     if unit and Mod:EnsureRunning() then
         if Mod._debug == true then
-            DebugPrint(string.format(
+            DebugChat(string.format(
                 "nameplate-added unit=%s name=%s unitCombat=%s",
                 tostring(unit),
                 tostring(UnitExists(unit) and UnitName(unit) or "nil"),
@@ -1426,22 +1464,19 @@ Register("NAME_PLATE_UNIT_REMOVED", "ExBoss_Trash_Observation_NPR", function(_, 
     unit = NormalizeNameplateUnit(unit)
     if unit and Mod._debug == true then
         local runtime = GetRuntimeObs(unit)
-        DebugPrint(string.format(
-            "nameplate-removed unit=%s name=%s resolvedNPC=%s activeCast=%s engagedAt=%s",
+        DebugChat(string.format(
+            "nameplate-removed unit=%s name=%s resolvedNPC=%s lock=%s reserved=%s deathConsumed=%s activeCast=%s",
             tostring(unit),
             tostring(UnitExists(unit) and UnitName(unit) or "nil"),
             tostring(type(runtime) == "table" and runtime.matchedNPCID or "nil"),
-            FormatBool(type(runtime) == "table" and runtime.activeCastStartAt ~= nil),
-            tostring(type(runtime) == "table" and runtime.engagedAt or "nil")
+            tostring(type(runtime) == "table" and runtime.identityLockedNPCID or "nil"),
+            tostring(type(runtime) == "table" and runtime._populationReserved == true),
+            tostring(type(runtime) == "table" and runtime._populationDeathConsumed == true),
+            FormatBool(type(runtime) == "table" and runtime.activeCastStartAt ~= nil)
         ))
     end
     UntrackNameplate(unit)
 end)
-
-Mod._threatEventFrame = Mod._threatEventFrame or CreateFrame("Frame")
-Mod._threatEventFrame:UnregisterEvent("UNIT_THREAT_LIST_UPDATE")
-Mod._threatEventFrame:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
-Mod._threatEventFrame:SetScript("OnEvent", OnThreatListUpdate)
 
 Register("UNIT_DISPLAYPOWER", "ExBoss_Trash_Observation_DisplayPower", function(_, unit)
     unit = NormalizeNameplateUnit(unit)
@@ -1457,6 +1492,9 @@ Register("UNIT_HEALTH", "ExBoss_Trash_Observation_UnitHealth", function(_, unit)
     end
     if UnitIsDead(unit) then
         local runtime = type(Mod._runtimeByUnit) == "table" and Mod._runtimeByUnit[unit] or nil
+        DebugChat(string.format("unit-health-dead unit=%s resolvedNPC=%s reserved=%s", tostring(unit),
+            tostring(type(runtime) == "table" and runtime.matchedNPCID or "nil"),
+            tostring(type(runtime) == "table" and runtime._populationReserved == true)))
         if Population and type(Population.OnUnitDead) == "function" then
             Population.OnUnitDead(runtime)
         end

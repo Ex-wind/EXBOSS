@@ -40,11 +40,11 @@ function Mod.ApplyLayer2Candidates(candidates, obs, runtime, mapID, now)
     return candidates
 end
 
-function Mod.ApplyCoPresenceCandidates(candidates, runtime, mapID)
+function Mod.ApplyCoPresenceCandidates(candidates, runtime, mapID, trace)
     if CoPresence and type(CoPresence.FilterCandidates) == "function" then
-        return CoPresence.FilterCandidates(candidates, runtime, mapID)
+        return CoPresence.FilterCandidates(candidates, runtime, mapID, trace == true)
     end
-    return candidates, false
+    return candidates, false, nil
 end
 
 function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now)
@@ -54,10 +54,13 @@ function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now
         ignoreBossCounts = true,
     })
     local layer1Candidates = Mod.BuildLayer1Candidates(obs, currentDungeonKey, rows, mapID, runtime)
-    local trustedCoPresenceApplied = false
-    trustedLayer1Candidates, trustedCoPresenceApplied = Mod.ApplyCoPresenceCandidates(trustedLayer1Candidates, runtime, mapID)
-    local coPresenceApplied = false
-    layer1Candidates, coPresenceApplied = Mod.ApplyCoPresenceCandidates(layer1Candidates, runtime, mapID)
+    local trace = type(runtime) == "table" and runtime._debugTrace == true
+    local trustedCoPresenceApplied, trustedCoPresenceDebug = false, nil
+    trustedLayer1Candidates, trustedCoPresenceApplied, trustedCoPresenceDebug =
+        Mod.ApplyCoPresenceCandidates(trustedLayer1Candidates, runtime, mapID, trace)
+    local coPresenceApplied, coPresenceDebug = false, nil
+    layer1Candidates, coPresenceApplied, coPresenceDebug =
+        Mod.ApplyCoPresenceCandidates(layer1Candidates, runtime, mapID, trace)
     local layer2Candidates = Mod.ApplyLayer2Candidates(layer1Candidates, obs, runtime, mapID, now)
     local resolved = type(layer2Candidates) == "table" and #layer2Candidates == 1 and layer2Candidates[1] or nil
     -- 可信 L1（不含 bossCounts）本身唯一可锁；bossCounts 造成的唯一仍只是预览。
@@ -98,5 +101,7 @@ function Mod.ResolveCandidates(obs, currentDungeonKey, rows, runtime, mapID, now
         resolutionSource = resolutionSource,
         identityLockEligible = identityLockEligible,
         coPresenceApplied = coPresenceApplied == true or trustedCoPresenceApplied == true,
+        coPresenceDebug = coPresenceDebug,
+        trustedCoPresenceDebug = trustedCoPresenceDebug,
     }
 end

@@ -51,6 +51,7 @@ local function BuildDisplayData(now)
     local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(SPELL_ID)
     return {
         spellID = SPELL_ID,
+        displaySource = "boss",
         displayName = (info and info.name) or tostring(SPELL_ID),
         iconFileID = info and info.iconID or nil,
         castTime = now + BAR_DURATION,
