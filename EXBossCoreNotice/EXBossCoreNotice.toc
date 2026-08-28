@@ -1,4 +1,4 @@
-## Interface: 120100,120007
+## Interface: 120100
 ## Title: EXBoss Core Notice
 ## Notes: Displays an ExwindCore requirement notice for EXBoss.
 ## Author: Exwind
