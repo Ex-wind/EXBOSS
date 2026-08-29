@@ -5071,7 +5071,7 @@ local HIGHLIGHT_TARGET_SECS = 5 -- Blizzard 触发时提前量（秒）
 function Scheduler:_OnTimelineHighlight(eventID)
     if not self._running then return end
 
-    local timelineEventID = SafeToNumber(eventID)
+    local timelineEventID = eventID
     if timelineEventID then
         if self._mode == "blizzard" and TimelineAddedBuffer._acceptedTimelineEventIDs[timelineEventID] ~= true then
             return
@@ -5083,7 +5083,7 @@ function Scheduler:_OnTimelineHighlight(eventID)
                 or timer.countdownMode == "blizzard_hint"
                 or timer.centralMode == "blizzard_hint")
         if isBlizzardManaged then
-            local blizzardCountdownLead = tonumber(timer.blizzardHintCountdownLead) or HIGHLIGHT_TARGET_SECS
+            local blizzardCountdownLead = timer.blizzardHintCountdownLead or HIGHLIGHT_TARGET_SECS
             if timer.useBlizzardHintCountdown == true and timer.countdownMode == "blizzard_hint" and blizzardCountdownLead == HIGHLIGHT_TARGET_SECS and timer.hintCountdownFired ~= true then
                 timer.blizzardHighlightCountdownFired = true
                 timer.hintCountdownFired = true

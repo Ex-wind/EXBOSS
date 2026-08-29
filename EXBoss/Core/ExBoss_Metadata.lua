@@ -3,13 +3,46 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.8.28.2345",
+    version = "v26.8.29.2102",
     changelog = {
-        version = "v26.8.28.0712",
-        title = "v26.8.28.0712 更新日志",
-        publishedAt = "2026-08-28 07:12",
+        version = "v26.8.29.2102",
+        title = "v26.8.29.2102 更新日志",
+        publishedAt = "2026-08-29 21:02",
         fontSize = 14,
         content = [[
+@H1@ v26.8.29.2102
+
+@CN@ @H2@ 通用
+@CN@ - 修复了一些会导致报错的问题
+
+@CN@ @H2@ 所有小怪和BOSS
+@CN@ - 因为暴雪在近期又改了一些小怪的身份 所以导致一些功能原本好的又失效
+@CN@ - 我们当前已经收集完所有小怪的相关问题
+
+@CN@ - "所有问题都会在这周末修复完"
+
+@CN@ - (因为暴雪的限制 不可能做到100% 但是至少周末后能修复到90%以上)
+@CN@ - 剩余10%我们会在之后做针对性的处里(如果技术上能做到的话)
+
+@CN@ @H2@ 关于BOSS
+@CN@ - 所有的BOSS额外提示我们也会在周末完成 由于时间关系暂时无法给所有设置都有自定义选项
+
+@EN@ @H2@ General
+@EN@ - Fixed several issues that could cause errors.
+
+@EN@ @H2@ All Trash Mobs and Bosses
+@EN@ - Blizzard recently changed the identities/IDs of some trash mobs again, which caused some previously working features to stop functioning.
+@EN@ - We have now finished collecting all known issues related to trash mobs.
+
+@EN@ - "All of these issues will be fixed by the end of this weekend."
+
+@EN@ - Due to Blizzard's restrictions, it is impossible to achieve 100% functionality, but we expect to have at least 90% of these issues fixed by the end of the weekend.
+@EN@ - We will address the remaining 10% individually afterward, where technically possible.
+
+@EN@ @H2@ About Bosses
+@EN@ - We will also finish adding all additional boss alerts by the end of the weekend.
+@EN@ - Due to time constraints, we are currently unable to provide customizable options for every setting.
+
 @H1@ v26.8.28.0712
 
 @CN@ @H2@ 通用
