@@ -11,6 +11,8 @@ ExBoss.Trash.State = Mod
 Mod._units = Mod._units or {}
 Mod._lastCombatLogUnitDiedAt = tonumber(Mod._lastCombatLogUnitDiedAt) or 0
 Mod._pollIndex = tonumber(Mod._pollIndex) or 1
+Mod._l1Summary = type(Mod._l1Summary) == "table" and Mod._l1Summary or {}
+Mod._l1SummaryDirty = Mod._l1SummaryDirty ~= false
 
 local MAX_NAMEPLATES = 40
 local POLL_INTERVAL = 0.10
@@ -52,6 +54,10 @@ local function ResetUnitRow(row, unit, now)
     row.lastUpdateAt = now
 end
 
+local function MarkL1SummaryDirty()
+    Mod._l1SummaryDirty = true
+end
+
 local function IsEliteClassification(classification)
     return tostring(classification or "") == "elite"
 end
@@ -82,6 +88,7 @@ function Mod.Reset()
     wipe(Mod._units)
     Mod._lastCombatLogUnitDiedAt = 0
     Mod._pollIndex = 1
+    MarkL1SummaryDirty()
 end
 
 function Mod.GetUnit(unit)
@@ -108,6 +115,7 @@ function Mod.OnNameplateAdded(unit)
     end
     if row.active ~= true or row.removedAt ~= nil or row.deadAt ~= nil then
         ResetUnitRow(row, unit, now)
+        MarkL1SummaryDirty()
         return row
     end
     row.active = true
@@ -129,9 +137,81 @@ function Mod.OnNameplateRemoved(unit)
     row.inCombat = false
     row.removedAt = now
     row.lastUpdateAt = now
+    MarkL1SummaryDirty()
     DebugTrace(string.format("removed unit=%s wasCombat=%s (no combat-leave callback)",
         tostring(unit), tostring(wasInCombat)))
     return row
+end
+
+-- 仅保存已取得的 L1 快照，不额外调用游戏 API。
+function Mod.SyncL1Observation(unit, obs)
+    local row = EnsureUnitRow(unit)
+    if not row or type(obs) ~= "table" then
+        return row
+    end
+
+    local level = tonumber(obs.level) or nil
+    local power = obs.power
+    local family = type(obs.hasCreatureFamily) == "boolean" and obs.hasCreatureFamily or nil
+    local firstSeenAt = tonumber(obs.firstSeenAt) or nil
+    local changed = row.active ~= true
+        or row.level ~= level
+        or row.power ~= power
+        or row.hasCreatureFamily ~= family
+        or row.l1Observed ~= true
+
+    row.active = true
+    row.level = level
+    row.power = power
+    row.hasCreatureFamily = family
+    row.l1Observed = true
+    row.firstSeenAt = firstSeenAt or row.firstSeenAt
+    row.lastSeenAt = GetTime()
+    row.lastUpdateAt = row.lastSeenAt
+
+    if changed then
+        MarkL1SummaryDirty()
+    end
+    return row
+end
+
+-- 所有副本共用的本地姓名板 L1 汇总。只在表变化后至多扫描 40 个 State 行。
+function Mod.GetActiveL1Summary()
+    local summary = Mod._l1Summary
+    if Mod._l1SummaryDirty ~= true then
+        return summary
+    end
+
+    summary.hasLevel90 = false
+    summary.hasCreatureFamily = false
+    summary.hasLevel90Power0 = false
+    summary.level91Count = 0
+    summary.activeCount = 0
+    summary.observedCount = 0
+
+    for _, row in pairs(Mod._units) do
+        if type(row) == "table" and row.active == true then
+            summary.activeCount = summary.activeCount + 1
+            if row.l1Observed == true then
+                summary.observedCount = summary.observedCount + 1
+                if tonumber(row.level) == 90 then
+                    summary.hasLevel90 = true
+                    if tonumber(row.power) == 0 then
+                        summary.hasLevel90Power0 = true
+                    end
+                end
+                if tonumber(row.level) == 91 then
+                    summary.level91Count = summary.level91Count + 1
+                end
+                if row.hasCreatureFamily == true then
+                    summary.hasCreatureFamily = true
+                end
+            end
+        end
+    end
+
+    Mod._l1SummaryDirty = false
+    return summary
 end
 
 -- State 只检测状态变化；实际刷新、计时建立和清理由 Runtime 接手。
@@ -208,6 +288,10 @@ function Mod.RefreshUnitCombat(unit, now)
         end
     end
 
+    if wasActive ~= (row.active == true) then
+        MarkL1SummaryDirty()
+    end
+
     if combatStateChanged then
         DebugTrace(string.format("combat-transition unit=%s %s->%s active=%s dead=%s",
             tostring(unit), tostring(wasInCombat), tostring(row.inCombat == true),
@@ -261,6 +345,7 @@ function Mod.OnUnitDead(unit)
     row.inCombat = false
     row.deadAt = now
     row.lastUpdateAt = now
+    MarkL1SummaryDirty()
     DebugTrace(string.format("unit-dead unit=%s", tostring(unit)))
     return row
 end
@@ -271,7 +356,7 @@ function Mod.OnCombatLogUnitDied()
 end
 
 function Mod.SyncUnit(unit, runtime, obs, resolved, mapID)
-    local row = EnsureUnitRow(unit)
+    local row = type(obs) == "table" and Mod.SyncL1Observation(unit, obs) or EnsureUnitRow(unit)
     if not row then
         return nil
     end
@@ -282,8 +367,6 @@ function Mod.SyncUnit(unit, runtime, obs, resolved, mapID)
     row.lastUpdateAt = now
 
     if type(obs) == "table" then
-        row.level = tonumber(obs.level) or nil
-        row.power = obs.power
         row.unitClassification = obs.unitClassification
         if type(obs.inCombat) == "boolean" then
             row.inCombat = obs.inCombat == true

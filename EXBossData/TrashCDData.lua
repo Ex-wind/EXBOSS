@@ -105,7 +105,7 @@ _G.EXBOSS_TRASH_CD_DATA = {
                         castTime = 3,
                         channelTime = 4,
                         targetAPIExists = false,
-                        first = 18,
+                        first = 16,
                         cd = { 18.4 },
                     },
                     [1296719] = {
@@ -276,7 +276,7 @@ _G.EXBOSS_TRASH_CD_DATA = {
                         castTime = 2.5,
                         openingCastOrder = 1,
                         targetAPIExists = true,
-                        first = 8.2,
+                        first = 6,
                         cd = { 21.8 },
                     },
                     [1297970] = {
@@ -286,7 +286,7 @@ _G.EXBOSS_TRASH_CD_DATA = {
                         castTime = 2.5,
                         openingCastOrder = 2,
                         targetAPIExists = false,
-                        first = 15.4,
+                        first = 13.5,
                         cd = { 21.8 },
                     },
                 },

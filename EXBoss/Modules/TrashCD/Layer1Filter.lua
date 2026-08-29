@@ -15,6 +15,7 @@ end
 local Data = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
 local Rules = ExBoss.TrashCD and ExBoss.TrashCD.InferenceRules or nil
 local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
+local KingsRestWaves = ExBoss.TrashCD and ExBoss.TrashCD.KingsRestWaves or nil
 local ExwindTools = _G.ExwindTools
 
 local ACADEMY_DUNGEON_MAP_ID = 2526
@@ -346,6 +347,17 @@ function Mod.MatchRow(row, obs, runtime, dungeonMapID, options)
         return false, 0, 0, "minimap-id"
     end
 
+    -- WMOAreaTable 与普通小地图区域是两套资料。仅当 Excel 填写 WMO地图时才限制；
+    -- 进入已知 WMO 房间后，WMO 是强位置条件：候选必须声明当前 WMO ID。
+    -- 留空的行也不允许穿透到已识别的 WMO 房间，避免未知位置行污染唯一 L1。
+    if Data and type(Data.HasCurrentWMOArea) == "function" and Data.HasCurrentWMOArea() == true then
+        if type(row.wmoAreaIDs) ~= "table"
+            or type(Data.IsCurrentWMOAreaSetAllowed) ~= "function"
+            or Data.IsCurrentWMOAreaSetAllowed(row.wmoAreaIDs) ~= true then
+            return false, 0, 0, "wmo-area"
+        end
+    end
+
     if Population and type(Population.IsRowEligible) == "function" then
         local allowed, reason = Population.IsRowEligible(row, dungeonMapID, options)
         if allowed ~= true then
@@ -576,6 +588,11 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
         end
     end
 
+    local kingsRestApplied, kingsRestState = false, nil
+    if KingsRestWaves and type(KingsRestWaves.FilterCandidates) == "function" then
+        out, kingsRestApplied, kingsRestState = KingsRestWaves.FilterCandidates(out, obs, mapID)
+    end
+
     table.sort(out, function(a, b)
         if a.score ~= b.score then
             return a.score > b.score
@@ -591,6 +608,8 @@ function Mod.BuildCandidates(obs, currentDungeonKey, rows, explicitMapID, runtim
 
     if debug then
         debug.matchedRows = #out
+        debug.kingsRestApplied = kingsRestApplied == true
+        debug.kingsRestState = kingsRestState
         Mod._lastDebug = debug
     end
 

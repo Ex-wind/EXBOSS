@@ -74,6 +74,7 @@ Modules\TrashCD\Store.lua
 Modules\TrashCD\Data.lua
 Modules\TrashCD\Core.lua
 Modules\TrashCD\State.lua
+Modules\TrashCD\KingsRestWaves.lua
 Modules\TrashCD\VoiceBlacklist.lua
 Modules\TrashCD\RuntimeConfig.lua
 Modules\TrashCD\InferenceRules.lua

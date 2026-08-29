@@ -21,6 +21,7 @@ local TrashCache = ExBoss.TrashCD and ExBoss.TrashCD.TrashCache or nil
 local State = ExBoss.TrashCD and ExBoss.TrashCD.State or nil
 local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
 local CoPresence = ExBoss.TrashCD and ExBoss.TrashCD.CoPresence or nil
+local KingsRestWaves = ExBoss.TrashCD and ExBoss.TrashCD.KingsRestWaves or nil
 local HealthThreshold = ExBoss.Modules and ExBoss.Modules.Boss and ExBoss.Modules.Boss.HealthThreshold or nil
 
 local MAX_NAMEPLATES = 40
@@ -470,6 +471,20 @@ local function PrintMatchDebug(unit, context)
         DebugPrint("L2特征: " .. BuildCandidateDebugSummary(result.candidates, 6))
     end
 
+    local kingsRestWave = KingsRestWaves and type(KingsRestWaves.GetUnitWaveState) == "function"
+        and KingsRestWaves.GetUnitWaveState(unit) or nil
+    if type(kingsRestWave) == "table" then
+        DebugPrint(string.format(
+            "kings-rest batch ready=%s members=%s anchor=%s expected91=%s actual91=%s extra91=%s",
+            tostring(kingsRestWave.ready == true),
+            tostring(kingsRestWave.memberCount or "nil"),
+            tostring(kingsRestWave.waveAnchorNPCID or "nil"),
+            tostring(kingsRestWave.expectedLevel91Count or "nil"),
+            tostring(kingsRestWave.actualLevel91Count or "nil"),
+            tostring(kingsRestWave.hasExtraLevel91 == true)
+        ))
+    end
+
     if coPresenceDebug then
         local parts = {}
         for i = 1, #(coPresenceDebug.candidates or {}) do
@@ -779,6 +794,9 @@ local function TrackNameplate(unit)
     if State and type(State.OnNameplateAdded) == "function" then
         State.OnNameplateAdded(unit)
     end
+    if KingsRestWaves and type(KingsRestWaves.OnNameplateAdded) == "function" then
+        KingsRestWaves.OnNameplateAdded(unit)
+    end
     if TrashCache and type(TrashCache.OnNameplateAdded) == "function" then
         TrashCache.OnNameplateAdded(unit)
     end
@@ -897,6 +915,9 @@ local function UntrackNameplate(unit)
     if State and type(State.OnNameplateRemoved) == "function" then
         State.OnNameplateRemoved(unit)
     end
+    if KingsRestWaves and type(KingsRestWaves.OnNameplateRemoved) == "function" then
+        KingsRestWaves.OnNameplateRemoved(unit)
+    end
     if TrashCache and type(TrashCache.OnNameplateRemoved) == "function" then
         keepPending = TrashCache.OnNameplateRemoved(unit, runtime, CancelRuntimeScriptEvents) == true
     end
@@ -932,6 +953,19 @@ function Mod:ScheduleUnitRefresh(unit, delay, reason, forceSnapshot)
         self._pendingUnitRefresh[key] = nil
         if self._running == true then
             self:RefreshUnit(unit, reason or "delayed", forceSnapshot == true)
+        end
+    end)
+end
+
+if KingsRestWaves and type(KingsRestWaves.SetRefreshCallback) == "function" then
+    KingsRestWaves.SetRefreshCallback(function(units, reason)
+        if Mod._running ~= true or type(units) ~= "table" then
+            return
+        end
+        for unit in pairs(units) do
+            if IsHostileNameplate(unit) then
+                Mod:ScheduleUnitRefresh(unit, 0.01, reason or "kings-rest-wave", true)
+            end
         end
     end)
 end
@@ -1041,6 +1075,14 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
         return
     end
 
+    -- 只保存已取得的 L1 快照；不会额外调用游戏 API。
+    if State and type(State.SyncL1Observation) == "function" then
+        State.SyncL1Observation(unit, obs)
+    end
+    if KingsRestWaves and type(KingsRestWaves.OnL1Snapshot) == "function" then
+        KingsRestWaves.OnL1Snapshot(unit, trashMapID)
+    end
+
     local traits = GetMobTraits()
     local traitRows = type(traits.rows) == "table" and traits.rows or {}
     local runtime = GetRuntimeObs(unit)
@@ -1050,6 +1092,9 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
     end
     local result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
     local resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
+    if identityJustLocked == true and KingsRestWaves and type(KingsRestWaves.OnIdentityLocked) == "function" then
+        KingsRestWaves.OnIdentityLocked(unit, resolved, trashMapID)
+    end
     local isCoPresenceProvisional = false
     local tentativeSession = type(runtime) == "table" and tonumber(runtime._coPresenceTentativeSession) or nil
     if not resolved and obs.inCombat == true
@@ -1285,6 +1330,9 @@ function Mod:Stop()
     end
     if CoPresence and type(CoPresence.Reset) == "function" then
         CoPresence.Reset()
+    end
+    if KingsRestWaves and type(KingsRestWaves.Reset) == "function" then
+        KingsRestWaves.Reset()
     end
     if State and type(State.Reset) == "function" then
         State.Reset()

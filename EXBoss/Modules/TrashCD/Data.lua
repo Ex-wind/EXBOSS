@@ -15,6 +15,7 @@ local encounterMapNameByMapID
 local trashMapIDByNameKey
 local trashPresetRootCache
 local areaNameByID = {}
+local wmoAreaIDsByName
 
 function Data.NormalizeNameKey(name)
     local s = tostring(name or "")
@@ -66,6 +67,43 @@ function Data.GetAreaInfoName(areaID)
     end
     areaNameByID[id] = name
     return name
+end
+
+-- WMOAreaTable 与 C_Map 区域表是两套 ID。这里不读取客户端语言，
+-- 只把 Excel 导出的所有语言名称反查为 WMO ID；任一语言文本命中即可。
+local function GetWMOAreaIDsByName()
+    if type(wmoAreaIDsByName) == "table" then
+        return wmoAreaIDsByName
+    end
+    local out = {}
+    local traitsRoot = Data.GetTrashMobTraitsRoot and Data.GetTrashMobTraitsRoot() or nil
+    local namesByID = type(traitsRoot) == "table" and traitsRoot.wmoAreaNamesByID or nil
+    for rawID, nameSet in pairs(type(namesByID) == "table" and namesByID or {}) do
+        local areaID = tonumber(rawID)
+        if areaID and type(nameSet) == "table" then
+            for _, rawName in pairs(nameSet) do
+                local name = NormalizeZoneText(rawName)
+                if name ~= "" then
+                    out[name] = out[name] or {}
+                    out[name][areaID] = true
+                end
+            end
+        end
+    end
+    wmoAreaIDsByName = out
+    return out
+end
+
+function Data.GetCurrentWMOAreaSet()
+    local zoneText = Data.GetCurrentZoneText()
+    if zoneText == "" then
+        return {}
+    end
+    return GetWMOAreaIDsByName()[zoneText] or {}
+end
+
+function Data.HasCurrentWMOArea()
+    return next(Data.GetCurrentWMOAreaSet()) ~= nil
 end
 
 function Data.IsCurrentPlacementID(id)
@@ -125,6 +163,19 @@ function Data.IsCurrentMinimapAreaSetAllowed(areaSet)
     for areaID in pairs(areaSet) do
         local areaName = Data.GetAreaInfoName(areaID)
         if areaName ~= "" and areaName == zoneText then
+            return true
+        end
+    end
+    return false
+end
+
+function Data.IsCurrentWMOAreaSetAllowed(areaSet)
+    if type(areaSet) ~= "table" then
+        return true
+    end
+    local currentSet = Data.GetCurrentWMOAreaSet()
+    for areaID in pairs(areaSet) do
+        if currentSet[tonumber(areaID)] == true then
             return true
         end
     end
@@ -207,7 +258,8 @@ local function BuildEncounterMapNameByInstanceID()
     end
     for key, row in pairs(maps) do
         if type(row) == "table" then
-            local instanceID = tonumber(row.instanceID) or tonumber(row.instanceId) or tonumber(row.mapID) or tonumber(key)
+            local instanceID = tonumber(row.instanceID) or tonumber(row.instanceId) or tonumber(row.mapID) or
+            tonumber(key)
             local mapName = tostring(row.mapName or row.name or "")
             if instanceID and instanceID > 0 and mapName ~= "" then
                 out[instanceID] = mapName
