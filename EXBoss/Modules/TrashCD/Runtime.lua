@@ -363,6 +363,7 @@ local function BuildMatchDebugSignature(unit, context)
         tostring(accepted and accepted.npcID or "nil"),
         tostring(runtime and runtime.identityLockedNPCID or "nil"),
         tostring(context.acceptedSource or "nil"),
+        tostring(GetStateValue("DungeonBossProgressIndex") or "nil"),
         BuildCoPresenceSignature(result.coPresenceDebug),
     }, "\31")
 end
@@ -390,13 +391,18 @@ local function PrintMatchDebug(unit, context)
     local acceptedText = accepted and
         string.format("%s(%s)", tostring(accepted.name or "?"), tostring(accepted.npcID or "?")) or "none"
     local coPresenceDebug = type(result.coPresenceDebug) == "table" and result.coPresenceDebug or nil
+    local bossProgressIndex = tonumber(GetStateValue("DungeonBossProgressIndex")) or 0
+    local bossPlacementText = bossProgressIndex > 0
+        and string.format("第%s号BOSS前", tostring(bossProgressIndex))
+        or "未取得"
 
     -- 聊天框只保留一条、且仅在身份/候选/观测状态变化时输出。
     -- 这样开启调试后可以直接看，而不会被每次仇恨刷新淹没。
     DebugChat(string.format(
-        "match unit=%s reason=%s obs=[L%s P%s lt=%s fam=%s cast=%s ch=%s int=%s combat=%s] L1=%s L2=%s inferred=%s accepted=%s source=%s lock=%s co=%s",
+        "match unit=%s reason=%s ExcelBoss前=%s obs=[L%s P%s lt=%s fam=%s cast=%s ch=%s int=%s combat=%s] L1=%s L2=%s inferred=%s accepted=%s source=%s lock=%s co=%s",
         tostring(unit or "?"),
         tostring(context.reason or "?"),
+        bossPlacementText,
         tostring(obs.level or "nil"),
         tostring(obs.power or "nil"),
         tostring(obs.isLieutenant),
