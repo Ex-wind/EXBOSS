@@ -251,6 +251,10 @@ local function HasTargetAPIFingerprint(spellData)
     return type(spellData) == "table" and type(spellData.targetAPIExists) == "boolean"
 end
 
+local function HasTargetHostileFingerprint(spellData)
+    return type(spellData) == "table" and type(spellData.targetHostile) == "boolean"
+end
+
 local function CollectRelevantStartSpells(mobData, runtime, kind, castStartOnly)
     if type(mobData) ~= "table" or type(mobData.spells) ~= "table" then
         return {}
@@ -310,6 +314,13 @@ local function SpellFingerprintsMatchRuntime(spellData, runtime)
         and type(runtime) == "table"
         and type(runtime.activeCastTargetAPIExists) == "boolean"
         and spellData.targetAPIExists ~= runtime.activeCastTargetAPIExists then
+        return false
+    end
+
+    if HasTargetHostileFingerprint(spellData)
+        and type(runtime) == "table"
+        and type(runtime.activeCastTargetHostile) == "boolean"
+        and spellData.targetHostile ~= runtime.activeCastTargetHostile then
         return false
     end
 
@@ -373,6 +384,16 @@ local function DescribeFingerprintMismatch(spellData, runtime)
         )
     end
 
+    if HasTargetHostileFingerprint(spellData)
+        and type(runtime.activeCastTargetHostile) == "boolean"
+        and spellData.targetHostile ~= runtime.activeCastTargetHostile then
+        return string.format(
+            "targetHostile expected=%s observed=%s",
+            tostring(spellData.targetHostile),
+            tostring(runtime.activeCastTargetHostile)
+        )
+    end
+
     --[[
     12.1 弃用旧施法开始指纹，先行注释保留。
     if HasTargetUnitExistsFingerprint(spellData)
@@ -429,7 +450,23 @@ local function GetObservedCastStartSpell(runtime, mobData, kind)
         end
         return nil
     end
-    return nil
+
+    -- UNIT_SPELLCAST_START 在当前环境不会提供可用法术 ID。对于明确填写
+    -- 「目标敌对指纹」的 CAST_START 技能，可用该指纹唯一确定并正常起 CD。
+    local relevant = CollectRelevantStartSpells(mobData, runtime, kind, true)
+    local matched = nil
+    for i = 1, #relevant do
+        local candidate = relevant[i]
+        if IsCastStartCDMode(candidate)
+            and HasTargetHostileFingerprint(candidate)
+            and SpellFingerprintsMatchRuntime(candidate, runtime) then
+            if matched ~= nil then
+                return nil
+            end
+            matched = candidate
+        end
+    end
+    return matched
 end
 
 local function StartsCDOnInterruptedChannel(spellData)
@@ -442,11 +479,12 @@ end
 local function GetPendingStartFingerprintNeeds(runtime, mobData, kind)
     local needsTarget = false
     local needsTargetAPI = false
+    local needsTargetHostile = false
     local needsTargetUnitExists = false
     local needsTargetClear = false
     local needsTargetSwitch = false
     if type(runtime) ~= "table" or type(mobData) ~= "table" or type(mobData.spells) ~= "table" then
-        return needsTarget, needsTargetAPI, needsTargetUnitExists, needsTargetClear, needsTargetSwitch
+        return needsTarget, needsTargetAPI, needsTargetHostile, needsTargetUnitExists, needsTargetClear, needsTargetSwitch
     end
     local relevant = CollectRelevantStartSpells(mobData, runtime, kind, true)
     for i = 1, #relevant do
@@ -457,6 +495,9 @@ local function GetPendingStartFingerprintNeeds(runtime, mobData, kind)
             end
             if type(spellData.targetAPIExists) == "boolean" then
                 needsTargetAPI = true
+            end
+            if type(spellData.targetHostile) == "boolean" then
+                needsTargetHostile = true
             end
             --[[
             12.1 弃用旧施法开始指纹，先行注释保留。
@@ -472,7 +513,7 @@ local function GetPendingStartFingerprintNeeds(runtime, mobData, kind)
             ]]
         end
     end
-    return needsTarget, needsTargetAPI, needsTargetUnitExists, needsTargetClear, needsTargetSwitch
+    return needsTarget, needsTargetAPI, needsTargetHostile, needsTargetUnitExists, needsTargetClear, needsTargetSwitch
 end
 
 local function SpellFinishKindMatches(spellData, kind)
@@ -500,12 +541,15 @@ local function ArePendingFinishFingerprintsResolved(runtime, mobData, kind)
 end
 
 local function ArePendingStartFingerprintsResolved(runtime, mobData, kind)
-    local needsTarget, needsTargetAPI, needsTargetUnitExists, needsTargetClear, needsTargetSwitch = GetPendingStartFingerprintNeeds(runtime, mobData, kind)
+    local needsTarget, needsTargetAPI, needsTargetHostile, needsTargetUnitExists, needsTargetClear, needsTargetSwitch = GetPendingStartFingerprintNeeds(runtime, mobData, kind)
     if needsTarget and type(runtime.activeCastTargetExists) ~= "boolean" then
         return false, "target"
     end
     if needsTargetAPI and type(runtime.activeCastTargetAPIExists) ~= "boolean" then
         return false, "target-api"
+    end
+    if needsTargetHostile and type(runtime.activeCastTargetHostile) ~= "boolean" then
+        return false, "target-hostile"
     end
     if needsTargetUnitExists and type(runtime.activeCastTargetUnitExists) ~= "boolean" then
         return false, "target-unit"
@@ -1205,6 +1249,8 @@ local function ResetRuntimeSchedule(runtime)
     runtime.activeCastTargetCheckedAt = nil
     runtime.activeCastTargetAPIExists = nil
     runtime.activeCastTargetAPICheckedAt = nil
+    runtime.activeCastTargetHostile = nil
+    runtime.activeCastTargetHostileCheckedAt = nil
     runtime.activeCastTargetUnitExists = nil
     runtime.activeCastTargetUnitCheckedAt = nil
     runtime.activeCastTargetClearResolved = false
@@ -1368,6 +1414,8 @@ function Mod.SyncUnitCDTimers(runtime, obs, candidate, mapID)
         runtime.activeCastTargetCheckedAt = nil
         runtime.activeCastTargetAPIExists = nil
         runtime.activeCastTargetAPICheckedAt = nil
+        runtime.activeCastTargetHostile = nil
+        runtime.activeCastTargetHostileCheckedAt = nil
         runtime.activeCastTargetUnitExists = nil
         runtime.activeCastTargetUnitCheckedAt = nil
         runtime.activeCastTargetClearResolved = false

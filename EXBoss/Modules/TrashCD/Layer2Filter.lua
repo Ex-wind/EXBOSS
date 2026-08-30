@@ -482,6 +482,12 @@ local function SpellMatchesCurrentFingerprint(spellData, behavior, runtime)
         return false, "targetAPIExists"
     end
 
+    if type(spellData.targetHostile) == "boolean"
+        and type(runtime.activeCastTargetHostile) == "boolean"
+        and spellData.targetHostile ~= runtime.activeCastTargetHostile then
+        return false, "targetHostile"
+    end
+
     --[[
     12.1 弃用旧施法开始指纹，先行注释保留。
     若 12.1 上线后确认无问题，再彻底删除以下旧字段逻辑：

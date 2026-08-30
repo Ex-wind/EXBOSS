@@ -362,6 +362,7 @@ local function BuildMatchDebugSignature(unit, context)
         tostring(type(result.resolved) == "table" and result.resolved.npcID or "nil"),
         tostring(accepted and accepted.npcID or "nil"),
         tostring(runtime and runtime.identityLockedNPCID or "nil"),
+        runtime and tostring(runtime.activeCastTargetHostile) or "nil",
         tostring(context.acceptedSource or "nil"),
         tostring(GetStateValue("DungeonBossProgressIndex") or "nil"),
         BuildCoPresenceSignature(result.coPresenceDebug),
@@ -399,7 +400,7 @@ local function PrintMatchDebug(unit, context)
     -- 聊天框只保留一条、且仅在身份/候选/观测状态变化时输出。
     -- 这样开启调试后可以直接看，而不会被每次仇恨刷新淹没。
     DebugChat(string.format(
-        "match unit=%s reason=%s ExcelBoss前=%s obs=[L%s P%s lt=%s fam=%s cast=%s ch=%s int=%s combat=%s] L1=%s L2=%s inferred=%s accepted=%s source=%s lock=%s co=%s",
+        "match unit=%s reason=%s ExcelBoss前=%s obs=[L%s P%s lt=%s fam=%s cast=%s ch=%s int=%s combat=%s] L1=%s L2=%s inferred=%s accepted=%s source=%s lock=%s co=%s targetHostile=%s",
         tostring(unit or "?"),
         tostring(context.reason or "?"),
         bossPlacementText,
@@ -417,7 +418,8 @@ local function PrintMatchDebug(unit, context)
         acceptedText,
         tostring(context.acceptedSource or "none"),
         tostring(type(context.runtime) == "table" and context.runtime.identityLockedNPCID or "none"),
-        tostring(coPresenceDebug and coPresenceDebug.applied == true or false)
+        tostring(coPresenceDebug and coPresenceDebug.applied == true or false),
+        type(context.runtime) == "table" and tostring(context.runtime.activeCastTargetHostile) or "nil"
     ))
 
     DebugPrint(string.format(

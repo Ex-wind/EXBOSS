@@ -11,6 +11,9 @@ local TRASH_CASTBAR_STOP_EVENT = "EXBOSS_TRASH_CASTBAR_STOP"
 
 local SNAPSHOT_DELAY = 0.10
 local CAST_TARGET_SAMPLE_DELAY = 0.10
+local CAST_TARGET_HOSTILE_SAMPLE_DELAY = 0.30
+local CAST_TARGET_HOSTILE_DEBUG_INTERVAL = 0.10
+local CAST_TARGET_HOSTILE_DEBUG_SAMPLES = 3
 local CAST_TARGET_CLEAR_WINDOW = 0.10
 local CAST_TARGET_SWITCH_WINDOW = 0.10
 local MAX_NAMEPLATES = 40
@@ -179,6 +182,64 @@ end
 
 local function SafeUnitHasSpellTarget(unit)
     return SafeUnitTargetTokenExists(unit)
+end
+
+-- 只有先用 issecretvalue 确认返回值是普通值，才允许比较敌对关系。
+-- 返回：targetExists, isHostile；关系值受保护或 API 不可用时 isHostile 为 nil。
+local function GetUnitTargetHostility(unit)
+    local targetExists = SafeUnitTargetTokenExists(unit)
+    if targetExists ~= true then
+        return targetExists, nil
+    end
+    if type(UnitCanAttack) ~= "function" or type(issecretvalue) ~= "function" then
+        return true, nil
+    end
+
+    local ok, value = pcall(UnitCanAttack, "player", unit .. "target")
+    if not ok then
+        return true, nil
+    end
+    local secretOK, isSecret = pcall(issecretvalue, value)
+    if not secretOK or isSecret == true then
+        return true, nil
+    end
+    return true, value == true
+end
+
+local function SafeUnitTargetIsHostile(unit)
+    local targetExists, isHostile = GetUnitTargetHostility(unit)
+    if targetExists == false then
+        return false
+    end
+    if targetExists ~= true then
+        return nil
+    end
+    return isHostile
+end
+
+local function RuntimeNeedsTargetHostileFingerprint(runtime, kind)
+    local output = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Output or nil
+    if not (output and type(output.RuntimeNeedsTargetHostileFingerprint) == "function") then
+        return false
+    end
+    local ok, needsFingerprint = pcall(output.RuntimeNeedsTargetHostileFingerprint, runtime, kind)
+    return ok and needsFingerprint == true
+end
+
+local function PrintTargetHostileFingerprintDebugSample(runtime, sampleIndex, value)
+    local npcID = type(runtime) == "table" and (runtime.identityLockedNPCID or runtime.matchedNPCID) or nil
+    local unit = type(runtime) == "table" and runtime._nameplateUnit or nil
+    local message = string.format(
+        "[TrashCD] targetHostile sample=%d/%d unit=%s npc=%s target=%s",
+        tonumber(sampleIndex) or 0,
+        CAST_TARGET_HOSTILE_DEBUG_SAMPLES,
+        tostring(unit or "nil"),
+        tostring(npcID or "nil"),
+        tostring(value)
+    )
+    if type(print) == "function" then
+        print(message)
+    end
 end
 
 local function SafeUnitTargetPresence(unit)
@@ -372,6 +433,78 @@ local function ScheduleCastTargetSnapshot(runtime, unit, kind, castBarID, seq)
     end)
 end
 
+-- 只在 Excel 为当前读条候选写了「目标敌对指纹」时才建立该回调；关系 API 仅用于本次临时直出调试。
+local function ScheduleCastTargetHostileSnapshot(runtime, unit, kind, castBarID, seq)
+    if not RuntimeNeedsTargetHostileFingerprint(runtime, kind) then
+        return false
+    end
+    if not (C_Timer and C_Timer.After) then
+        return false
+    end
+    if runtime._castTargetHostileSampleSeq == seq then
+        return false
+    end
+    runtime._castTargetHostileSampleSeq = seq
+    C_Timer.After(CAST_TARGET_HOSTILE_SAMPLE_DELAY, function()
+        if type(runtime) ~= "table" then
+            return
+        end
+        if runtime.activeCastSeq ~= seq then
+            return
+        end
+        if tostring(runtime.activeCastKind or "") ~= tostring(kind or "") then
+            return
+        end
+        if not ActiveCastMatches(runtime, castBarID) then
+            return
+        end
+        local isHostile = SafeUnitTargetIsHostile(unit)
+        if isHostile == nil then
+            return
+        end
+        runtime.activeCastTargetHostile = isHostile
+        runtime.activeCastTargetHostileCheckedAt = GetTime and GetTime() or nil
+        RequestRuntimeRefresh(runtime, "cast-target-hostile-snapshot")
+        RetryRuntimeCastStartVoice(runtime, kind, seq)
+    end)
+    return true
+end
+
+local function GetTargetHostileDebugValue(unit)
+    local targetExists, isHostile = GetUnitTargetHostility(unit)
+    if targetExists == false then
+        return "无目标"
+    end
+    if targetExists ~= true then
+        return "目标不可用"
+    end
+    if isHostile == true then
+        return "敌方"
+    end
+    if isHostile == false then
+        return "友方"
+    end
+    return "关系受保护"
+end
+
+-- 临时直出调试：任何单位开始读条，就每 0.1 秒检查一次，共 3 次。
+-- 不检查身份、等级、Excel、目标 API 或读条是否仍在进行。
+local function ScheduleCastTargetHostileDebugSamples(runtime, unit, kind, seq)
+    if type(runtime) ~= "table" then
+        return false
+    end
+    if not (C_Timer and C_Timer.After) or runtime._castTargetHostileDebugSeq == seq then
+        return false
+    end
+    runtime._castTargetHostileDebugSeq = seq
+    for sampleIndex = 1, CAST_TARGET_HOSTILE_DEBUG_SAMPLES do
+        C_Timer.After(CAST_TARGET_HOSTILE_DEBUG_INTERVAL * sampleIndex, function()
+            PrintTargetHostileFingerprintDebugSample(runtime, sampleIndex, GetTargetHostileDebugValue(unit))
+        end)
+    end
+    return true
+end
+
 local function ScheduleCastTargetClearSnapshot(runtime, kind, castBarID, seq)
     if not (C_Timer and C_Timer.After) then
         runtime.activeCastTargetClearResolved = true
@@ -508,6 +641,8 @@ local function CapturePendingCastSnapshot(runtime)
         activeCastTargetCheckedAt = runtime.activeCastTargetCheckedAt,
         activeCastTargetAPIExists = runtime.activeCastTargetAPIExists,
         activeCastTargetAPICheckedAt = runtime.activeCastTargetAPICheckedAt,
+        activeCastTargetHostile = runtime.activeCastTargetHostile,
+        activeCastTargetHostileCheckedAt = runtime.activeCastTargetHostileCheckedAt,
         activeCastTargetUnitExists = runtime.activeCastTargetUnitExists,
         activeCastTargetUnitCheckedAt = runtime.activeCastTargetUnitCheckedAt,
         activeCastTargetClearResolved = runtime.activeCastTargetClearResolved,
@@ -616,6 +751,29 @@ function Mod.GetRuntimeObs(state, unit)
     end
     state._runtimeByUnit[unit] = state._runtimeByUnit[unit] or {}
     return state._runtimeByUnit[unit]
+end
+
+-- 身份在读条开始后才锁定时，输出层可补建一次采样；仍然只会在 Excel 写了指纹时调用 API。
+function Mod.EnsureRuntimeTargetHostileFingerprint(runtime, kind)
+    if type(runtime) ~= "table" or runtime.activeCastStartAt == nil then
+        return false
+    end
+    local unit = type(runtime._nameplateUnit) == "string" and runtime._nameplateUnit or nil
+    if not unit then
+        return false
+    end
+    local seq = tonumber(runtime.activeCastSeq)
+    if not seq then
+        return false
+    end
+    ScheduleCastTargetHostileDebugSamples(runtime, unit, kind or runtime.activeCastKind, seq)
+    return ScheduleCastTargetHostileSnapshot(
+        runtime,
+        unit,
+        kind or runtime.activeCastKind,
+        runtime.activeCastBarID,
+        seq
+    )
 end
 
 function Mod.CollectTrackedNameplate(state, unit, isHostileFn, cancelFn, forceSnapshot)
@@ -828,6 +986,8 @@ function Mod.BeginRuntimeCast(state, unit, kind, castBarID)
     runtime.activeCastTargetCheckedAt = syncTargetExists ~= nil and now or nil
     runtime.activeCastTargetAPIExists = syncTargetAPI
     runtime.activeCastTargetAPICheckedAt = syncTargetAPI ~= nil and now or nil
+    runtime.activeCastTargetHostile = nil
+    runtime.activeCastTargetHostileCheckedAt = nil
     runtime.activeCastTargetUnitExists = syncTargetExists
     runtime.activeCastTargetUnitCheckedAt = syncTargetExists ~= nil and now or nil
     runtime.activeCastTargetClearResolved = false
@@ -871,6 +1031,8 @@ function Mod.BeginRuntimeCast(state, unit, kind, castBarID)
     runtime.pendingBehavior = nil
     runtime.scheduleDirty = true
     ScheduleCastTargetSnapshot(runtime, unit, nextKind, nextCastBarID, runtime.activeCastSeq)
+    ScheduleCastTargetHostileDebugSamples(runtime, unit, nextKind, runtime.activeCastSeq)
+    ScheduleCastTargetHostileSnapshot(runtime, unit, nextKind, nextCastBarID, runtime.activeCastSeq)
     ScheduleCastTargetClearSnapshot(runtime, nextKind, nextCastBarID, runtime.activeCastSeq)
     ScheduleCastTargetSwitchSnapshot(runtime, nextKind, nextCastBarID, runtime.activeCastSeq)
     return true
@@ -990,6 +1152,8 @@ function Mod.ClearRuntimeActiveCast(state, unit, castBarID)
     runtime.activeCastTargetCheckedAt = nil
     runtime.activeCastTargetAPIExists = nil
     runtime.activeCastTargetAPICheckedAt = nil
+    runtime.activeCastTargetHostile = nil
+    runtime.activeCastTargetHostileCheckedAt = nil
     runtime.activeCastTargetUnitExists = nil
     runtime.activeCastTargetUnitCheckedAt = nil
     runtime.activeCastTargetClearResolved = false

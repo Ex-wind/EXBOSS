@@ -10,6 +10,7 @@ ExBoss.Trash.Output = Mod
 
 local SCRIPT_EVENT_MIN_DELAY = 0.20
 local CAST_START_VOICE_TARGET_DELAY = 0.12
+local CAST_START_VOICE_TARGET_HOSTILE_DELAY = 0.31
 local CAST_START_VOICE_TARGET_CLEAR_DELAY = 0.12
 local CAST_START_VOICE_TARGET_SWITCH_DELAY = 0.12
 local Data = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
@@ -200,6 +201,23 @@ local function RuntimeNeedsTargetAPIFingerprint(runtime, kind)
     return false
 end
 
+local function RuntimeNeedsTargetHostileFingerprint(runtime, kind)
+    local spells = CollectRelevantRuntimeStartSpells(runtime, kind)
+    for i = 1, #spells do
+        local spellData = spells[i]
+        if type(spellData) == "table"
+            and type(spellData.targetHostile) == "boolean"
+            and SpellMatchesStartKind(spellData, kind or runtime.activeCastKind) then
+            return true
+        end
+    end
+    return false
+end
+
+function Mod.RuntimeNeedsTargetHostileFingerprint(runtime, kind)
+    return RuntimeNeedsTargetHostileFingerprint(runtime, kind)
+end
+
 local function RuntimeNeedsTargetUnitFingerprint(runtime, kind)
     --[[
     12.1 弃用旧施法开始指纹，先行注释保留。
@@ -267,6 +285,11 @@ local function SpellMatchesRuntimeFingerprints(spellData, runtime)
     if type(runtime.activeCastTargetAPIExists) == "boolean"
         and type(spellData.targetAPIExists) == "boolean"
         and spellData.targetAPIExists ~= runtime.activeCastTargetAPIExists then
+        return false
+    end
+    if type(runtime.activeCastTargetHostile) == "boolean"
+        and type(spellData.targetHostile) == "boolean"
+        and spellData.targetHostile ~= runtime.activeCastTargetHostile then
         return false
     end
     --[[
@@ -558,7 +581,36 @@ local function DelayRuntimeCastStartVoice(runtime, kind)
         if tostring(runtime.activeCastKind or "") ~= tostring(kind or "") then
             return
         end
-        TryPlayRuntimeSpellStartVoice(runtime)
+        -- 重新走完整的指纹门槛；不能绕过 0.2 秒目标敌对指纹。
+        Mod.PlayRuntimeCastStartVoice(runtime, kind)
+    end)
+    return true
+end
+
+local function DelayRuntimeTargetHostileCastStartVoice(runtime, kind)
+    if not (C_Timer and C_Timer.After) then
+        return false
+    end
+    local seq = tonumber(runtime and runtime.activeCastSeq)
+    if not seq then
+        return false
+    end
+    local observation = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Observation or nil
+    if observation and type(observation.EnsureRuntimeTargetHostileFingerprint) == "function" then
+        observation.EnsureRuntimeTargetHostileFingerprint(runtime, kind)
+    end
+    if runtime._castStartTargetHostileDelaySeq == seq then
+        return false
+    end
+    runtime._castStartTargetHostileDelaySeq = seq
+    C_Timer.After(CAST_START_VOICE_TARGET_HOSTILE_DELAY, function()
+        if type(runtime) ~= "table" or tonumber(runtime.activeCastSeq) ~= seq then
+            return
+        end
+        if tostring(runtime.activeCastKind or "") ~= tostring(kind or "") then
+            return
+        end
+        Mod.PlayRuntimeCastStartVoice(runtime, kind)
     end)
     return true
 end
@@ -636,6 +688,11 @@ function Mod.PlayRuntimeCastStartVoice(runtime, kind)
 
     if RuntimeNeedsTargetAPIFingerprint(runtime, castKind) and type(runtime.activeCastTargetAPIExists) ~= "boolean" then
         return DelayRuntimeCastStartVoice(runtime, castKind)
+    end
+
+    if RuntimeNeedsTargetHostileFingerprint(runtime, castKind)
+        and type(runtime.activeCastTargetHostile) ~= "boolean" then
+        return DelayRuntimeTargetHostileCastStartVoice(runtime, castKind)
     end
 
     if RuntimeNeedsTargetUnitFingerprint(runtime, castKind) and type(runtime.activeCastTargetUnitExists) ~= "boolean" then
