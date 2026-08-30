@@ -102,10 +102,6 @@ function Data.GetCurrentWMOAreaSet()
     return GetWMOAreaIDsByName()[zoneText] or {}
 end
 
-function Data.HasCurrentWMOArea()
-    return next(Data.GetCurrentWMOAreaSet()) ~= nil
-end
-
 function Data.IsCurrentPlacementID(id)
     local n = tonumber(id)
     if not n or n <= 0 then

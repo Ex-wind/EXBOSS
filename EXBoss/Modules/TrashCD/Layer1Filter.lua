@@ -347,15 +347,12 @@ function Mod.MatchRow(row, obs, runtime, dungeonMapID, options)
         return false, 0, 0, "minimap-id"
     end
 
-    -- WMOAreaTable 与普通小地图区域是两套资料。仅当 Excel 填写 WMO地图时才限制；
-    -- 进入已知 WMO 房间后，WMO 是强位置条件：候选必须声明当前 WMO ID。
-    -- 留空的行也不允许穿透到已识别的 WMO 房间，避免未知位置行污染唯一 L1。
-    if Data and type(Data.HasCurrentWMOArea) == "function" and Data.HasCurrentWMOArea() == true then
-        if type(row.wmoAreaIDs) ~= "table"
-            or type(Data.IsCurrentWMOAreaSetAllowed) ~= "function"
-            or Data.IsCurrentWMOAreaSetAllowed(row.wmoAreaIDs) ~= true then
-            return false, 0, 0, "wmo-area"
-        end
+    -- WMO 与普通小地图过滤相同：只有 Excel 为该候选行填写 WMO地图时才比对。
+    -- 留空表示此行没有 WMO 限制，不能因为玩家正处于某个 WMO 房间而被排除。
+    if type(row.wmoAreaIDs) == "table"
+        and Data and type(Data.IsCurrentWMOAreaSetAllowed) == "function"
+        and Data.IsCurrentWMOAreaSetAllowed(row.wmoAreaIDs) ~= true then
+        return false, 0, 0, "wmo-area"
     end
 
     if Population and type(Population.IsRowEligible) == "function" then
