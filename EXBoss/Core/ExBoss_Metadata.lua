@@ -3,13 +3,27 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.8.31.1641",
+    version = "v26.9.1.0408",
     changelog = {
-        version = "v26.8.31.1641",
-        title = "v26.8.31.1641 更新日志",
-        publishedAt = "2026-08-31 16:41",
+        version = "v26.9.1.0408",
+        title = "v26.9.1.0408 更新日志",
+        publishedAt = "2026-09-01 04:08",
         fontSize = 14,
         content = [[
+@H1@ v26.9.1.0408
+
+@CN@ @H2@ 性能优化
+@CN@ - 优化了状态系统的和一些事件的性能
+
+@CN@ @H2@ 锚点
+@CN@ - 修复了大多锚点问题 如果还有错误的情况 建议重置单模块(右上角点击)
+
+@EN@ @H2@ Performance Optimizations
+@EN@ - Improved the performance of the state system and certain events.
+
+@EN@ @H2@ Anchors
+@EN@ - Fixed most anchor-related issues. If you still encounter problems, try resetting the affected module individually by scrolling to the Top-right of its settings page and clicking the reset button.
+
 @H1@ v26.8.31.1641
 
 @CN@ @H2@ 状态系统
