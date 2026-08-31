@@ -3,13 +3,77 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.8.29.2102",
+    version = "v26.8.31.1641",
     changelog = {
-        version = "v26.8.29.2102",
-        title = "v26.8.29.2102 更新日志",
-        publishedAt = "2026-08-29 21:02",
+        version = "v26.8.31.1641",
+        title = "v26.8.31.1641 更新日志",
+        publishedAt = "2026-08-31 16:41",
         fontSize = 14,
         content = [[
+@H1@ v26.8.31.1641
+
+@CN@ @H2@ 状态系统
+@CN@ - 我们注意到了某些插件会在某些场景下出现一些问题 导致客户端会在极短时间内收到3-4千条事件
+@CN@ (然后导致我们这些依赖正常低频事件刷新的插件卡顿 背锅) 我们目前已经加上事件节流来解决这个问题
+@CN@ - 补充地图判定刷新事件 这解决了部份小怪CD错误的问题
+
+@CN@ @H2@ 错误修复
+@CN@ - 修复了使用Criteria获取副本首领进度时 因为非zhCN客户端导致的小怪判定错误
+@CN@ (这是一个很早期的偷懒硬编码 修复后会解决一些怪物判定的问题)
+
+@CN@ @H2@ 说明
+@CN@ - 小怪内置CD因为12.0暴雪的限制 我们是采用推理的方式去锁定怪物 推理分为两个层面
+@CN@ - L1的意思是 在第一层就能够锁定 : 第一层通常是各种静态资料 如地图位置等等
+@CN@ (通常意味着你开怪瞬间就能看到技能CD情况)
+@CN@ - L2的意思是 在L1过滤后 如果候选还存在2只以上的怪物 则会根据怪物的施法特征进行推理
+@CN@ (通常意味着你开怪后看不到技能CD/又或者是错误的技能CD 但是在第一次施法时能够正确的校准并且正确的提醒)
+@CN@ - 语音和技能CD是两种不同的调度 语音需要在施法瞬间播放 因此能推理的条件有限
+@CN@ - 技能CD则是可以在怪物读条完后收集特征再推里 所以准确度较高
+@CN@ - 本赛季暴雪不修改的情况下 我们能慢慢调试恢复到90%以上的准确率
+
+@CN@ @H2@ %i:1762
+@CN@ - 重做了1号BOSS后的4波怪物 现在能够在推理L1直接被锁定(如果不额外拉取别的怪物情况下)
+@CN@ - 修复了整个副本大多怪物的判定问题
+@CN@ - 修复了%n:138489技能不提示的问题 (新增了这只怪物的技能语音/配置作者需要补充修改)
+
+@CN@ @H2@ %i:2923
+@CN@ - 重做了大多数的小怪 并解决了大多数问题
+@CN@ - 1/2号BOSS后面的小怪 仍然需要在读条开始时才能锁定视别(或是预先推理 然后读条开始时校准)
+
+@CN@ @H2@ 开发计划
+@CN@ - 我们会在今天会做一次性能审查和优化
+
+@EN@ ## State System
+@EN@ - We identified an issue where certain addons can, in some situations, cause the client to receive 3,000–4,000 events within a very short period of time.
+@EN@ This can cause addons like ours, which rely on normal low-frequency event updates, to lag and take the blame. We have now added event throttling to address this.
+@EN@ - Added map-detection refresh events. This resolves some incorrect trash cooldown detections.
+
+@EN@ ## Bug Fixes
+@EN@ - Fixed incorrect trash identification caused by non-zhCN clients when using Criteria to obtain dungeon boss progress.
+@EN@ This was an early hardcoded shortcut; fixing it resolves several trash-identification issues.
+
+@EN@ ## Notes
+@EN@ - Due to Blizzard's 12.0 restrictions, built-in trash cooldowns identify mobs through inference. This inference has two layers.
+@EN@ - L1 means a mob can be identified in the first layer. This layer usually uses static information, such as map location.
+@EN@ This normally means you can see skill cooldowns as soon as combat starts.
+@EN@ - L2 means that, after L1 filtering, two or more candidates still remain. The addon then identifies the mob through its casting characteristics.
+@EN@ This normally means you may not see skill cooldowns, or may see incorrect cooldowns, when combat starts. However, the addon can calibrate correctly on the first cast and provide accurate alerts afterward.
+@EN@ - Voice alerts and skill cooldowns use two separate scheduling systems. Voice alerts must play at the moment a cast begins, so the available inference conditions are limited.
+@EN@ - Skill cooldowns can collect features after a cast finishes before making an inference, so their accuracy is generally higher.
+@EN@ - As long as Blizzard does not make further changes this season, we can gradually test and restore accuracy to above 90%.
+
+@EN@ ## %i:1762
+@EN@ - Reworked the four trash waves after the first boss. They can now be identified directly at L1, provided no additional mobs are pulled.
+@EN@ - Fixed identification issues for most trash mobs in the dungeon.
+@EN@ - Fixed %n:138489 skills not being announced. Added this mob's skill voice/configuration data; configuration authors will need to update their setups.
+
+@EN@ ## %i:2923
+@EN@ - Reworked most trash mobs and resolved most issues.
+@EN@ - Trash after the first and second bosses still needs to be identified when casting begins, or inferred in advance and calibrated when casting starts.
+
+@EN@ ## Development Plan
+@EN@ - We will conduct a performance review and optimization pass today.
+
 @H1@ v26.8.29.2102
 
 @CN@ @H2@ 通用

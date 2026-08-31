@@ -12,8 +12,6 @@ local TRASH_CASTBAR_STOP_EVENT = "EXBOSS_TRASH_CASTBAR_STOP"
 local SNAPSHOT_DELAY = 0.10
 local CAST_TARGET_SAMPLE_DELAY = 0.10
 local CAST_TARGET_HOSTILE_SAMPLE_DELAY = 0.30
-local CAST_TARGET_HOSTILE_DEBUG_INTERVAL = 0.10
-local CAST_TARGET_HOSTILE_DEBUG_SAMPLES = 3
 local CAST_TARGET_CLEAR_WINDOW = 0.10
 local CAST_TARGET_SWITCH_WINDOW = 0.10
 local MAX_NAMEPLATES = 40
@@ -206,17 +204,6 @@ local function GetUnitTargetHostility(unit)
     return true, value == true
 end
 
-local function SafeUnitTargetIsHostile(unit)
-    local targetExists, isHostile = GetUnitTargetHostility(unit)
-    if targetExists == false then
-        return false
-    end
-    if targetExists ~= true then
-        return nil
-    end
-    return isHostile
-end
-
 local function RuntimeNeedsTargetHostileFingerprint(runtime, kind)
     local output = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Output or nil
     if not (output and type(output.RuntimeNeedsTargetHostileFingerprint) == "function") then
@@ -224,22 +211,6 @@ local function RuntimeNeedsTargetHostileFingerprint(runtime, kind)
     end
     local ok, needsFingerprint = pcall(output.RuntimeNeedsTargetHostileFingerprint, runtime, kind)
     return ok and needsFingerprint == true
-end
-
-local function PrintTargetHostileFingerprintDebugSample(runtime, sampleIndex, value)
-    local npcID = type(runtime) == "table" and (runtime.identityLockedNPCID or runtime.matchedNPCID) or nil
-    local unit = type(runtime) == "table" and runtime._nameplateUnit or nil
-    local message = string.format(
-        "[TrashCD] targetHostile sample=%d/%d unit=%s npc=%s target=%s",
-        tonumber(sampleIndex) or 0,
-        CAST_TARGET_HOSTILE_DEBUG_SAMPLES,
-        tostring(unit or "nil"),
-        tostring(npcID or "nil"),
-        tostring(value)
-    )
-    if type(print) == "function" then
-        print(message)
-    end
 end
 
 local function SafeUnitTargetPresence(unit)
@@ -433,75 +404,35 @@ local function ScheduleCastTargetSnapshot(runtime, unit, kind, castBarID, seq)
     end)
 end
 
--- 只在 Excel 为当前读条候选写了「目标敌对指纹」时才建立该回调；关系 API 仅用于本次临时直出调试。
-local function ScheduleCastTargetHostileSnapshot(runtime, unit, kind, castBarID, seq)
+local function ApplyTargetHostileSample(runtime, kind, seq, isHostile)
+    if type(runtime) ~= "table" or type(isHostile) ~= "boolean" then
+        return false
+    end
+    if runtime.activeCastSeq ~= seq or tostring(runtime.activeCastKind or "") ~= tostring(kind or "") then
+        return false
+    end
     if not RuntimeNeedsTargetHostileFingerprint(runtime, kind) then
         return false
     end
-    if not (C_Timer and C_Timer.After) then
+    runtime.activeCastTargetHostile = isHostile
+    runtime.activeCastTargetHostileCheckedAt = GetTime and GetTime() or nil
+    RequestRuntimeRefresh(runtime, "cast-target-hostile-snapshot")
+    RetryRuntimeCastStartVoice(runtime, kind, seq)
+    return true
+end
+
+local function ScheduleCastTargetHostileSnapshot(runtime, unit, kind, seq)
+    if type(runtime) ~= "table" then
         return false
     end
-    if runtime._castTargetHostileSampleSeq == seq then
+    if not (C_Timer and C_Timer.After) or runtime._castTargetHostileSampleSeq == seq then
         return false
     end
     runtime._castTargetHostileSampleSeq = seq
     C_Timer.After(CAST_TARGET_HOSTILE_SAMPLE_DELAY, function()
-        if type(runtime) ~= "table" then
-            return
-        end
-        if runtime.activeCastSeq ~= seq then
-            return
-        end
-        if tostring(runtime.activeCastKind or "") ~= tostring(kind or "") then
-            return
-        end
-        if not ActiveCastMatches(runtime, castBarID) then
-            return
-        end
-        local isHostile = SafeUnitTargetIsHostile(unit)
-        if isHostile == nil then
-            return
-        end
-        runtime.activeCastTargetHostile = isHostile
-        runtime.activeCastTargetHostileCheckedAt = GetTime and GetTime() or nil
-        RequestRuntimeRefresh(runtime, "cast-target-hostile-snapshot")
-        RetryRuntimeCastStartVoice(runtime, kind, seq)
+        local _, isHostile = GetUnitTargetHostility(unit)
+        ApplyTargetHostileSample(runtime, kind, seq, isHostile)
     end)
-    return true
-end
-
-local function GetTargetHostileDebugValue(unit)
-    local targetExists, isHostile = GetUnitTargetHostility(unit)
-    if targetExists == false then
-        return "无目标"
-    end
-    if targetExists ~= true then
-        return "目标不可用"
-    end
-    if isHostile == true then
-        return "敌方"
-    end
-    if isHostile == false then
-        return "友方"
-    end
-    return "关系受保护"
-end
-
--- 临时直出调试：任何单位开始读条，就每 0.1 秒检查一次，共 3 次。
--- 不检查身份、等级、Excel、目标 API 或读条是否仍在进行。
-local function ScheduleCastTargetHostileDebugSamples(runtime, unit, kind, seq)
-    if type(runtime) ~= "table" then
-        return false
-    end
-    if not (C_Timer and C_Timer.After) or runtime._castTargetHostileDebugSeq == seq then
-        return false
-    end
-    runtime._castTargetHostileDebugSeq = seq
-    for sampleIndex = 1, CAST_TARGET_HOSTILE_DEBUG_SAMPLES do
-        C_Timer.After(CAST_TARGET_HOSTILE_DEBUG_INTERVAL * sampleIndex, function()
-            PrintTargetHostileFingerprintDebugSample(runtime, sampleIndex, GetTargetHostileDebugValue(unit))
-        end)
-    end
     return true
 end
 
@@ -766,14 +697,7 @@ function Mod.EnsureRuntimeTargetHostileFingerprint(runtime, kind)
     if not seq then
         return false
     end
-    ScheduleCastTargetHostileDebugSamples(runtime, unit, kind or runtime.activeCastKind, seq)
-    return ScheduleCastTargetHostileSnapshot(
-        runtime,
-        unit,
-        kind or runtime.activeCastKind,
-        runtime.activeCastBarID,
-        seq
-    )
+    return ScheduleCastTargetHostileSnapshot(runtime, unit, kind or runtime.activeCastKind, seq)
 end
 
 function Mod.CollectTrackedNameplate(state, unit, isHostileFn, cancelFn, forceSnapshot)
@@ -1031,8 +955,7 @@ function Mod.BeginRuntimeCast(state, unit, kind, castBarID)
     runtime.pendingBehavior = nil
     runtime.scheduleDirty = true
     ScheduleCastTargetSnapshot(runtime, unit, nextKind, nextCastBarID, runtime.activeCastSeq)
-    ScheduleCastTargetHostileDebugSamples(runtime, unit, nextKind, runtime.activeCastSeq)
-    ScheduleCastTargetHostileSnapshot(runtime, unit, nextKind, nextCastBarID, runtime.activeCastSeq)
+    ScheduleCastTargetHostileSnapshot(runtime, unit, nextKind, runtime.activeCastSeq)
     ScheduleCastTargetClearSnapshot(runtime, nextKind, nextCastBarID, runtime.activeCastSeq)
     ScheduleCastTargetSwitchSnapshot(runtime, nextKind, nextCastBarID, runtime.activeCastSeq)
     return true

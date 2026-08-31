@@ -82,7 +82,8 @@ local function GetSpellOpeningCastOrder(spellData)
 end
 
 local function GetRuntimeActiveOpeningCastOrder(runtime)
-    local value = type(runtime) == "table" and tonumber(runtime.activeCastObservedOrder or runtime.observedOpeningCastCount) or nil
+    local value = type(runtime) == "table" and
+    tonumber(runtime.activeCastObservedOrder or runtime.observedOpeningCastCount) or nil
     if value and value > 0 then
         return math.floor(value + 0.5)
     end
@@ -132,7 +133,8 @@ local function PreferPreCombatChannelingCandidates(candidates, obs, mapID)
     local preferred = {}
     for i = 1, #candidates do
         local candidate = candidates[i]
-        local rule = Rules and type(Rules.GetLayer2Rule) == "function" and Rules.GetLayer2Rule(mapID, candidate and candidate.npcID) or nil
+        local rule = Rules and type(Rules.GetLayer2Rule) == "function" and
+        Rules.GetLayer2Rule(mapID, candidate and candidate.npcID) or nil
         if type(rule) == "table" and (rule.preCombatChanneling == true) == (obs.preCombatChanneling == true) then
             preferred[#preferred + 1] = candidate
         end
@@ -488,31 +490,7 @@ local function SpellMatchesCurrentFingerprint(spellData, behavior, runtime)
         return false, "targetHostile"
     end
 
-    --[[
-    12.1 弃用旧施法开始指纹，先行注释保留。
-    若 12.1 上线后确认无问题，再彻底删除以下旧字段逻辑：
-    - castStartTargetUnitExists
-    - targetClearOnCastStart
-    - castStartChangeTarget
-    if type(spellData.castStartTargetUnitExists) == "boolean"
-        and type(runtime.activeCastTargetUnitExists) == "boolean"
-        and spellData.castStartTargetUnitExists ~= runtime.activeCastTargetUnitExists then
-        return false, "targetUnitExists"
-    end
 
-    if type(spellData.targetClearOnCastStart) == "boolean"
-        and runtime.activeCastTargetClearResolved == true
-        and spellData.targetClearOnCastStart ~= (runtime.activeCastTargetClearedOnStart == true) then
-        return false, "targetClear"
-    end
-
-    if type(spellData.castStartChangeTarget) == "boolean"
-        and runtime.activeCastTargetSwitchResolved == true
-        and spellData.castStartChangeTarget ~= (runtime.activeCastTargetSwitched == true) then
-        return false, "targetSwitch"
-    end
-
-    ]]
 
     return true, "match"
 end
@@ -575,7 +553,8 @@ function Mod.FilterCandidates(candidates, obs, runtime, mapID, now)
 
     local behavior = BuildObservedBehavior(obs, runtime, now)
 
-    local currentFingerprintNarrowed, currentFingerprintReasons = NarrowByCurrentFingerprint(candidates, behavior, runtime, mapID)
+    local currentFingerprintNarrowed, currentFingerprintReasons = NarrowByCurrentFingerprint(candidates, behavior,
+        runtime, mapID)
     Mod._lastDebug = {
         behavior = behavior,
         currentFingerprintReasons = currentFingerprintReasons,
@@ -606,9 +585,11 @@ function Mod.FilterCandidates(candidates, obs, runtime, mapID, now)
         local keep = true
         local rejectReason = nil
         local mobData = GetMobData(mapID, candidate and candidate.npcID)
-        local layer2Rule = Rules and type(Rules.GetLayer2Rule) == "function" and Rules.GetLayer2Rule(mapID, candidate and candidate.npcID) or nil
+        local layer2Rule = Rules and type(Rules.GetLayer2Rule) == "function" and
+        Rules.GetLayer2Rule(mapID, candidate and candidate.npcID) or nil
         local candidateNPCID = tonumber(candidate and candidate.npcID)
-        local narrowedReason = type(currentFingerprintReasons) == "table" and currentFingerprintReasons[candidateNPCID] or nil
+        local narrowedReason = type(currentFingerprintReasons) == "table" and currentFingerprintReasons[candidateNPCID] or
+        nil
         if currentFingerprintNarrowed and narrowedReason and narrowedReason ~= "match" then
             keep = false
             rejectReason = "current:" .. tostring(narrowedReason)
@@ -629,7 +610,8 @@ function Mod.FilterCandidates(candidates, obs, runtime, mapID, now)
         end
 
         if keep and behavior.observedDuration and behavior.kind == "cast" then
-            local matched = HasMatchingRuleDuration(layer2Rule and layer2Rule.castRules, behavior.observedDuration, "cast")
+            local matched = HasMatchingRuleDuration(layer2Rule and layer2Rule.castRules, behavior.observedDuration,
+                "cast")
             if matched == nil then
                 matched = HasMatchingCastTime(mobData, behavior.observedDuration)
             end
@@ -638,7 +620,8 @@ function Mod.FilterCandidates(candidates, obs, runtime, mapID, now)
                 rejectReason = string.format("cast-duration:%.3f", tonumber(behavior.observedDuration) or 0)
             end
         elseif keep and behavior.observedDuration and behavior.kind == "channel" then
-            local matched = HasMatchingRuleDuration(layer2Rule and layer2Rule.channelRules, behavior.observedDuration, "channel")
+            local matched = HasMatchingRuleDuration(layer2Rule and layer2Rule.channelRules, behavior.observedDuration,
+                "channel")
             if matched == false then
                 keep = false
                 rejectReason = string.format("channel-duration:%.3f", tonumber(behavior.observedDuration) or 0)
