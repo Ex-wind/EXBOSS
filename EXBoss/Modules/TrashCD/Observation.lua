@@ -121,7 +121,7 @@ local function SafeUnitHasVisibleChannelCastBarID(unit)
     return castBarID ~= nil
 end
 
-local function EmitTrashCastBarStop(runtime, castKind, castBarID)
+local function EmitTrashCastBarStop(runtime, castKind, castBarID, castSeq)
     if not (ExwindTools and type(ExwindTools.SendEvent) == "function") then
         return
     end
@@ -136,6 +136,14 @@ local function EmitTrashCastBarStop(runtime, castKind, castBarID)
     if normalizedCastBarID == nil then
         return
     end
+    local normalizedCastSeq = tonumber(castSeq) or tonumber(runtime.activeCastSeq) or 0
+    local stopKey = kind .. ":" .. tostring(normalizedCastBarID) .. ":" .. tostring(normalizedCastSeq)
+    local seen = type(runtime._trashCastBarStopSeen) == "table" and runtime._trashCastBarStopSeen or {}
+    runtime._trashCastBarStopSeen = seen
+    if seen[stopKey] == true then
+        return
+    end
+    seen[stopKey] = true
     ExwindTools:SendEvent(TRASH_CASTBAR_STOP_EVENT, {
         runtime = runtime,
         castKind = kind,
@@ -259,8 +267,8 @@ local function GetCombatEnteredAt(unit)
     return type(row) == "table" and tonumber(row.lastCombatEnteredAt) or nil
 end
 
-local function BeginRuntimeCombatWindow(runtime, unit, now)
-    if IsNameplateInCombat(unit, true) ~= true then
+local function BeginRuntimeCombatWindow(runtime, unit, now, combatConfirmed)
+    if combatConfirmed ~= true and IsNameplateInCombat(unit, true) ~= true then
         return false
     end
 
@@ -388,7 +396,9 @@ local function ScheduleCastTargetSnapshot(runtime, unit, kind, castBarID, seq)
         end
         local hasTarget = SafeUnitHasSpellTarget(unit)
         local hasTargetAPI = SafeUnitShouldDisplaySpellTargetName(unit)
-        local hasTargetUnitExists = SafeUnitTargetTokenExists(unit)
+        -- 12.1 的旧 TargetUnit 指纹虽然已经没有活动消费者，字段仍暂时保留给
+        -- 运行时快照兼容；它与 hasTarget 是同一个 UnitExists 事实，无需重复查询。
+        local hasTargetUnitExists = hasTarget
         if hasTarget == nil and hasTargetAPI == nil and hasTargetUnitExists == nil then
             return
         end
@@ -700,7 +710,7 @@ function Mod.EnsureRuntimeTargetHostileFingerprint(runtime, kind)
     return ScheduleCastTargetHostileSnapshot(runtime, unit, kind or runtime.activeCastKind, seq)
 end
 
-function Mod.CollectTrackedNameplate(state, unit, isHostileFn, cancelFn, forceSnapshot)
+function Mod.CollectTrackedNameplate(state, unit, isHostileFn, cancelFn, forceSnapshot, combatConfirmed)
     state = EnsureState(state)
     unit = NormalizeNameplateUnit(unit)
     if not unit then
@@ -715,8 +725,11 @@ function Mod.CollectTrackedNameplate(state, unit, isHostileFn, cancelFn, forceSn
 
     local now = GetTime()
     local runtime = state._runtimeByUnit[unit]
+    local unitInCombat = combatConfirmed == true
     if runtime then
-        local unitInCombat = IsNameplateInCombat(unit)
+        if combatConfirmed ~= true then
+            unitInCombat = IsNameplateInCombat(unit)
+        end
         local wasInCombat = runtime.targetStateInCombat == true
         local cachedObs = state._observedByUnit[unit]
         if unitInCombat ~= true and type(cachedObs) == "table" and type(cachedObs.preCombatChanneling) == "boolean" then
@@ -763,7 +776,7 @@ function Mod.CollectTrackedNameplate(state, unit, isHostileFn, cancelFn, forceSn
 
     cached.unit = unit
     cached.firstSeenAt = firstSeenAt
-    cached.inCombat = IsNameplateInCombat(unit, false)
+    cached.inCombat = unitInCombat == true
     if type(cached.preCombatChanneling) ~= "boolean" and runtime and type(runtime.lastPreCombatChanneling) == "boolean" then
         cached.preCombatChanneling = runtime.lastPreCombatChanneling
     end
@@ -794,13 +807,13 @@ function Mod.MarkRuntimeObservation(state, unit, key)
     end
 end
 
-function Mod.BeginRuntimeCast(state, unit, kind, castBarID)
+function Mod.BeginRuntimeCast(state, unit, kind, castBarID, combatConfirmed)
     local runtime = Mod.GetRuntimeObs(state, unit)
     if not runtime then
         return
     end
     local now = GetTime()
-    if BeginRuntimeCombatWindow(runtime, unit, now) ~= true then
+    if BeginRuntimeCombatWindow(runtime, unit, now, combatConfirmed) ~= true then
         return false
     end
     runtime.engagedAt = runtime.engagedAt or now
@@ -956,8 +969,8 @@ function Mod.BeginRuntimeCast(state, unit, kind, castBarID)
     runtime.scheduleDirty = true
     ScheduleCastTargetSnapshot(runtime, unit, nextKind, nextCastBarID, runtime.activeCastSeq)
     ScheduleCastTargetHostileSnapshot(runtime, unit, nextKind, runtime.activeCastSeq)
-    ScheduleCastTargetClearSnapshot(runtime, nextKind, nextCastBarID, runtime.activeCastSeq)
-    ScheduleCastTargetSwitchSnapshot(runtime, nextKind, nextCastBarID, runtime.activeCastSeq)
+    -- 12.1 已停用旧 TargetClear / TargetSwitch 指纹。保留字段与函数以兼容旧快照，
+    -- 但不再为每次真实读条创建没有活动消费者的两个 C_Timer 回调。
     return true
 end
 
@@ -996,7 +1009,7 @@ function Mod.MarkRuntimeCastStop(state, unit, castBarID)
         runtime.pendingSucceededAt = GetTime()
         runtime.pendingBehavior = "cast_success"
         runtime.scheduleDirty = true
-        EmitTrashCastBarStop(runtime, "cast", castBarID)
+        EmitTrashCastBarStop(runtime, "cast", castBarID, runtime.activeCastSeq)
     end
 end
 
@@ -1011,7 +1024,7 @@ function Mod.MarkRuntimeInterrupted(state, unit, castBarID)
         runtime.pendingInterruptedAt = GetTime()
         runtime.pendingBehavior = ResolveResultKind(activeKind, false)
         if activeKind == "cast" then
-            EmitTrashCastBarStop(runtime, activeKind, castBarID)
+            EmitTrashCastBarStop(runtime, activeKind, castBarID, runtime.activeCastSeq)
         end
     else
         MarkBehavior(runtime, "cast_interrupted", GetTime())

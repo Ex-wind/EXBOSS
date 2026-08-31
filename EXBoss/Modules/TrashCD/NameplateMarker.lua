@@ -101,7 +101,7 @@ local function GetStore()
     return ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Store or nil
 end
 
-local function GetIconLayout()
+local function GetIconLayout(runtimeSettings)
     local Store = GetStore()
     local enabled = true
     local reverse = false
@@ -109,14 +109,14 @@ local function GetIconLayout()
     local height = ICON_SIZE
     local offsetX, offsetY = 6, 0
     if Store and type(Store.GetNameplateIconLayout) == "function" then
-        enabled, width, height, offsetX, offsetY, reverse = Store.GetNameplateIconLayout()
+        enabled, width, height, offsetX, offsetY, reverse = Store.GetNameplateIconLayout(runtimeSettings)
     else
         if Store and type(Store.GetNameplateIconSize) == "function" then
-            width = tonumber(Store.GetNameplateIconSize()) or width
+            width = tonumber(Store.GetNameplateIconSize(runtimeSettings)) or width
             height = width
         end
         if Store and type(Store.GetNameplateOffset) == "function" then
-            offsetX, offsetY = Store.GetNameplateOffset()
+            offsetX, offsetY = Store.GetNameplateOffset(runtimeSettings)
         end
     end
     width = math.max(10, math.min(300, tonumber(width) or ICON_SIZE))
@@ -126,26 +126,26 @@ local function GetIconLayout()
     return enabled ~= false, width, height, offsetX, offsetY, reverse == true
 end
 
-local function GetIconSpacing()
+local function GetIconSpacing(runtimeSettings)
     local Store = GetStore()
     if Store and type(Store.GetNameplateIconSpacing) == "function" then
-        return Store.GetNameplateIconSpacing()
+        return Store.GetNameplateIconSpacing(runtimeSettings)
     end
     return ICON_GAP
 end
 
-local function GetIconHideAboveSeconds()
+local function GetIconHideAboveSeconds(runtimeSettings)
     local Store = GetStore()
     if Store and type(Store.GetNameplateIconHideAboveSeconds) == "function" then
-        return Store.GetNameplateIconHideAboveSeconds()
+        return Store.GetNameplateIconHideAboveSeconds(runtimeSettings)
     end
     return 0
 end
 
-local function GetBorderConfig()
+local function GetBorderConfig(runtimeSettings)
     local Store = GetStore()
     if Store and type(Store.GetNameplateIconBorder) == "function" then
-        return Store.GetNameplateIconBorder()
+        return Store.GetNameplateIconBorder(runtimeSettings)
     end
     return {
         show = true,
@@ -156,18 +156,18 @@ local function GetBorderConfig()
     }
 end
 
-local function GetReadyBorderConfig()
+local function GetReadyBorderConfig(runtimeSettings)
     local Store = GetStore()
     if Store and type(Store.GetNameplateReadyBorder) == "function" then
-        return Store.GetNameplateReadyBorder()
+        return Store.GetNameplateReadyBorder(runtimeSettings)
     end
     return READY_BORDER_DEFAULT
 end
 
-local function GetTextLayout()
+local function GetTextLayout(runtimeSettings)
     local Store = GetStore()
     if Store and type(Store.GetNameplateIconTextLayout) == "function" then
-        return Store.GetNameplateIconTextLayout()
+        return Store.GetNameplateIconTextLayout(runtimeSettings)
     end
     return {
         r = 1, g = 1, b = 1, a = 1,
@@ -181,10 +181,10 @@ local function GetTextLayout()
     }
 end
 
-local function GetIconStrata()
+local function GetIconStrata(runtimeSettings)
     local Store = GetStore()
     if Store and type(Store.GetNameplateIconStrata) == "function" then
-        return Store.GetNameplateIconStrata()
+        return Store.GetNameplateIconStrata(runtimeSettings)
     end
     return "DIALOG"
 end
@@ -1154,7 +1154,7 @@ function Mod.HideUnit(unit)
     frame:Hide()
 end
 
-function Mod.SetUnitText(unit, textValue, recognized)
+function Mod.SetUnitText(unit, textValue, recognized, runtimeSettings)
     if type(unit) ~= "string" then
         return
     end
@@ -1169,9 +1169,11 @@ function Mod.SetUnitText(unit, textValue, recognized)
         return
     end
 
-    ApplyFrameStrata(frame, GetIconStrata())
-    AnchorUnitFrameToPlate(frame, plate, unit)
     local Store = GetStore()
+    runtimeSettings = type(runtimeSettings) == "table" and runtimeSettings
+        or (Store and type(Store.GetRuntimeSettings) == "function" and Store.GetRuntimeSettings() or {})
+    ApplyFrameStrata(frame, GetIconStrata(runtimeSettings))
+    AnchorUnitFrameToPlate(frame, plate, unit)
     if Store and type(Store.IsNameplateNPCIDHidden) == "function" and Store.IsNameplateNPCIDHidden() == true then
         frame.text:SetText("")
         frame:Show()
@@ -1189,7 +1191,7 @@ function Mod.SetUnitText(unit, textValue, recognized)
     frame:Show()
 end
 
-function Mod.SetUnitTimers(unit, timers)
+function Mod.SetUnitTimers(unit, timers, runtimeSettings)
     if type(unit) ~= "string" then
         return
     end
@@ -1200,17 +1202,19 @@ function Mod.SetUnitTimers(unit, timers)
         return
     end
 
-    local strata = GetIconStrata()
+    local Store = GetStore()
+    runtimeSettings = type(runtimeSettings) == "table" and runtimeSettings
+        or (Store and type(Store.GetRuntimeSettings) == "function" and Store.GetRuntimeSettings() or {})
+    local strata = GetIconStrata(runtimeSettings)
     ApplyFrameStrata(frame, strata)
     AnchorUnitFrameToPlate(frame, plate, unit)
 
-    local iconsEnabled, iconWidth, iconHeight, offsetX, offsetY, reverseCooldown = GetIconLayout()
-    local textLayout = GetTextLayout()
-    local runtimeSettings = Store and type(Store.GetRuntimeSettings) == "function" and Store.GetRuntimeSettings() or {}
+    local iconsEnabled, iconWidth, iconHeight, offsetX, offsetY, reverseCooldown = GetIconLayout(runtimeSettings)
+    local textLayout = GetTextLayout(runtimeSettings)
     local iconVisual = type(runtimeSettings.nameplateIcon) == "table" and runtimeSettings.nameplateIcon or {}
-    local borderConfig = GetBorderConfig()
-    local readyBorderConfig = GetReadyBorderConfig()
-    local iconGap = GetIconSpacing()
+    local borderConfig = GetBorderConfig(runtimeSettings)
+    local readyBorderConfig = GetReadyBorderConfig(runtimeSettings)
+    local iconGap = GetIconSpacing(runtimeSettings)
     if iconsEnabled ~= true then
         HideUnusedIcons(frame.leftIcons or {}, 1)
         HideUnusedIcons(frame.rightIcons or {}, 1)
@@ -1218,7 +1222,7 @@ function Mod.SetUnitTimers(unit, timers)
         return
     end
 
-    local hideAboveSeconds = GetIconHideAboveSeconds()
+    local hideAboveSeconds = GetIconHideAboveSeconds(runtimeSettings)
     local left, right = {}, {}
     for i = 1, #(timers or {}) do
         local row = timers[i]

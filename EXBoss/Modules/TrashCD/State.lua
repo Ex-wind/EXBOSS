@@ -431,6 +431,9 @@ if not Mod._pollFrame and type(CreateFrame) == "function" then
             return
         end
         self.elapsed = 0
+        if type(IsInInstance) == "function" and IsInInstance() ~= true then
+            return
+        end
         Mod.PollNameplateCombat(GetTime(), POLL_BATCH)
     end)
     Mod._pollFrame = frame

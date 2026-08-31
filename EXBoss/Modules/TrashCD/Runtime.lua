@@ -17,6 +17,7 @@ local Observation = ExBoss.TrashCD and ExBoss.TrashCD.Observation or nil
 local Calibration = ExBoss.TrashCD and ExBoss.TrashCD.Calibration or nil
 local Output = ExBoss.TrashCD and ExBoss.TrashCD.Output or nil
 local NameplateMarker = ExBoss.TrashCD and ExBoss.TrashCD.NameplateMarker or nil
+local Store = ExBoss.TrashCD and ExBoss.TrashCD.Store or nil
 local TrashCache = ExBoss.TrashCD and ExBoss.TrashCD.TrashCache or nil
 local State = ExBoss.TrashCD and ExBoss.TrashCD.State or nil
 local Population = ExBoss.TrashCD and ExBoss.TrashCD.Population or nil
@@ -896,9 +897,10 @@ local function UpdateUnitNameplate(unit, resolved, runtime)
     if not NameplateMarker then
         return
     end
+    local runtimeSettings = Store and type(Store.GetRuntimeSettings) == "function" and Store.GetRuntimeSettings() or nil
     if type(NameplateMarker.SetUnitText) == "function" then
         NameplateMarker.SetUnitText(unit, BuildNameplateMarkerText(unit, resolved, runtime),
-            type(resolved) == "table" and resolved.npcID ~= nil)
+            type(resolved) == "table" and resolved.npcID ~= nil, runtimeSettings)
     end
     if type(NameplateMarker.SetUnitTimers) == "function" then
         local markerRows = {}
@@ -906,7 +908,7 @@ local function UpdateUnitNameplate(unit, resolved, runtime)
         if resolvedNPCID and type(runtime) == "table" and tonumber(runtime.matchedNPCID) == resolvedNPCID then
             markerRows = BuildNameplateTimerRows(runtime)
         end
-        NameplateMarker.SetUnitTimers(unit, markerRows)
+        NameplateMarker.SetUnitTimers(unit, markerRows, runtimeSettings)
         if #markerRows > 0 then
             Mod:ScheduleMarkerRefresh(unit)
         end
@@ -1030,7 +1032,7 @@ function Mod:RefreshUnresolvedNameplatesForCoPresence(mapID, sourceUnit)
     end
 end
 
-function Mod:RefreshUnit(unit, reason, forceSnapshot)
+function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
     unit = NormalizeNameplateUnit(unit)
     if not unit then
         return
@@ -1049,35 +1051,41 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
 
     local instanceID, _dungeonName, dungeonKey, trashMapID = GetCurrentTrashContext()
     if not instanceID or dungeonKey == "" then
-        PrintMatchDebug(unit, {
-            reason = "no-trash-context",
-            instanceID = instanceID,
-            dungeonKey = dungeonKey,
-            trashMapID = trashMapID,
-        })
+        if Mod._debug == true then
+            PrintMatchDebug(unit, {
+                reason = "no-trash-context",
+                instanceID = instanceID,
+                dungeonKey = dungeonKey,
+                trashMapID = trashMapID,
+            })
+        end
         UntrackNameplate(unit)
         return
     end
 
     local obs = Observation.CollectTrackedNameplate(Mod, unit, IsHostileNameplate, CancelRuntimeScriptEvents,
-        forceSnapshot == true)
+        forceSnapshot == true, combatConfirmed == true)
     if not obs then
         UntrackNameplate(unit)
         return
     end
     if obs.pending == true then
-        PrintMatchDebug(unit, {
-            reason = "snapshot-pending",
-            instanceID = instanceID,
-            dungeonKey = dungeonKey,
-            trashMapID = trashMapID,
-            obs = obs,
-        })
+        if Mod._debug == true then
+            PrintMatchDebug(unit, {
+                reason = "snapshot-pending",
+                instanceID = instanceID,
+                dungeonKey = dungeonKey,
+                trashMapID = trashMapID,
+                obs = obs,
+            })
+        end
+        local runtimeSettings = Store and type(Store.GetRuntimeSettings) == "function" and Store.GetRuntimeSettings() or nil
         if NameplateMarker and type(NameplateMarker.SetUnitText) == "function" then
-            NameplateMarker.SetUnitText(unit, BuildNameplateMarkerText(unit, nil, GetRuntimeObs(unit)), false)
+            NameplateMarker.SetUnitText(unit, BuildNameplateMarkerText(unit, nil, GetRuntimeObs(unit)), false,
+                runtimeSettings)
         end
         if NameplateMarker and type(NameplateMarker.SetUnitTimers) == "function" then
-            NameplateMarker.SetUnitTimers(unit, {})
+            NameplateMarker.SetUnitTimers(unit, {}, runtimeSettings)
         end
         self:ScheduleUnitRefresh(unit, tonumber(obs.retryAfter) or SNAPSHOT_RETRY_DELAY, "snapshot", true)
         return
@@ -1091,15 +1099,24 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
         KingsRestWaves.OnL1Snapshot(unit, trashMapID)
     end
 
-    local traits = GetMobTraits()
-    local traitRows = type(traits.rows) == "table" and traits.rows or {}
     local runtime = GetRuntimeObs(unit)
     if type(runtime) == "table" then
         runtime._debugUnit = unit
         runtime._debugTrace = Mod._debug == true
     end
-    local result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
-    local resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
+    local result
+    local resolved, resolutionSource, identityJustLocked
+    -- identityLockedNPCID 的业务语义是同一 runtime 生命周期内不可再被推理翻转。
+    -- 正常路径直接使用锁定候选；debug 模式仍跑完整推理以保留冲突诊断。
+    if type(runtime) == "table" and tonumber(runtime.identityLockedNPCID) and Mod._debug ~= true then
+        resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, nil, trashMapID)
+    end
+    if not resolved then
+        local traits = GetMobTraits()
+        local traitRows = type(traits.rows) == "table" and traits.rows or {}
+        result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
+        resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
+    end
     if identityJustLocked == true and KingsRestWaves and type(KingsRestWaves.OnIdentityLocked) == "function" then
         KingsRestWaves.OnIdentityLocked(unit, resolved, trashMapID)
     end
@@ -1147,37 +1164,41 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot)
         and resolved and Population and type(Population.MarkResolved) == "function" then
         Population.MarkResolved(runtime, resolved, trashMapID, resolutionSource, obs.inCombat == true)
     end
-    local Layer1 = ExBoss.TrashCD and ExBoss.TrashCD.Layer1Filter or nil
-    local Layer2 = ExBoss.TrashCD and ExBoss.TrashCD.Layer2Filter or nil
-    local layer1Debug = Layer1 and type(Layer1.GetLastDebug) == "function" and Layer1.GetLastDebug() or nil
-    local layer2Debug = Layer2 and type(Layer2.GetLastDebug) == "function" and Layer2.GetLastDebug() or nil
-    PrintMatchDebug(unit, {
-        reason = reason,
-        instanceID = instanceID,
-        dungeonKey = dungeonKey,
-        trashMapID = trashMapID,
-        obs = obs,
-        result = result,
-        layer1Debug = layer1Debug,
-        layer2Debug = layer2Debug,
-        runtime = runtime,
-        accepted = resolved,
-        acceptedSource = resolutionSource,
-        identityJustLocked = identityJustLocked,
-    })
+    if Mod._debug == true then
+        local Layer1 = ExBoss.TrashCD and ExBoss.TrashCD.Layer1Filter or nil
+        local Layer2 = ExBoss.TrashCD and ExBoss.TrashCD.Layer2Filter or nil
+        local layer1Debug = Layer1 and type(Layer1.GetLastDebug) == "function" and Layer1.GetLastDebug() or nil
+        local layer2Debug = Layer2 and type(Layer2.GetLastDebug) == "function" and Layer2.GetLastDebug() or nil
+        PrintMatchDebug(unit, {
+            reason = reason,
+            instanceID = instanceID,
+            dungeonKey = dungeonKey,
+            trashMapID = trashMapID,
+            obs = obs,
+            result = result,
+            layer1Debug = layer1Debug,
+            layer2Debug = layer2Debug,
+            runtime = runtime,
+            accepted = resolved,
+            acceptedSource = resolutionSource,
+            identityJustLocked = identityJustLocked,
+        })
+    end
     local resolvedNPCID = tonumber(type(resolved) == "table" and resolved.npcID or nil)
     local restored = false
     if resolvedNPCID and runtime and TrashCache and type(TrashCache.TryRestoreRuntime) == "function" then
         restored = TrashCache.TryRestoreRuntime(unit, runtime, resolved) == true
-        CacheDebug(string.format(
-            "refresh unit=%s reason=%s resolvedNPC=%s restored=%s combat=%s matchedNPC=%s",
-            tostring(unit),
-            tostring(reason or "?"),
-            tostring(resolvedNPCID),
-            tostring(restored),
-            tostring(obs and obs.inCombat == true),
-            tostring(runtime and runtime.matchedNPCID or "nil")
-        ))
+        if Mod._debug == true then
+            CacheDebug(string.format(
+                "refresh unit=%s reason=%s resolvedNPC=%s restored=%s combat=%s matchedNPC=%s",
+                tostring(unit),
+                tostring(reason or "?"),
+                tostring(resolvedNPCID),
+                tostring(restored),
+                tostring(obs and obs.inCombat == true),
+                tostring(runtime and runtime.matchedNPCID or "nil")
+            ))
+        end
     end
     local canSchedule = (obs.inCombat == true)
     local keepLockedRuntime = resolvedNPCID == nil
@@ -1425,9 +1446,9 @@ local function MarkRuntimeObservation(unit, key)
     end
 end
 
-local function BeginRuntimeCast(unit, kind, castBarID)
+local function BeginRuntimeCast(unit, kind, castBarID, combatConfirmed)
     if Observation and type(Observation.BeginRuntimeCast) == "function" then
-        return Observation.BeginRuntimeCast(Mod, unit, kind, castBarID)
+        return Observation.BeginRuntimeCast(Mod, unit, kind, castBarID, combatConfirmed)
     end
 end
 
@@ -1587,8 +1608,8 @@ Register("UNIT_SPELLCAST_START", "ExBoss_Trash_Observation_CastStart", function(
     unit = NormalizeNameplateUnit(unit)
     if unit and Mod:EnsureRunning() and IsNameplateInCombat(unit, true) == true then
         MarkRuntimeObservation(unit, "sawCastStart")
-        local started = BeginRuntimeCast(unit, "cast", castBarID)
-        Mod:RefreshUnit(unit, "cast-start", true)
+        local started = BeginRuntimeCast(unit, "cast", castBarID, true)
+        Mod:RefreshUnit(unit, "cast-start", true, true)
         if started ~= false and Output and type(Output.PlayRuntimeCastStartVoice) == "function" then
             Output.PlayRuntimeCastStartVoice(GetRuntimeObs(unit), "cast")
         end
@@ -1600,8 +1621,8 @@ Register("UNIT_SPELLCAST_CHANNEL_START", "ExBoss_Trash_Observation_ChannelStart"
         unit = NormalizeNameplateUnit(unit)
         if unit and Mod:EnsureRunning() and IsNameplateInCombat(unit, true) == true then
             MarkRuntimeObservation(unit, "sawChannelStart")
-            local started = BeginRuntimeCast(unit, "channel", castBarID)
-            Mod:RefreshUnit(unit, "channel-start", true)
+            local started = BeginRuntimeCast(unit, "channel", castBarID, true)
+            Mod:RefreshUnit(unit, "channel-start", true, true)
             if started ~= false and Output and type(Output.PlayRuntimeCastStartVoice) == "function" then
                 Output.PlayRuntimeCastStartVoice(GetRuntimeObs(unit), "channel")
             end

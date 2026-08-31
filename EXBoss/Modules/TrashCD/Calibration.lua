@@ -49,7 +49,7 @@ local function SafeNumericValue(value)
     return nil
 end
 
-local function EmitTrashCastBarStop(runtime, castKind, castBarID)
+local function EmitTrashCastBarStop(runtime, castKind, castBarID, castSeq)
     if not (ExwindTools and type(ExwindTools.SendEvent) == "function") then
         return
     end
@@ -64,6 +64,14 @@ local function EmitTrashCastBarStop(runtime, castKind, castBarID)
     if not normalizedCastBarID then
         return
     end
+    local normalizedCastSeq = tonumber(castSeq) or tonumber(runtime.activeCastSeq) or 0
+    local stopKey = kind .. ":" .. tostring(normalizedCastBarID) .. ":" .. tostring(normalizedCastSeq)
+    local seen = type(runtime._trashCastBarStopSeen) == "table" and runtime._trashCastBarStopSeen or {}
+    runtime._trashCastBarStopSeen = seen
+    if seen[stopKey] == true then
+        return
+    end
+    seen[stopKey] = true
     ExwindTools:SendEvent(TRASH_CASTBAR_STOP_EVENT, {
         runtime = runtime,
         castKind = kind,
@@ -948,7 +956,8 @@ local function ApplySnapshotResultsToRuntime(runtime, snapshotRuntime, successAt
         EmitTrashCastBarStop(
             runtime,
             snapshotRuntime.activeCastKind,
-            snapshotRuntime.activeCastBarID
+            snapshotRuntime.activeCastBarID,
+            snapshotRuntime.activeCastSeq
         )
     end
     runtime.spellAnchors = snapshotRuntime.spellAnchors or runtime.spellAnchors
@@ -1399,7 +1408,7 @@ function Mod.SyncUnitCDTimers(runtime, obs, candidate, mapID)
         if resolveMode == "success" or resolveMode == "interrupt" then
             advancedSpellID = Mod.ApplyObservedCastAdvance(runtime, mobData, defaultAnchorAt, resolveMode, successAt)
         end
-        EmitTrashCastBarStop(runtime, runtime.activeCastKind, runtime.activeCastBarID)
+        EmitTrashCastBarStop(runtime, runtime.activeCastKind, runtime.activeCastBarID, runtime.activeCastSeq)
         runtime.pendingSucceeded = false
         runtime.pendingSucceededAt = nil
         runtime.pendingInterrupted = false

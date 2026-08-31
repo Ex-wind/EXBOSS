@@ -179,6 +179,13 @@ function Store.GetRuntimeSettings()
     return type(root) == "table" and DeepCopy(root.settings) or nil, reason
 end
 
+local function ResolveRuntimeSettings(runtimeSettings)
+    if type(runtimeSettings) == "table" then
+        return runtimeSettings
+    end
+    return Store.GetRuntimeSettings() or {}
+end
+
 local function NormalizeRelativePath(path)
     if type(path) ~= "table" or #path == 0 then return nil end
     local out = {}
@@ -285,8 +292,8 @@ function Store.GetKeepTimerBarAfterReadyConfig()
     }
 end
 
-function Store.GetNameplateGrowthSide()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateGrowthSide(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local side = tostring(db.nameplateGrowthSide or "left")
     if side ~= "left" and side ~= "right" then
         side = "left"
@@ -294,8 +301,8 @@ function Store.GetNameplateGrowthSide()
     return side
 end
 
-function Store.GetNameplateIconLayout()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateIconLayout(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local cfg = type(db.nameplateIcon) == "table" and db.nameplateIcon or {}
     local enabled = cfg.showIcon ~= false
     local reverse = cfg.reverse == true
@@ -310,8 +317,8 @@ function Store.GetNameplateIconLayout()
     return enabled, width, height, x, y, reverse
 end
 
-function Store.GetNameplateIconSpacing()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateIconSpacing(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local cfg = type(db.nameplateIcon) == "table" and db.nameplateIcon or {}
     local spacing = tonumber(cfg.spacing)
     if spacing == nil then
@@ -321,16 +328,16 @@ function Store.GetNameplateIconSpacing()
     return spacing
 end
 
-function Store.GetNameplateIconHideAboveSeconds()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateIconHideAboveSeconds(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local seconds = tonumber(db.hideNameplateIconAboveSeconds) or 0
     -- 0 是关闭；姓名版图标不需要接受无意义的超大数值。
     if seconds < 0 then seconds = 0 elseif seconds > 3600 then seconds = 3600 end
     return seconds
 end
 
-function Store.GetNameplateIconBorder()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateIconBorder(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local cfg = type(db.nameplateIcon) == "table" and db.nameplateIcon or {}
     local size = tonumber(cfg.borderSize) or 1
     local padding = tonumber(cfg.borderPadding) or 0
@@ -348,8 +355,8 @@ function Store.GetNameplateIconBorder()
     }
 end
 
-function Store.GetNameplateReadyBorder()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateReadyBorder(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local cfg = type(db.nameplateIcon) == "table" and db.nameplateIcon or {}
     return {
         enabled = cfg.readyBorderEnabled ~= false,
@@ -360,8 +367,8 @@ function Store.GetNameplateReadyBorder()
     }
 end
 
-function Store.GetNameplateIconStrata()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateIconStrata(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local strata = tostring(db.nameplateIconStrata or "DIALOG"):upper()
     if strata == "BACKGROUND"
         or strata == "LOW"
@@ -376,18 +383,18 @@ function Store.GetNameplateIconStrata()
     return "DIALOG"
 end
 
-function Store.GetNameplateIconSize()
-    local _, width, height = Store.GetNameplateIconLayout()
+function Store.GetNameplateIconSize(runtimeSettings)
+    local _, width, height = Store.GetNameplateIconLayout(runtimeSettings)
     return math.max(tonumber(width) or 25, tonumber(height) or 25)
 end
 
-function Store.GetNameplateOffset()
-    local _, _, _, x, y = Store.GetNameplateIconLayout()
+function Store.GetNameplateOffset(runtimeSettings)
+    local _, _, _, x, y = Store.GetNameplateIconLayout(runtimeSettings)
     return x, y
 end
 
-function Store.GetNameplateIconTextLayout()
-    local db = Store.GetRuntimeSettings() or {}
+function Store.GetNameplateIconTextLayout(runtimeSettings)
+    local db = ResolveRuntimeSettings(runtimeSettings)
     local cfg = type(db.nameplateIconText) == "table" and db.nameplateIconText or {}
     local size = tonumber(cfg.size) or 15
     local x = tonumber(cfg.x) or 0
