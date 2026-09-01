@@ -21,6 +21,18 @@ local function TraceColor(stage, timer, color, note)
     local trace = ExBoss and ExBoss.ColorTrace
     if trace and type(trace.Record) == "function" then trace:Record(stage, timer, color, note) end
 end
+local function RecordPerfTiming(key, startedAt)
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    if perf and startedAt and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
+        perf:RecordTiming(key, debugprofilestop() - startedAt)
+    end
+end
+
+local function IncrementPerf(perf, key, amount)
+    if perf and type(perf.IncrementCounter) == "function" then
+        perf:IncrementCounter(key, amount)
+    end
+end
 
 local function IsNonChineseLocale()
     local locale = ExwindTools and ExwindTools.GetEffectiveLocale and ExwindTools:GetEffectiveLocale() or GetLocale()
@@ -901,10 +913,28 @@ end
 
 local function ApplyRecord(collection, record, now)
     if not collection or not record then return end
-    record.item = record.item or collection:AcquireItem(record.id)
-    collection:ApplyItem(record.item, BuildTimerBarPresentation(record.timer, record.priority, now))
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
+    if not capture then perf = nil end
+    if not record.item then
+        local acquireStartedAt = capture and debugprofilestop()
+        record.item = collection:AcquireItem(record.id)
+        IncrementPerf(perf, "TrashCD.Counter.TimerBar.AcquireItem.Visits")
+        if capture then perf:RecordTiming("TrashCD.TimerBar.AcquireItem", debugprofilestop() - acquireStartedAt) end
+    end
+    local buildStartedAt = capture and debugprofilestop()
+    local presentation = BuildTimerBarPresentation(record.timer, record.priority, now)
+    IncrementPerf(perf, "TrashCD.Counter.TimerBar.BuildPresentation.Visits")
+    if capture then perf:RecordTiming("TrashCD.TimerBar.BuildPresentation", debugprofilestop() - buildStartedAt) end
+    local applyStartedAt = capture and debugprofilestop()
+    collection:ApplyItem(record.item, presentation)
+    IncrementPerf(perf, "TrashCD.Counter.TimerBar.CollectionApplyItem.Visits")
+    if capture then perf:RecordTiming("TrashCD.TimerBar.CollectionApplyItem", debugprofilestop() - applyStartedAt) end
+    local alphaStartedAt = capture and debugprofilestop()
     record.item.root:SetAlpha(record.timer and record.timer.fixedAIWaitingTimelineFinish == true
         and (0.62 + 0.38 * math.abs(math.sin((now or GetTime()) * 5.5))) or 1)
+    IncrementPerf(perf, "TrashCD.Counter.TimerBar.SetAlpha.Visits")
+    if capture then perf:RecordTiming("TrashCD.TimerBar.SetAlpha", debugprofilestop() - alphaStartedAt) end
 end
 
 -- =============================================================
@@ -1060,12 +1090,22 @@ end
 -- OnUpdate 驱动
 -- =============================================================
 local function RuntimeTick(elapsed, nowOverride)
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
+    if not capture then perf = nil end
     local now = nowOverride or GetTime()
-    if _sortDirty then ReLayout(now) end
+    if _sortDirty then
+        local startedAt = capture and debugprofilestop()
+        ReLayout(now)
+        IncrementPerf(perf, "TrashCD.Counter.TimerBar.ReLayout.Visits")
+        if capture then perf:RecordTiming("TrashCD.TimerBar.ReLayout", debugprofilestop() - startedAt) end
+    end
 
     local toRelease = nil
 
     for timerID, record in pairs(activeBars) do
+        local scanStartedAt = capture and debugprofilestop()
+        IncrementPerf(perf, "TrashCD.Counter.TimerBar.ScanActive.Visits")
         local active = ExBoss.Timeline.Scheduler
             and ExBoss.Timeline.Scheduler._active
             and ExBoss.Timeline.Scheduler._active[timerID]
@@ -1075,6 +1115,7 @@ local function RuntimeTick(elapsed, nowOverride)
         if not active then
             active = externalTimers[timerID]
         end
+        if capture then perf:RecordTiming("TrashCD.TimerBar.ScanActive", debugprofilestop() - scanStartedAt) end
         if active then
             local remaining = math.max(0, active.castTime - now)
             -- 测试时钟只保存时间字段；保留 record.timer 的名称、图标与业务标记，
@@ -1087,7 +1128,10 @@ local function RuntimeTick(elapsed, nowOverride)
             renderTimer.fixedAIWaitingTimelineFinish = active.fixedAIWaitingTimelineFinish == true
             record.timer = renderTimer
             if runtimeCollection and not _worldEditing then
+                local applyStartedAt = capture and debugprofilestop()
                 ApplyRecord(runtimeCollection, record, now)
+                IncrementPerf(perf, "TrashCD.Counter.TimerBar.ApplyRecord.Visits")
+                if capture then perf:RecordTiming("TrashCD.TimerBar.ApplyRecord", debugprofilestop() - applyStartedAt) end
             end
             if remaining <= 0 and (testTimers[timerID] or externalTimers[timerID]) then
                 if not toRelease then toRelease = {} end
@@ -1100,16 +1144,27 @@ local function RuntimeTick(elapsed, nowOverride)
     end
 
     if toRelease then
+        local releaseStartedAt = capture and debugprofilestop()
         for _, id in ipairs(toRelease) do ReleaseBar(id) end
+        IncrementPerf(perf, "TrashCD.Counter.TimerBar.Release.Visits", #toRelease)
+        if capture then perf:RecordTiming("TrashCD.TimerBar.Release", debugprofilestop() - releaseStartedAt) end
     end
-    if _sortDirty and not _worldEditing then ReLayout(now) end
+    if _sortDirty and not _worldEditing then
+        local startedAt = capture and debugprofilestop()
+        ReLayout(now)
+        IncrementPerf(perf, "TrashCD.Counter.TimerBar.ReLayout.Visits")
+        if capture then perf:RecordTiming("TrashCD.TimerBar.ReLayout", debugprofilestop() - startedAt) end
+    end
 end
 
 local _updateFrame = CreateFrame("Frame")
 _updateFrame:Hide()
 ExwindTools.UI:RequireLegacyRuntimeTickOwner(MODULE_KEY, "ExBoss.TimerBar runtime OnUpdate")
 _updateFrame:SetScript("OnUpdate", function(_, elapsed)
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    local startedAt = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() and debugprofilestop()
     RuntimeTick(elapsed)
+    RecordPerfTiming("TrashCD.Root.TimerBar", startedAt)
 end)
 TimerBar._updateFrame = _updateFrame
 

@@ -24,6 +24,20 @@ local ICON_CENTER_GAP = 8
 local READY_BORDER_DEFAULT = { enabled = true, r = 0.20, g = 0.85, b = 0.20, a = 1 }
 local framesByUnit = {}
 
+local function GetPerfMonitor()
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
+        return perf
+    end
+    return nil
+end
+
+local function RecordPerfTiming(perf, key, startedAt)
+    if perf and startedAt and type(debugprofilestop) == "function" then
+        perf:RecordTiming(key, debugprofilestop() - startedAt)
+    end
+end
+
 local cachedAddonType = nil
 
 local function GetNameplateAddonType()
@@ -1155,17 +1169,22 @@ function Mod.HideUnit(unit)
 end
 
 function Mod.SetUnitText(unit, textValue, recognized, runtimeSettings)
+    local perf = GetPerfMonitor()
+    local startedAt = perf and debugprofilestop()
     if type(unit) ~= "string" then
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitText", startedAt)
         return
     end
     local plate = GetNameplate(unit)
     if not plate then
         Mod.HideUnit(unit)
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitText", startedAt)
         return
     end
 
     local frame = EnsureUnitFrame(unit)
     if not frame or not frame.text then
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitText", startedAt)
         return
     end
 
@@ -1177,6 +1196,7 @@ function Mod.SetUnitText(unit, textValue, recognized, runtimeSettings)
     if Store and type(Store.IsNameplateNPCIDHidden) == "function" and Store.IsNameplateNPCIDHidden() == true then
         frame.text:SetText("")
         frame:Show()
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitText", startedAt)
         return
     end
     local text = tostring(textValue or "???")
@@ -1189,16 +1209,24 @@ function Mod.SetUnitText(unit, textValue, recognized, runtimeSettings)
         frame.text:SetTextColor(1.00, 0.25, 0.25)
     end
     frame:Show()
+    RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitText", startedAt)
 end
 
 function Mod.SetUnitTimers(unit, timers, runtimeSettings)
+    local perf = GetPerfMonitor()
+    local startedAt = perf and debugprofilestop()
+    if perf and type(perf.IncrementCounter) == "function" then
+        perf:IncrementCounter("TrashCD.Counter.Nameplate.SetUnitTimersRows", #(timers or {}))
+    end
     if type(unit) ~= "string" then
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitTimers", startedAt)
         return
     end
     local plate = GetNameplate(unit)
     local frame = plate and EnsureUnitFrame(unit) or nil
     if not frame then
         Mod.HideUnit(unit)
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitTimers", startedAt)
         return
     end
 
@@ -1219,6 +1247,7 @@ function Mod.SetUnitTimers(unit, timers, runtimeSettings)
         HideUnusedIcons(frame.leftIcons or {}, 1)
         HideUnusedIcons(frame.rightIcons or {}, 1)
         frame:Show()
+        RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitTimers", startedAt)
         return
     end
 
@@ -1283,4 +1312,5 @@ function Mod.SetUnitTimers(unit, timers, runtimeSettings)
     -- but the test deliberately renders icons only.  A visible child cannot
     -- escape a hidden parent frame.
     frame:Show()
+    RecordPerfTiming(perf, "TrashCD.Nameplate.SetUnitTimers", startedAt)
 end

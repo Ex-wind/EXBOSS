@@ -17,6 +17,37 @@ local CAST_TARGET_SWITCH_WINDOW = 0.10
 local MAX_NAMEPLATES = 40
 local CHANNEL_REFRESH_INTERRUPTIBLE_WINDOW = 1.00
 
+local function GetPerfMonitor()
+    local perf = _G.ExwindTools and _G.ExwindTools.PerfMonitor or nil
+    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
+        return perf
+    end
+    return nil
+end
+
+local function RecordPerfTiming(perf, key, startedAt)
+    if perf and startedAt and type(debugprofilestop) == "function" then
+        perf:RecordTiming(key, debugprofilestop() - startedAt)
+    end
+end
+
+local function IncrementPerf(perf, key, amount)
+    if perf and type(perf.IncrementCounter) == "function" then
+        perf:IncrementCounter(key, amount)
+    end
+end
+
+-- 施法后的快照窗口由 C_Timer 驱动，和 Runtime 的延迟刷新同属异步根链。
+local function WrapRuntimeTimer(callback)
+    return function(...)
+        local perf = GetPerfMonitor()
+        local startedAt = perf and debugprofilestop()
+        callback(...)
+        IncrementPerf(perf, "TrashCD.Counter.Root.RuntimeTimers.Visits")
+        RecordPerfTiming(perf, "TrashCD.Root.RuntimeTimers", startedAt)
+    end
+end
+
 
 local function IsNameplateInCombat(unit, refresh)
     local state = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.State or nil
@@ -51,6 +82,7 @@ local function RequestRuntimeRefresh(runtime, reason)
     if type(runtime) ~= "table" then
         return
     end
+    IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Refresh.Requested." .. tostring(reason or "observation"))
     local unit = type(runtime._nameplateUnit) == "string" and runtime._nameplateUnit or nil
     local runtimeController = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
     if unit and runtimeController and type(runtimeController.ScheduleUnitRefresh) == "function" then
@@ -381,17 +413,28 @@ local function ScheduleCastTargetSnapshot(runtime, unit, kind, castBarID, seq)
     if not (C_Timer and C_Timer.After) then
         return
     end
-    C_Timer.After(CAST_TARGET_SAMPLE_DELAY, function()
+    IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Timer.TargetSnapshot.Scheduled")
+    C_Timer.After(CAST_TARGET_SAMPLE_DELAY, WrapRuntimeTimer(function()
+        local perf = GetPerfMonitor()
+        local startedAt = perf and debugprofilestop()
+        IncrementPerf(perf, "TrashCD.Counter.Timer.TargetSnapshot.Callback")
+        local function Finish()
+            RecordPerfTiming(perf, "TrashCD.Timer.TargetSnapshot", startedAt)
+        end
         if type(runtime) ~= "table" then
+            Finish()
             return
         end
         if runtime.activeCastSeq ~= seq then
+            Finish()
             return
         end
         if tostring(runtime.activeCastKind or "") ~= tostring(kind or "") then
+            Finish()
             return
         end
         if not ActiveCastMatches(runtime, castBarID) then
+            Finish()
             return
         end
         local hasTarget = SafeUnitHasSpellTarget(unit)
@@ -400,6 +443,7 @@ local function ScheduleCastTargetSnapshot(runtime, unit, kind, castBarID, seq)
         -- 运行时快照兼容；它与 hasTarget 是同一个 UnitExists 事实，无需重复查询。
         local hasTargetUnitExists = hasTarget
         if hasTarget == nil and hasTargetAPI == nil and hasTargetUnitExists == nil then
+            Finish()
             return
         end
         local checkedAt = GetTime and GetTime() or nil
@@ -411,7 +455,8 @@ local function ScheduleCastTargetSnapshot(runtime, unit, kind, castBarID, seq)
         runtime.activeCastTargetUnitCheckedAt = checkedAt
         RequestRuntimeRefresh(runtime, "cast-target-snapshot")
         RetryRuntimeCastStartVoice(runtime, kind, seq)
-    end)
+        Finish()
+    end))
 end
 
 local function ApplyTargetHostileSample(runtime, kind, seq, isHostile)
@@ -438,11 +483,19 @@ local function ScheduleCastTargetHostileSnapshot(runtime, unit, kind, seq)
     if not (C_Timer and C_Timer.After) or runtime._castTargetHostileSampleSeq == seq then
         return false
     end
+    IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Timer.TargetHostile.Scheduled")
     runtime._castTargetHostileSampleSeq = seq
-    C_Timer.After(CAST_TARGET_HOSTILE_SAMPLE_DELAY, function()
+    C_Timer.After(CAST_TARGET_HOSTILE_SAMPLE_DELAY, WrapRuntimeTimer(function()
+        local perf = GetPerfMonitor()
+        local startedAt = perf and debugprofilestop()
+        IncrementPerf(perf, "TrashCD.Counter.Timer.TargetHostile.Callback")
         local _, isHostile = GetUnitTargetHostility(unit)
-        ApplyTargetHostileSample(runtime, kind, seq, isHostile)
-    end)
+        local applied = ApplyTargetHostileSample(runtime, kind, seq, isHostile)
+        if applied then
+            IncrementPerf(perf, "TrashCD.Counter.Timer.TargetHostile.Applied")
+        end
+        RecordPerfTiming(perf, "TrashCD.Timer.TargetHostile", startedAt)
+    end))
     return true
 end
 
@@ -452,7 +505,7 @@ local function ScheduleCastTargetClearSnapshot(runtime, kind, castBarID, seq)
         runtime.activeCastTargetClearedOnStart = false
         return
     end
-    C_Timer.After(CAST_TARGET_CLEAR_WINDOW, function()
+    C_Timer.After(CAST_TARGET_CLEAR_WINDOW, WrapRuntimeTimer(function()
         if type(runtime) ~= "table" then
             return
         end
@@ -481,7 +534,7 @@ local function ScheduleCastTargetClearSnapshot(runtime, kind, castBarID, seq)
             RequestRuntimeRefresh(runtime, "cast-target-clear-snapshot")
         end
         RetryRuntimeCastStartVoice(runtime, kind, seq)
-    end)
+    end))
 end
 
 local function ScheduleCastTargetSwitchSnapshot(runtime, kind, castBarID, seq)
@@ -490,7 +543,7 @@ local function ScheduleCastTargetSwitchSnapshot(runtime, kind, castBarID, seq)
         runtime.activeCastTargetSwitched = false
         return
     end
-    C_Timer.After(CAST_TARGET_SWITCH_WINDOW, function()
+    C_Timer.After(CAST_TARGET_SWITCH_WINDOW, WrapRuntimeTimer(function()
         if type(runtime) ~= "table" then
             return
         end
@@ -517,7 +570,7 @@ local function ScheduleCastTargetSwitchSnapshot(runtime, kind, castBarID, seq)
             RequestRuntimeRefresh(runtime, "cast-target-switch-snapshot")
         end
         RetryRuntimeCastStartVoice(runtime, kind, seq)
-    end)
+    end))
 end
 
 local function ResolveResultKind(kind, wasSuccess)
@@ -808,6 +861,9 @@ function Mod.MarkRuntimeObservation(state, unit, key)
 end
 
 function Mod.BeginRuntimeCast(state, unit, kind, castBarID, combatConfirmed)
+    local perf = GetPerfMonitor()
+    IncrementPerf(perf, "TrashCD.Counter.Cast.BeginCalls")
+    local startedAt = perf and debugprofilestop()
     local runtime = Mod.GetRuntimeObs(state, unit)
     if not runtime then
         return
@@ -971,6 +1027,8 @@ function Mod.BeginRuntimeCast(state, unit, kind, castBarID, combatConfirmed)
     ScheduleCastTargetHostileSnapshot(runtime, unit, nextKind, runtime.activeCastSeq)
     -- 12.1 已停用旧 TargetClear / TargetSwitch 指纹。保留字段与函数以兼容旧快照，
     -- 但不再为每次真实读条创建没有活动消费者的两个 C_Timer 回调。
+    IncrementPerf(perf, "TrashCD.Counter.Cast.BeginAccepted")
+    RecordPerfTiming(perf, "TrashCD.Observation.BeginRuntimeCast", startedAt)
     return true
 end
 

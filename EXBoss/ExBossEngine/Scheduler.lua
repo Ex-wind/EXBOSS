@@ -3790,12 +3790,18 @@ function Scheduler:RegisterTrashLocalTimer(runtime, mobData, spellData, remainin
 end
 
 function Scheduler:GetTrashNameplateTimers(runtime, now)
+    local perf = _G.ExwindTools and _G.ExwindTools.PerfMonitor or nil
+    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
+    local startedAt = capture and debugprofilestop()
     if type(runtime) ~= "table" then
+        if capture then perf:RecordTiming("TrashCD.Nameplate.SchedulerActiveScan", debugprofilestop() - startedAt) end
         return {}
     end
     now = tonumber(now) or GetTime()
     local out = {}
+    local scanned = 0
     for _, timer in pairs(self._active or {}) do
+        scanned = scanned + 1
         if type(timer) == "table"
             and timer.source == "trash"
             and timer.trashRuntime == runtime
@@ -3821,6 +3827,10 @@ function Scheduler:GetTrashNameplateTimers(runtime, now)
         end
         return ar < br
     end)
+    if capture then
+        perf:IncrementCounter("TrashCD.Counter.Nameplate.SchedulerActiveEntries", scanned)
+        perf:RecordTiming("TrashCD.Nameplate.SchedulerActiveScan", debugprofilestop() - startedAt)
+    end
     return out
 end
 
@@ -5106,6 +5116,12 @@ function Scheduler:_OnUpdate(elapsed)
     if self._elapsed < ONUPDATE_INTERVAL then return end
     self._elapsed  = 0
 
+    -- 诊断口径：Tick 覆盖完整 20Hz 调度；Timer 覆盖单个 timer 的完整迭代，
+    -- 包含公共的 TimerBar/BunBar/五秒事件处理，不能只量 source 分支。
+    local perf = _G.ExwindTools and _G.ExwindTools.PerfMonitor or nil
+    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
+    local tickStartedAt = capture and debugprofilestop()
+    local tickWasEmpty = capture and next(self._active) == nil
     local now      = GetTime()
     local toRemove = nil
 
@@ -5114,6 +5130,8 @@ function Scheduler:_OnUpdate(elapsed)
     self:_TickBossCastObserve(now)
 
     for id, timer in pairs(self._active) do
+        local isTrashTimer = capture and timer.source == "trash"
+        local timerStartedAt = capture and debugprofilestop()
         local action = nil
         if timer.timelineManaged then
             action = self:_UpdateTimelineManagedTimer(timer, now)
@@ -5317,11 +5335,28 @@ function Scheduler:_OnUpdate(elapsed)
             if not toRemove then toRemove = {} end
             toRemove[id] = true
         end
+
+        if capture then
+            if isTrashTimer then
+                perf:IncrementCounter("TrashCD.Counter.Scheduler.Timer.Trash.Visits")
+                perf:RecordTiming("TrashCD.Scheduler.Timer.Trash.Total", debugprofilestop() - timerStartedAt)
+            else
+                perf:IncrementCounter("TrashCD.Counter.Scheduler.Timer.Other.Visits")
+                perf:RecordTiming("TrashCD.Scheduler.Timer.Other.Total", debugprofilestop() - timerStartedAt)
+            end
+        end
     end
 
     if toRemove then
         for id in pairs(toRemove) do
             self:_RemoveActiveTimerByID(id)
+        end
+    end
+    if capture then
+        perf:RecordTiming("TrashCD.Scheduler.Tick.Total", debugprofilestop() - tickStartedAt)
+        if tickWasEmpty then
+            perf:IncrementCounter("TrashCD.Counter.Scheduler.Tick.Empty")
+            perf:RecordTiming("TrashCD.Scheduler.Tick.Empty", debugprofilestop() - tickStartedAt)
         end
     end
 end

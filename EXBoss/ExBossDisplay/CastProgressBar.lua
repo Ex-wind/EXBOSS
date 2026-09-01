@@ -13,6 +13,13 @@ ExBoss.UI.CastProgressBar = ExBoss.UI.CastProgressBar or {}
 local CastBar = ExBoss.UI.CastProgressBar
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 
+local function RecordPerfTiming(key, startedAt)
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    if perf and startedAt and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
+        perf:RecordTiming(key, debugprofilestop() - startedAt)
+    end
+end
+
 local MODULE_KEY = "ExBoss.CastProgressBar"
 local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 if LSM and LSM.Register and not LSM:IsValid("border", "Square Full White") then
@@ -436,12 +443,18 @@ local function SetCastCheckPollingEnabled(enabled)
         castCheckPollFrame = CreateFrame("Frame")
         castCheckPollFrame:Hide()
         castCheckPollFrame:SetScript("OnUpdate", function(_, elapsed)
+            local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+            local startedAt = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() and debugprofilestop()
             castCheckPollElapsed = castCheckPollElapsed + (tonumber(elapsed) or 0)
-            if castCheckPollElapsed < 0.05 then return end
+            if castCheckPollElapsed < 0.05 then
+                RecordPerfTiming("TrashCD.Root.CastProgressBar", startedAt)
+                return
+            end
             castCheckPollElapsed = 0
             if HasActiveCastCheckSlots() and ReLayoutRuntime then
                 ReLayoutRuntime()
             end
+            RecordPerfTiming("TrashCD.Root.CastProgressBar", startedAt)
         end)
     end
     castCheckPollElapsed = 0

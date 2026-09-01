@@ -18,6 +18,20 @@ local MAX_NAMEPLATES = 40
 local POLL_INTERVAL = 0.10
 local POLL_BATCH = 10
 
+local function GetPerfMonitor()
+    local perf = _G.ExwindTools and _G.ExwindTools.PerfMonitor or nil
+    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
+        return perf
+    end
+    return nil
+end
+
+local function RecordPerfTiming(perf, key, startedAt)
+    if perf and startedAt and type(debugprofilestop) == "function" then
+        perf:RecordTiming(key, debugprofilestop() - startedAt)
+    end
+end
+
 local function NormalizeNameplateUnit(unit)
     if type(unit) ~= "string" then
         return nil
@@ -316,6 +330,8 @@ function Mod.IsUnitInCombat(unit, refresh)
 end
 
 function Mod.PollNameplateCombat(now, batchSize)
+    local perf = GetPerfMonitor()
+    local startedAt = perf and debugprofilestop()
     now = tonumber(now) or GetTime()
     batchSize = tonumber(batchSize) or POLL_BATCH
     if batchSize < 1 then
@@ -333,6 +349,11 @@ function Mod.PollNameplateCombat(now, batchSize)
         end
         Mod._pollIndex = index
     end
+    if perf and type(perf.IncrementCounter) == "function" then
+        perf:IncrementCounter("TrashCD.Counter.State.PollCalls")
+        perf:IncrementCounter("TrashCD.Counter.State.PollTokens", batchSize)
+    end
+    RecordPerfTiming(perf, "TrashCD.Root.StatePoll", startedAt)
 end
 
 function Mod.OnUnitDead(unit)
