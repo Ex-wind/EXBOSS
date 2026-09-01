@@ -22,6 +22,26 @@ local STANDARD_PACK_ADDONS = {
     [ENGLISH_VOICE_PACK] = ENGLISH_VOICE_PACK_ADDON,
 }
 
+local function GetPerfMonitor()
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
+        return perf
+    end
+    return nil
+end
+
+local function RecordPerfTiming(perf, key, startedAt)
+    if perf and startedAt and type(debugprofilestop) == "function" then
+        perf:RecordTiming(key, debugprofilestop() - startedAt)
+    end
+end
+
+local function IncrementPerf(perf, key, amount)
+    if perf and type(perf.IncrementCounter) == "function" then
+        perf:IncrementCounter(key, amount)
+    end
+end
+
 local function GetClientLocaleTag()
     if ExBoss and ExBoss.Locale and type(ExBoss.Locale.GetCurrentLocale) == "function" then
         local locale = tostring(ExBoss.Locale:GetCurrentLocale() or ""):gsub("%s+", "")
@@ -57,16 +77,21 @@ local function IsEnglishClientLocale(locale)
 end
 
 local function GetVoicePackDirectory(packName)
+    local normalizedPackName = tostring(packName or "")
+    local standardDirectory = STANDARD_PACK_ADDONS[normalizedPackName]
+    if standardDirectory then
+        IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Calibration.Voice.StandardPackFastPath")
+        return standardDirectory
+    end
+
     local Registry = ExBoss and ExBoss.Voice and ExBoss.Voice.PackRegistry
     if Registry and type(Registry.GetPackDirectory) == "function" then
-        local discovered = Registry.GetPackDirectory(packName)
+        local discovered = Registry.GetPackDirectory(normalizedPackName)
         if type(discovered) == "string" and discovered ~= "" then
             return discovered
         end
     end
-    -- 标准中文/英文包的目录是固定运行时合同。即使包被禁用、.toc 元数据无法枚举，
-    -- 也不影响 EXBoss 直接按此目录调用 PlaySoundFile。
-    return STANDARD_PACK_ADDONS[tostring(packName or "")]
+    return nil
 end
 
 local function GetLocaleFallbackVoicePack()
@@ -822,7 +847,10 @@ end
 
 function Engine:ResolveStandaloneSound(triggerCfg, opts)
     opts = type(opts) == "table" and opts or {}
+    local perf = GetPerfMonitor()
+    local stepStartedAt = perf and debugprofilestop()
     local db = EnsureDB()
+    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.EnsureDB", stepStartedAt)
     local g = db.global
     if opts.ignoreState ~= true and g.enabled == false then
         return nil, "voice disabled"
@@ -831,12 +859,16 @@ function Engine:ResolveStandaloneSound(triggerCfg, opts)
         return nil, "context disabled"
     end
 
+    stepStartedAt = perf and debugprofilestop()
     local normalized = NormalizeStandaloneTriggerConfig(triggerCfg)
+    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.NormalizeTrigger", stepStartedAt)
     if not normalized then
         return nil, "invalid trigger cfg"
     end
 
+    stepStartedAt = perf and debugprofilestop()
     local soundInfo = ResolveTriggerSound(g, normalized, opts.triggerIndex)
+    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.ResolveTriggerSound", stepStartedAt)
     if not soundInfo then
         return nil, "sound not found"
     end

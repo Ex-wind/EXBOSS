@@ -29,6 +29,7 @@ local TEXT_UPDATE_INTERVAL  = 0.05
 local POSITION_SMOOTH_TIME  = 0.10
 local ACTIVE_WINDOW_SECS    = 20
 local QUEUE_HIDE_SECS       = 60
+local PREWARM_NODE_COUNT    = 6
 local SUDDEN_INTRO_OFFSET_X = 28
 local SUDDEN_INTRO_DURATION = 0.45
 local QUEUE_INTRO_OFFSET_Y  = 22
@@ -2001,6 +2002,44 @@ end
 EXUI:RegisterModuleValueController(MODULE_KEY, { RefreshActiveSurfaces = RefreshActiveSurfaces })
 function BunBar:GetStandardPreviewSurface()
     return EnsurePanelSurface()
+end
+
+-- 运行时节点池的空闲期预热入口。预热对象不进入 activeNodes/nodeList，
+-- 因而不会参与 Scheduler、轨道排序或 BunBar 的运行时 OnUpdate。
+function BunBar:GetPrewarmTargetCount()
+    local db = DB()
+    return db and db.enabled == false and 0 or PREWARM_NODE_COUNT
+end
+
+function BunBar:AcquirePrewarmObject()
+    if not anchorFrame then CreateAnchor() end
+    local fac = Factory()
+    if not (fac and anchorFrame) then return nil end
+    local node = fac:Acquire(POOL_TYPE, anchorFrame)
+    node._priority = 2
+    node._iconFlags = 0
+    node._timerTextColor = nil
+    node._eventColor = nil
+    node._occurrenceCountText = nil
+    node:SetAlpha(1)
+    node:SetScale(1)
+    SetClickThrough(node)
+    UpdateNodeVisuals(node, 2)
+    node:Hide()
+    return node
+end
+
+function BunBar:ReleasePrewarmObject(node)
+    if not node then return end
+    node:Hide()
+    node:ClearAllPoints()
+    node._priority = nil
+    node._iconFlags = 0
+    node._timerTextColor = nil
+    node._eventColor = nil
+    node._occurrenceCountText = nil
+    local fac = Factory()
+    if fac then fac:Release(POOL_TYPE, node) end
 end
 
 ExwindTools:RegisterEvent("PLAYER_ENTERING_WORLD", MODULE_KEY .. "_init", function()

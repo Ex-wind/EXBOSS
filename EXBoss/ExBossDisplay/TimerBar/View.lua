@@ -4,7 +4,7 @@
 -- BOSS 技能倒计时条 HUD
 --
 -- 结构：AnchorController 管固定语义锚点 + EXUI TimerBarCollection
--- 进度：SetValue(remaining/duration)，左满右空
+-- 进度：运行时由原生 Duration 驱动；Panel/World 样本使用静态 Progress
 -- 编辑模式：AnchorController → 游戏内预览
 -- =============================================================
 
@@ -44,9 +44,11 @@ end
 -- =============================================================
 local MODULE_KEY                  = "ExBoss.TimerBar"
 local TEST_PREFIX                 = "__exboss_test_"
+local PREWARM_PREFIX              = "__exboss_prewarm_timerbar_"
 local LEGACY_EVENT_KEY            = "encounter" .. "EventID"
 local DEFAULT_ANCHOR_X            = -237
 local DEFAULT_ANCHOR_Y            = 245
+local TIME_SYNC_EPSILON           = 0.01
 -- TimerBar 只声明垂直集合能力；WidgetLayout 负责执行并在非法旧值进入时
 -- 回退本列表的首项（UP），绝不把横向方向作为兼容后门。
 local TIMERBAR_ALLOWED_DIRECTIONS = { "UP", "DOWN" }
@@ -72,6 +74,8 @@ local EnsureAnchorController      = nil
 local _runtimeCache               = nil
 local UpdateAnchorFrameSize       = nil
 local FormatTime                  = nil
+local _runtimeDurationTextOptions = nil
+local _prewarmSerial              = 0
 
 -- =============================================================
 -- 计时条 DB 默认值
@@ -555,6 +559,74 @@ local function ResolveTimerBarProgress(remaining, duration, progressMode)
     return Clamp01(ratio), 1
 end
 
+local function ResolveNativeTimerDirection(progressMode)
+    if Enum and Enum.StatusBarTimerDirection then
+        return progressMode == "REMAINING"
+            and Enum.StatusBarTimerDirection.RemainingTime
+            or Enum.StatusBarTimerDirection.ElapsedTime
+    end
+    return progressMode == "REMAINING" and 1 or 0
+end
+
+local function GetRuntimeDurationTextOptions()
+    if _runtimeDurationTextOptions then
+        return _runtimeDurationTextOptions
+    end
+    if not (C_StringUtil and type(C_StringUtil.CreateNumericRuleFormatter) == "function"
+            and Enum and Enum.DurationTextBindingProperty and Enum.NumericRuleFormatRounding) then
+        error("ExBoss.TimerBar requires native Duration text formatting", 2)
+    end
+    local formatter = C_StringUtil.CreateNumericRuleFormatter()
+    formatter:SetBreakpoints({
+        {
+            threshold = 0,
+            format = "%.1f",
+        },
+        {
+            threshold = 10,
+            step = 1,
+            rounding = Enum.NumericRuleFormatRounding.Nearest,
+            format = "%.0f",
+        },
+        {
+            threshold = 60,
+            format = "%d:%02d",
+            components = {
+                {
+                    div = 60,
+                    step = 1,
+                    rounding = Enum.NumericRuleFormatRounding.Down,
+                },
+                {
+                    mod = 60,
+                    step = 1,
+                    rounding = Enum.NumericRuleFormatRounding.Down,
+                },
+            },
+        },
+    })
+    _runtimeDurationTextOptions = {
+        property = Enum.DurationTextBindingProperty.RemainingDuration,
+        formatter = formatter,
+        expiredText = "",
+        zeroDurationText = "",
+        updateInterval = 0.05,
+    }
+    return _runtimeDurationTextOptions
+end
+
+local function BuildRuntimeDurationTimePresentation(durationObject, progressMode)
+    local interpolation = Enum and Enum.StatusBarInterpolation
+        and (Enum.StatusBarInterpolation.None or Enum.StatusBarInterpolation.Immediate) or 0
+    return {
+        mode = "DURATION",
+        duration = durationObject,
+        interpolation = interpolation,
+        direction = ResolveNativeTimerDirection(progressMode),
+        textOptions = GetRuntimeDurationTextOptions(),
+    }
+end
+
 local function SetClickThrough(frame)
     if not frame then return end
     frame:EnableMouse(false)
@@ -823,7 +895,7 @@ end
 -- TimerBar 只有这一份 presentation。真实计时、世界编辑样本、GUI 样本都先
 -- 变成这份普通数据，再交给同一个 EXUI TimerBarCollection 物化。这里不创建
 -- Frame，也不因宿主不同改变文字、图标、层级或尺寸。
-local function BuildTimerBarPresentation(timer, priority, now)
+local function BuildTimerBarPresentation(timer, priority, now, runtimeDurationObject)
     local db = DB() or {}
     local sourceStyle = ResolveStyle(db)
     local style = {}
@@ -860,6 +932,16 @@ local function BuildTimerBarPresentation(timer, priority, now)
     local castTime = tonumber(type(timer) == "table" and timer.castTime) or ((now or GetTime()) + duration)
     local remaining = math.max(0, castTime - (now or GetTime()))
     local progressValue, progressMaximum = ResolveTimerBarProgress(remaining, duration, progressMode)
+    local timePresentation = nil
+    local progressPresentation = nil
+    if runtimeDurationObject then
+        timePresentation = BuildRuntimeDurationTimePresentation(runtimeDurationObject, progressMode)
+    else
+        -- Panel/world samples stay static.  Only the live runtime surface owns
+        -- native Duration objects.
+        timePresentation = remaining > 0 and { text = FormatTime(remaining), shown = true } or nil
+        progressPresentation = { value = progressValue, maximum = progressMaximum }
+    end
     local alert = GetAlertIconStyle(db)
     local visuals = alert.enabled ~= false and CollectAlertVisuals(GetTimerIconFlags(timer)) or {}
     local alertIconWidth = math.max(1, SafeNum(alert.width, 16))
@@ -902,20 +984,97 @@ local function BuildTimerBarPresentation(timer, priority, now)
         },
         icon = { value = icon },
         label = name or "???",
-        -- 计时到点时条体仍留在时间轴上，但不能留下 "0.0" 时间文字。
-        -- nil 会让 Collection 清空并隐藏内建 TimeText，不影响本体、图标或进度条。
-        time = remaining > 0 and { text = FormatTime(remaining), shown = true } or nil,
-        progress = { value = progressValue, maximum = progressMaximum },
+        -- Runtime Duration uses an empty expired text so the bar can remain at
+        -- zero without showing "0.0".  Static previews retain the old text and
+        -- progress presentation.
+        time = timePresentation,
+        progress = progressPresentation,
         regionElements = regionElements,
         interaction = BuildStandardTimerBarInteraction(db),
     }
 end
 
-local function ApplyRecord(collection, record, now)
+local function ResolveRuntimeTiming(timer, now)
+    local duration = math.max(1, tonumber(type(timer) == "table" and (timer.timerBarDuration or timer.duration)) or 30)
+    local castTime = tonumber(type(timer) == "table" and timer.castTime) or ((now or GetTime()) + duration)
+    return castTime, duration
+end
+
+local function EnsureRuntimeDuration(record, now)
+    if not record.durationObject then
+        if not (C_DurationUtil and type(C_DurationUtil.CreateDuration) == "function") then
+            error("ExBoss.TimerBar requires C_DurationUtil.CreateDuration", 2)
+        end
+        record.durationObject = C_DurationUtil.CreateDuration()
+    end
+    local currentNow = now or GetTime()
+    local castTime, duration = ResolveRuntimeTiming(record.timer, currentNow)
+    record.durationObject:SetTimeFromEnd(castTime, duration, 1)
+    record.boundCastTime = castTime
+    record.boundDuration = duration
+    record.boundProgressMode = GetRuntimeCache().progressMode
+    record.durationExpired = castTime <= currentNow
+    return record.durationObject
+end
+
+local function CaptureRuntimeStaticState(record)
+    local timer = record and record.timer or nil
+    local eventColor = type(timer) == "table" and timer.eventColor or nil
+    local timerTextColor = type(timer) == "table" and timer.timerTextColor or nil
+    local state = record.staticState or {}
+    state.spellID = type(timer) == "table" and timer.spellID or nil
+    state.iconFileID = type(timer) == "table" and timer.iconFileID or nil
+    state.timerBarName = type(timer) == "table" and timer.timerBarName or nil
+    state.displayName = type(timer) == "table" and timer.displayName or nil
+    state.occurrenceCount = type(timer) == "table" and timer.occurrenceCount or nil
+    state.useOccurrenceCount = type(timer) == "table" and timer.useOccurrenceCount or nil
+    state.occurrenceDisplayMode = type(timer) == "table" and timer.occurrenceDisplayMode or nil
+    state.iconFlags = type(timer) == "table" and timer.iconFlags or nil
+    state.barPriority = type(timer) == "table" and timer.barPriority or nil
+    state.occurrenceEnabled = IsSpellCountDisplayEnabled()
+    state.eventR = type(eventColor) == "table" and eventColor.r or nil
+    state.eventG = type(eventColor) == "table" and eventColor.g or nil
+    state.eventB = type(eventColor) == "table" and eventColor.b or nil
+    state.eventA = type(eventColor) == "table" and eventColor.a or nil
+    state.textR = type(timerTextColor) == "table" and timerTextColor.r or nil
+    state.textG = type(timerTextColor) == "table" and timerTextColor.g or nil
+    state.textB = type(timerTextColor) == "table" and timerTextColor.b or nil
+    state.textA = type(timerTextColor) == "table" and timerTextColor.a or nil
+    record.staticState = state
+end
+
+local function RuntimeStaticStateChanged(record)
+    local state = record and record.staticState or nil
+    local timer = record and record.timer or nil
+    if not state or type(timer) ~= "table" then return true end
+    local eventColor = type(timer.eventColor) == "table" and timer.eventColor or nil
+    local timerTextColor = type(timer.timerTextColor) == "table" and timer.timerTextColor or nil
+    return state.spellID ~= timer.spellID
+        or state.iconFileID ~= timer.iconFileID
+        or state.timerBarName ~= timer.timerBarName
+        or state.displayName ~= timer.displayName
+        or state.occurrenceCount ~= timer.occurrenceCount
+        or state.useOccurrenceCount ~= timer.useOccurrenceCount
+        or state.occurrenceDisplayMode ~= timer.occurrenceDisplayMode
+        or state.iconFlags ~= timer.iconFlags
+        or state.barPriority ~= timer.barPriority
+        or state.occurrenceEnabled ~= IsSpellCountDisplayEnabled()
+        or state.eventR ~= (eventColor and eventColor.r or nil)
+        or state.eventG ~= (eventColor and eventColor.g or nil)
+        or state.eventB ~= (eventColor and eventColor.b or nil)
+        or state.eventA ~= (eventColor and eventColor.a or nil)
+        or state.textR ~= (timerTextColor and timerTextColor.r or nil)
+        or state.textG ~= (timerTextColor and timerTextColor.g or nil)
+        or state.textB ~= (timerTextColor and timerTextColor.b or nil)
+        or state.textA ~= (timerTextColor and timerTextColor.a or nil)
+end
+
+local function ApplyRecord(collection, record, now, runtime)
     if not collection or not record then return end
     local perf = ExwindTools and ExwindTools.PerfMonitor or nil
     local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
     if not capture then perf = nil end
+    local applyRecordStartedAt = capture and debugprofilestop()
     if not record.item then
         local acquireStartedAt = capture and debugprofilestop()
         record.item = collection:AcquireItem(record.id)
@@ -923,18 +1082,66 @@ local function ApplyRecord(collection, record, now)
         if capture then perf:RecordTiming("TrashCD.TimerBar.AcquireItem", debugprofilestop() - acquireStartedAt) end
     end
     local buildStartedAt = capture and debugprofilestop()
-    local presentation = BuildTimerBarPresentation(record.timer, record.priority, now)
+    local durationObject = runtime and EnsureRuntimeDuration(record, now) or nil
+    local presentation = BuildTimerBarPresentation(record.timer, record.priority, now, durationObject)
     IncrementPerf(perf, "TrashCD.Counter.TimerBar.BuildPresentation.Visits")
     if capture then perf:RecordTiming("TrashCD.TimerBar.BuildPresentation", debugprofilestop() - buildStartedAt) end
     local applyStartedAt = capture and debugprofilestop()
     collection:ApplyItem(record.item, presentation)
     IncrementPerf(perf, "TrashCD.Counter.TimerBar.CollectionApplyItem.Visits")
     if capture then perf:RecordTiming("TrashCD.TimerBar.CollectionApplyItem", debugprofilestop() - applyStartedAt) end
-    local alphaStartedAt = capture and debugprofilestop()
-    record.item.root:SetAlpha(record.timer and record.timer.fixedAIWaitingTimelineFinish == true
+    if runtime then
+        CaptureRuntimeStaticState(record)
+    end
+    IncrementPerf(perf, "TrashCD.Counter.TimerBar.ApplyRecord.Visits")
+    if capture then perf:RecordTiming("TrashCD.TimerBar.ApplyRecord", debugprofilestop() - applyRecordStartedAt) end
+end
+
+local function UpdateRuntimeDuration(collection, record, now)
+    if not (collection and record and record.item and record.durationObject) then return false end
+    local castTime, duration = ResolveRuntimeTiming(record.timer, now)
+    local progressMode = GetRuntimeCache().progressMode
+    local expired = castTime <= now
+    local needsUpdate = record.boundDuration ~= duration
+        or record.boundProgressMode ~= progressMode
+        or record.durationExpired ~= expired
+    if not needsUpdate and not expired then
+        needsUpdate = math.abs(castTime - (tonumber(record.boundCastTime) or castTime)) > TIME_SYNC_EPSILON
+    end
+    -- Once a Duration has reached zero, Scheduler-owned hold states may keep
+    -- writing castTime=now.  The renderer must remain at the endpoint instead
+    -- of rebinding the native timer every tick.
+    if not needsUpdate then return false end
+
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
+    if not capture then perf = nil end
+    local startedAt = capture and debugprofilestop()
+    record.durationObject:SetTimeFromEnd(castTime, duration, 1)
+    collection:UpdateItemTime(record.item,
+        BuildRuntimeDurationTimePresentation(record.durationObject, progressMode))
+    record.boundCastTime = castTime
+    record.boundDuration = duration
+    record.boundProgressMode = progressMode
+    record.durationExpired = expired
+    IncrementPerf(perf, "TrashCD.Counter.TimerBar.UpdateDuration.Visits")
+    if capture then perf:RecordTiming("TrashCD.TimerBar.UpdateDuration", debugprofilestop() - startedAt) end
+    return true
+end
+
+local function ApplyRuntimeAlpha(record, now)
+    if not (record and record.item and record.item.root) then return end
+    local waiting = record.timer and record.timer.fixedAIWaitingTimelineFinish == true
+    if not waiting and record.alphaWaiting == false then return end
+    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
+    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
+    if not capture then perf = nil end
+    local startedAt = capture and debugprofilestop()
+    record.item.root:SetAlpha(waiting
         and (0.62 + 0.38 * math.abs(math.sin((now or GetTime()) * 5.5))) or 1)
+    record.alphaWaiting = waiting
     IncrementPerf(perf, "TrashCD.Counter.TimerBar.SetAlpha.Visits")
-    if capture then perf:RecordTiming("TrashCD.TimerBar.SetAlpha", debugprofilestop() - alphaStartedAt) end
+    if capture then perf:RecordTiming("TrashCD.TimerBar.SetAlpha", debugprofilestop() - startedAt) end
 end
 
 -- =============================================================
@@ -1051,8 +1258,15 @@ local function ReLayout(nowOverride)
 
     wipe(_sortBuf)
     for _, record in ipairs(barList) do
-        ApplyRecord(runtimeCollection, record, now)
-        table.insert(_sortBuf, record.item)
+        -- ReLayout owns positions only.  The missing-item guard covers timers
+        -- created while world editing; existing runtime items are never fully
+        -- re-applied just because their order changed.
+        if not record.item and not _worldEditing then
+            ApplyRecord(runtimeCollection, record, now, true)
+        end
+        if record.item then
+            table.insert(_sortBuf, record.item)
+        end
     end
 
     table.sort(_sortBuf, function(a, b)
@@ -1071,6 +1285,15 @@ local function ReLayout(nowOverride)
     UpdateAnchorFrameSize()
     ApplyAnchorPosition()
     _sortDirty = false
+end
+
+local function RefreshRuntimePresentations(nowOverride)
+    if not runtimeCollection or _worldEditing then return end
+    local now = nowOverride or GetTime()
+    for _, record in ipairs(barList) do
+        ApplyRecord(runtimeCollection, record, now, true)
+    end
+    _sortDirty = true
 end
 
 -- =============================================================
@@ -1094,7 +1317,7 @@ local function RuntimeTick(elapsed, nowOverride)
     local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
     if not capture then perf = nil end
     local now = nowOverride or GetTime()
-    if _sortDirty then
+    if _sortDirty and not _worldEditing then
         local startedAt = capture and debugprofilestop()
         ReLayout(now)
         IncrementPerf(perf, "TrashCD.Counter.TimerBar.ReLayout.Visits")
@@ -1128,10 +1351,18 @@ local function RuntimeTick(elapsed, nowOverride)
             renderTimer.fixedAIWaitingTimelineFinish = active.fixedAIWaitingTimelineFinish == true
             record.timer = renderTimer
             if runtimeCollection and not _worldEditing then
-                local applyStartedAt = capture and debugprofilestop()
-                ApplyRecord(runtimeCollection, record, now)
-                IncrementPerf(perf, "TrashCD.Counter.TimerBar.ApplyRecord.Visits")
-                if capture then perf:RecordTiming("TrashCD.TimerBar.ApplyRecord", debugprofilestop() - applyStartedAt) end
+                local priority = active.barPriority or renderTimer.barPriority or record.priority or 2
+                if record.priority ~= priority then
+                    record.priority = priority
+                    _sortDirty = true
+                end
+                if RuntimeStaticStateChanged(record) then
+                    ApplyRecord(runtimeCollection, record, now, true)
+                    _sortDirty = true
+                elseif UpdateRuntimeDuration(runtimeCollection, record, now) then
+                    _sortDirty = true
+                end
+                ApplyRuntimeAlpha(record, now)
             end
             if remaining <= 0 and (testTimers[timerID] or externalTimers[timerID]) then
                 if not toRelease then toRelease = {} end
@@ -1250,7 +1481,7 @@ function TimerBar:AddTimer(timer)
     if not record then return end
     record.timer = timer
     record.priority = timer.barPriority or 2
-    if not _worldEditing then ApplyRecord(runtimeCollection, record, GetTime()) end
+    if not _worldEditing then ApplyRecord(runtimeCollection, record, GetTime(), true) end
     _sortDirty = true
 end
 
@@ -1264,7 +1495,7 @@ function TimerBar:RefreshTimer(timer)
     end
     record.timer = timer
     record.priority = timer.barPriority or record.priority or 2
-    if not _worldEditing then ApplyRecord(runtimeCollection, record, GetTime()) end
+    if not _worldEditing then ApplyRecord(runtimeCollection, record, GetTime(), true) end
     _sortDirty = true
 end
 
@@ -1431,7 +1662,7 @@ function TimerBar:ReleaseWorld()
         worldCollection = nil
     end
     _worldEditing = false
-    _sortDirty = true
+    RefreshRuntimePresentations()
     ReLayout()
 end
 
@@ -1468,6 +1699,7 @@ function TimerBar:RefreshVisuals(options)
             ExwindTools.UI:SetEditModeOverlayVisible(ExwindTools.UI.EditModeState.overlayVisible)
         end
     else
+        RefreshRuntimePresentations()
         ReLayout()
     end
     if rebuildPanelPreview then
@@ -1483,6 +1715,36 @@ end
 
 function TimerBar:ClearTestBars()
     ClearTestBars()
+end
+
+-- 只物化 runtime Collection 的完整 Item 树，不建立 timer record，也不进入
+-- activeBars/barList。协调器会同时持有全部预热对象，最后再统一归还底层池。
+function TimerBar:GetPrewarmTargetCount()
+    local db = DB()
+    if db and db.enabled == false then return 0 end
+    return GetRuntimeCache().maxBars
+end
+
+function TimerBar:AcquirePrewarmObject()
+    if not anchorFrame then CreateAnchor() end
+    if not runtimeCollection then return nil end
+    _prewarmSerial = _prewarmSerial + 1
+    local itemID = PREWARM_PREFIX .. tostring(_prewarmSerial)
+    local item = runtimeCollection:AcquireItem(itemID)
+    if item and item.root then item.root:Hide() end
+    return {
+        collection = runtimeCollection,
+        itemID = itemID,
+        item = item,
+    }
+end
+
+function TimerBar:ReleasePrewarmObject(handle)
+    local collection = type(handle) == "table" and handle.collection or nil
+    local itemID = type(handle) == "table" and handle.itemID or nil
+    if collection and itemID and collection.released ~= true then
+        collection:ReleaseItem(itemID)
+    end
 end
 
 -- =============================================================

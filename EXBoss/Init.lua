@@ -448,6 +448,146 @@ ExwindTools:RegisterEvent("PLAYER_ENTERING_WORLD", "ExBoss_EncounterCVarGuardPEW
     C_Timer.After(0.5, ApplySoundNumChannels128)
 end)
 
+-- ── 显示对象池预热：分帧物化 Runtime TimerBar / BunBar / Nameplate Icon ──
+-- 编辑模式建立的是独立 world preview，不是正式 runtime 实例，不能承担这项
+-- 生命周期。这里用独立的 1ms LibAsync handler；不进入 Scheduler，也不读取
+-- timer、timeline event 或任何战斗业务数据。
+local DISPLAY_PREWARM_TASK = "ExBoss_DisplayRuntimePrewarm"
+local displayPrewarm = {
+    handler = nil,
+    running = false,
+    complete = false,
+    held = {},
+}
+
+local function GetDisplayPrewarmOwners()
+    local owners = {}
+    local function Add(owner)
+        if owner then owners[#owners + 1] = owner end
+    end
+    Add(ExBoss and ExBoss.UI and ExBoss.UI.TimerBar or nil)
+    Add(ExBoss and ExBoss.UI and ExBoss.UI.BunBar or nil)
+    Add(ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.NameplateMarker or nil)
+    return owners
+end
+
+local function BuildDisplayPrewarmJobs()
+    local jobs = {}
+    for _, owner in ipairs(GetDisplayPrewarmOwners()) do
+        if owner and type(owner.GetPrewarmTargetCount) == "function"
+            and type(owner.AcquirePrewarmObject) == "function"
+            and type(owner.ReleasePrewarmObject) == "function" then
+            local count = math.max(0, math.floor(tonumber(owner:GetPrewarmTargetCount()) or 0))
+            for _ = 1, count do
+                jobs[#jobs + 1] = owner
+            end
+        end
+    end
+    return jobs
+end
+
+local function ReleaseHeldDisplayPrewarmObjects()
+    for index = #displayPrewarm.held, 1, -1 do
+        local entry = displayPrewarm.held[index]
+        displayPrewarm.held[index] = nil
+        if entry and entry.owner and entry.object then
+            entry.owner:ReleasePrewarmObject(entry.object)
+        end
+    end
+end
+
+local function CancelDisplayPrewarm()
+    -- LibAsync 只会在显式 yield 处让出；这里拿到的对象都已经完整构造。
+    -- 先归还完整对象，再丢弃协程，绝不把半物化对象留在 active pool 外。
+    ReleaseHeldDisplayPrewarmObjects()
+    if displayPrewarm.handler then
+        displayPrewarm.handler:CancelAsync(DISPLAY_PREWARM_TASK)
+    end
+    displayPrewarm.running = false
+end
+
+local function EnsureDisplayPrewarmHandler()
+    if displayPrewarm.handler then return displayPrewarm.handler end
+    local asyncLib = LibStub and LibStub("LibAsync", true) or nil
+    if not asyncLib then
+        error("EXBoss display prewarm requires LibAsync", 2)
+    end
+    local errorSink = geterrorhandler()
+    displayPrewarm.handler = asyncLib:GetHandler({
+        type = "everyFrame",
+        maxTime = 1,
+        maxTimeCombat = 1,
+        errorHandler = function(message, stacktrace)
+            ReleaseHeldDisplayPrewarmObjects()
+            displayPrewarm.running = false
+            if displayPrewarm.handler then
+                displayPrewarm.handler:CancelAsync(DISPLAY_PREWARM_TASK)
+            end
+            local detail = tostring(message or "EXBoss display prewarm failed")
+            if type(stacktrace) == "string" and stacktrace ~= "" then
+                detail = detail .. "\n" .. stacktrace
+            end
+            errorSink(detail)
+        end,
+    })
+    return displayPrewarm.handler
+end
+
+
+local function StartDisplayPrewarm()
+    if displayPrewarm.complete or displayPrewarm.running or InCombatLockdown() then
+        return
+    end
+    local jobs = BuildDisplayPrewarmJobs()
+    if #jobs == 0 then
+        displayPrewarm.complete = true
+        return
+    end
+
+    local handler = EnsureDisplayPrewarmHandler()
+    displayPrewarm.running = true
+    handler:Async(function()
+        -- 所有类型同时持有到创建阶段结束，保证共享的 Icon/Text 子池按
+        -- TimerBar + BunBar + 姓名板的并发需求扩容，而不是互相借同一对象。
+        for _, owner in ipairs(jobs) do
+            if InCombatLockdown() then
+                CancelDisplayPrewarm()
+                return
+            end
+            local object = owner:AcquirePrewarmObject()
+            if not object then
+                error("EXBoss display prewarm failed to acquire an object", 2)
+            end
+            displayPrewarm.held[#displayPrewarm.held + 1] = {
+                owner = owner,
+                object = object,
+            }
+            coroutine.yield()
+        end
+
+        -- 创建阶段已经保证对象彼此不同；归还也继续受同一 1ms 帧预算约束。
+        while #displayPrewarm.held > 0 do
+            local entry = table.remove(displayPrewarm.held)
+            entry.owner:ReleasePrewarmObject(entry.object)
+            if #displayPrewarm.held > 0 then coroutine.yield() end
+        end
+        displayPrewarm.complete = true
+        displayPrewarm.running = false
+    end, DISPLAY_PREWARM_TASK, true)
+end
+
+ExwindTools:RegisterEvent("PLAYER_ENTERING_WORLD", "ExBoss_DisplayRuntimePrewarmPEW", function()
+    StartDisplayPrewarm()
+end)
+
+ExwindTools:RegisterEvent("PLAYER_REGEN_DISABLED", "ExBoss_DisplayRuntimePrewarmCombat", function()
+    if displayPrewarm.running then CancelDisplayPrewarm() end
+end)
+
+ExwindTools:RegisterEvent("PLAYER_REGEN_ENABLED", "ExBoss_DisplayRuntimePrewarmResume", function()
+    StartDisplayPrewarm()
+end)
+
 -- ── 进本预热：提前算好当前副本内所有 boss 的静态配置缓存 ────────
 ExwindTools:RegisterEvent("PLAYER_ENTERING_WORLD", "ExBoss_PrewarmEncounterConfigs", function()
     local scheduler = ExBoss.Timeline and ExBoss.Timeline.Scheduler

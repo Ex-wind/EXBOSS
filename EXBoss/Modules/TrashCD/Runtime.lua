@@ -1186,10 +1186,25 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
     if not resolved then
         IncrementPerf(perf, "TrashCD.Counter.Inference.Full")
         local inferenceStartedAt = perf and debugprofilestop()
+        local traitsStartedAt = perf and debugprofilestop()
         local traits = GetMobTraits()
         local traitRows = type(traits.rows) == "table" and traits.rows or {}
+        RecordPerfTiming(perf, "TrashCD.Inference.GetMobTraits", traitsStartedAt)
+        local resolveStartedAt = perf and debugprofilestop()
         result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
-        RecordPerfTiming(perf, "TrashCD.Inference.ResolveCandidates", inferenceStartedAt)
+        RecordPerfTiming(perf, "TrashCD.Inference.ResolveCandidates.CoreCall", resolveStartedAt)
+        local inferenceElapsedMs = perf and (debugprofilestop() - inferenceStartedAt) or 0
+        if perf then
+            perf:RecordTiming("TrashCD.Inference.ResolveCandidates", inferenceElapsedMs)
+            if inferenceElapsedMs >= 2 and type(perf.RecordSpike) == "function" then
+                perf:RecordSpike("TrashCD.Inference.ResolveCandidates", inferenceElapsedMs, string.format(
+                    "unit=%s reason=%s rows=%d trusted=%d l1=%d l2=%d",
+                    tostring(unit), tostring(reason or "?"), #traitRows,
+                    type(result and result.trustedLayer1Candidates) == "table" and #result.trustedLayer1Candidates or 0,
+                    type(result and result.layer1Candidates) == "table" and #result.layer1Candidates or 0,
+                    type(result and result.candidates) == "table" and #result.candidates or 0))
+            end
+        end
         resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
     end
     if identityJustLocked == true and KingsRestWaves and type(KingsRestWaves.OnIdentityLocked) == "function" then
@@ -1328,7 +1343,17 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
         State.SyncUnit(unit, runtime, obs, displayResolved, trashMapID)
     end
     UpdateUnitNameplate(unit, displayResolved, runtime)
-    RecordPerfTiming(perf, perfKey, startedAt)
+    if perf and startedAt then
+        local refreshElapsedMs = debugprofilestop() - startedAt
+        perf:RecordTiming(perfKey, refreshElapsedMs)
+        if refreshElapsedMs >= 2 and type(perf.RecordSpike) == "function" then
+            perf:RecordSpike(perfKey, refreshElapsedMs, string.format(
+                "unit=%s reason=%s combat=%s resolvedNPC=%s lockedNPC=%s identityJustLocked=%s",
+                tostring(unit), tostring(reason or "?"), tostring(obs and obs.inCombat == true),
+                tostring(resolvedNPCID or "nil"), tostring(runtime and runtime.identityLockedNPCID or "nil"),
+                tostring(identityJustLocked == true)))
+        end
+    end
 end
 
 function Mod:RefreshTargetDebug(reason)
@@ -1567,7 +1592,14 @@ local function Register(event, owner, func)
             local startedAt = perf and debugprofilestop()
             func(...)
             IncrementPerf(perf, "TrashCD.Counter.Root.RuntimeEvents.Visits")
-            RecordPerfTiming(perf, "TrashCD.Root.RuntimeEvents", startedAt)
+            if perf and startedAt then
+                local elapsedMs = debugprofilestop() - startedAt
+                perf:RecordTiming("TrashCD.Root.RuntimeEvents", elapsedMs)
+                if elapsedMs >= 2 and type(perf.RecordSpike) == "function" then
+                    perf:RecordSpike("TrashCD.RuntimeEvent", elapsedMs,
+                        string.format("event=%s owner=%s", tostring(event), tostring(owner)))
+                end
+            end
         end)
     end
 end

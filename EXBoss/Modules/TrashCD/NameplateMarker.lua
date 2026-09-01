@@ -21,6 +21,8 @@ local FONT_PATH = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 local ICON_SIZE = 25
 local ICON_GAP = 2
 local ICON_CENTER_GAP = 8
+local ICON_PREWARM_COUNT = 15
+local NAMEPLATE_ICON_POOL = "ExBoss_TrashCDNameplateIcon"
 local READY_BORDER_DEFAULT = { enabled = true, r = 0.20, g = 0.85, b = 0.20, a = 1 }
 local framesByUnit = {}
 
@@ -421,16 +423,45 @@ local function EnsureUnitFrame(unit)
     return frame
 end
 
-local function EnsureIconFrame(owner, side, index)
-    local pool = side == "left" and owner.leftIcons or owner.rightIcons
-    local icon = pool[index]
-    if icon then
-        return icon
-    end
+local function InitNameplateIconStructure(icon)
+    icon:SetSize(ICON_SIZE, ICON_SIZE)
+    icon:EnableMouse(false)
 
-    -- 小怪 CD 名条图标使用 EXUI 的运行时 IconWidget；本模块只负责名条锚定与冷却数据。
-    icon = ExwindTools.UI:CreateIconWidget(owner)
-    icon:ApplyStyle({
+    -- 专用池保留完整复合结构；底层图标、Cooldown、边框和文字仍全部由
+    -- EXUI IconWidget 建立，不在业务模块复制一套控件实现。
+    local widget = ExwindTools.UI:CreateIconWidget(icon)
+    widget:ClearAllPoints()
+    widget:SetAllPoints(icon)
+    icon.widget = widget
+
+    local bg = icon:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints(icon)
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bg:SetVertexColor(0.04, 0.04, 0.05, 0.92)
+    icon.bg = bg
+
+    icon.border = widget.border
+    icon.texture = widget.icon
+    icon.icon = widget.icon
+    icon.cooldown = widget.cooldown
+    icon.textOverlay = widget.textLayer
+    icon.countWidget = widget.countdownText
+    icon.count = widget.countdownText.text
+end
+
+do
+    local fac = _G.ExwindFactory
+    if fac then
+        fac:InitPool(NAMEPLATE_ICON_POOL, "Frame", nil, InitNameplateIconStructure)
+    end
+end
+
+local function AcquireNameplateIcon(owner)
+    local fac = _G.ExwindFactory
+    if not fac then return nil end
+    local icon = fac:Acquire(NAMEPLATE_ICON_POOL, owner)
+    local widget = icon.widget
+    widget:ApplyStyle({
         icon = {
             width = ICON_SIZE,
             height = ICON_SIZE,
@@ -440,20 +471,24 @@ local function EnsureIconFrame(owner, side, index)
         },
     })
     icon:SetSize(ICON_SIZE, ICON_SIZE)
-    ApplyFrameStrata(icon, GetIconStrata())
-    icon:SetFrameLevel(owner:GetFrameLevel() + 1)
+    local strata = GetIconStrata()
+    ApplyFrameStrata(icon, strata)
+    ApplyFrameStrata(widget, strata)
+    icon:SetFrameLevel((owner and owner.GetFrameLevel and owner:GetFrameLevel() or 0) + 1)
+    widget:SetFrameLevel(icon:GetFrameLevel())
 
-    local bg = icon:CreateTexture(nil, "BACKGROUND")
+    local bg = icon.bg
+    bg:ClearAllPoints()
     bg:SetAllPoints(icon)
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
     bg:SetVertexColor(0.04, 0.04, 0.05, 0.92)
-    icon.bg = bg
+    bg:Show()
 
     local border = icon.border
     border:SetFrameLevel(icon:GetFrameLevel() + 1)
-    icon.border = border
 
-    local texture = icon.icon
+    local texture = icon.texture
+    texture:ClearAllPoints()
     texture:SetPoint("TOPLEFT", 1, -1)
     texture:SetPoint("BOTTOMRIGHT", -1, 1)
     texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -479,24 +514,86 @@ local function EnsureIconFrame(owner, side, index)
     icon.cooldown = cooldown
 
     -- IconWidget 自带的 countdown TextWidget 是小怪 CD 数字的唯一运行时文字来源。
-    icon.textOverlay = icon.textLayer
-    icon.countWidget = icon.countdownText
+    icon.textOverlay = widget.textLayer
+    icon.countWidget = widget.countdownText
     icon.count = icon.countWidget.text
     icon.countWidget:ClearBounds()
     icon.countWidget:SetAnchor("CENTER", icon.textOverlay, "CENTER", 0, 0)
     icon.countWidget:SetText("")
+    icon:Hide()
 
+    return icon
+end
+
+local function ReleaseNameplateIcon(icon)
+    if not icon then return end
+    icon:Hide()
+    icon:ClearAllPoints()
+    if icon.widget and type(icon.widget.ClearCooldown) == "function" then
+        icon.widget:ClearCooldown()
+    elseif icon.cooldown then
+        if type(icon.cooldown.Clear) == "function" then icon.cooldown:Clear() end
+        icon.cooldown:Hide()
+    end
+    if icon.cooldown then
+        icon.cooldown:SetScript("OnCooldownDone", nil)
+        if icon.cooldown.SetReverse then icon.cooldown:SetReverse(false) end
+    end
+    if icon.countWidget then icon.countWidget:SetText("") end
+    if icon.border then
+        if icon.border.SetBackdrop then icon.border:SetBackdrop(nil) end
+        icon.border:Hide()
+    end
+    if icon.texture then
+        icon.texture:SetTexture(nil)
+    end
+    local fac = _G.ExwindFactory
+    if fac then
+        fac:Release(NAMEPLATE_ICON_POOL, icon)
+    else
+        icon:Hide()
+    end
+end
+
+local function EnsureIconFrame(owner, side, index)
+    local pool = side == "left" and owner.leftIcons or owner.rightIcons
+    local icon = pool[index]
+    if icon then
+        return icon
+    end
+
+    icon = AcquireNameplateIcon(owner)
     pool[index] = icon
     return icon
 end
 
 local function HideUnusedIcons(pool, startIndex)
-    for i = startIndex, #pool do
+    for i = #pool, startIndex, -1 do
         local icon = pool[i]
         if icon then
-            icon:Hide()
+            ReleaseNameplateIcon(icon)
         end
+        pool[i] = nil
     end
+end
+
+function Mod:GetPrewarmTargetCount()
+    local Store = GetStore()
+    if Store and type(Store.IsEnabled) == "function" and Store.IsEnabled() ~= true then
+        return 0
+    end
+    local runtimeSettings = Store and type(Store.GetRuntimeSettings) == "function"
+        and Store.GetRuntimeSettings() or {}
+    local iconsEnabled = GetIconLayout(runtimeSettings)
+    return iconsEnabled == true and ICON_PREWARM_COUNT or 0
+end
+
+function Mod:AcquirePrewarmObject()
+    return AcquireNameplateIcon(UIParent)
+end
+
+function Mod:ReleasePrewarmObject(icon)
+    ReleaseNameplateIcon(icon)
 end
 
 local function FormatRemainingText(remaining, ready)
