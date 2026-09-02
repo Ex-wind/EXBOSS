@@ -1,4 +1,5 @@
 ---@diagnostic disable: undefined-global
+-- TEST
 -- Wago profiles expose complete Author + bound-User pairs. User overrides are
 -- intentionally never listed or selected on their own. ImportProfile also
 -- accepts the current EXBXC v7 bundle format from EXBoss's Import/Export page.
@@ -42,7 +43,8 @@ local function PairPreferredName(bundleName, scene, pair)
     local packageName = Trim(bundleName)
     if packageName then
         if type(scene) == "table" and #(scene.pairs or {}) > 1 then
-            return packageName .. " - " .. (Trim(pair and pair.author and pair.author.name) or Trim(pair and pair.id) or "Configuration")
+            return packageName ..
+            " - " .. (Trim(pair and pair.author and pair.author.name) or Trim(pair and pair.id) or "Configuration")
         end
         return packageName
     end
@@ -204,12 +206,16 @@ function EXBossWagoAPI:GetProfileKeys()
 end
 
 function EXBossWagoAPI:GetCurrentProfileKey() return nil end
+
 function EXBossWagoAPI:GetProfileAssignments() return nil end
+
 function EXBossWagoAPI:SetProfile() return false end
+
 function EXBossWagoAPI:OpenConfig()
     local router = _G.ExwindTools and _G.ExwindTools.PanelRouter
     if router and router.Open then router:Open("importexport") end
 end
+
 function EXBossWagoAPI:CloseConfig()
     local router = _G.ExwindTools and _G.ExwindTools.PanelRouter
     if router and router.Close then router:Close("importexport") end

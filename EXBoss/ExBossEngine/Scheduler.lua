@@ -3790,18 +3790,12 @@ function Scheduler:RegisterTrashLocalTimer(runtime, mobData, spellData, remainin
 end
 
 function Scheduler:GetTrashNameplateTimers(runtime, now)
-    local perf = _G.ExwindTools and _G.ExwindTools.PerfMonitor or nil
-    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
-    local startedAt = capture and debugprofilestop()
     if type(runtime) ~= "table" then
-        if capture then perf:RecordTiming("TrashCD.Nameplate.SchedulerActiveScan", debugprofilestop() - startedAt) end
         return {}
     end
     now = tonumber(now) or GetTime()
     local out = {}
-    local scanned = 0
     for _, timer in pairs(self._active or {}) do
-        scanned = scanned + 1
         if type(timer) == "table"
             and timer.source == "trash"
             and timer.trashRuntime == runtime
@@ -3827,10 +3821,6 @@ function Scheduler:GetTrashNameplateTimers(runtime, now)
         end
         return ar < br
     end)
-    if capture then
-        perf:IncrementCounter("TrashCD.Counter.Nameplate.SchedulerActiveEntries", scanned)
-        perf:RecordTiming("TrashCD.Nameplate.SchedulerActiveScan", debugprofilestop() - startedAt)
-    end
     return out
 end
 
@@ -5116,44 +5106,17 @@ function Scheduler:_OnUpdate(elapsed)
     if self._elapsed < ONUPDATE_INTERVAL then return end
     self._elapsed  = 0
 
-    -- 诊断口径：Tick 覆盖完整 20Hz 调度；Timer 覆盖单个 timer 的完整迭代，
-    -- 包含公共的 TimerBar/BunBar/五秒事件处理，不能只量 source 分支。
-    local perf = _G.ExwindTools and _G.ExwindTools.PerfMonitor or nil
-    local capture = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive()
-    local tickStartedAt = capture and debugprofilestop()
-    local tickWasEmpty = capture and next(self._active) == nil
     local now      = GetTime()
     local toRemove = nil
-    local activeCount, trashCount, otherCount, removeCount = 0, 0, 0, 0
-    local maxTimerMs, maxTimerID, maxTimerSource, maxTimerSpellID = 0, nil, nil, nil
 
-    local preludeStartedAt = capture and debugprofilestop()
     self:_FlushTimelineAddedPending(now)
     self:_FlushFixedAIPendingEvents(now)
     self:_TickBossCastObserve(now)
-    local preludeElapsedMs = capture and (debugprofilestop() - preludeStartedAt) or 0
 
-    local loopStartedAt = capture and debugprofilestop()
     for id, timer in pairs(self._active) do
-        local isTrashTimer = capture and timer.source == "trash"
-        local timerStartedAt = capture and debugprofilestop()
-        if capture then
-            activeCount = activeCount + 1
-            if isTrashTimer then
-                trashCount = trashCount + 1
-            else
-                otherCount = otherCount + 1
-            end
-        end
         local action = nil
-        local timelineMs, bunBarAddMs, timerBarAddMs, fiveSecMs, trashBranchMs, otherBranchMs = 0, 0, 0, 0, 0, 0
-        local branchStartedAt = capture and debugprofilestop()
         if timer.timelineManaged then
             action = self:_UpdateTimelineManagedTimer(timer, now)
-        end
-        if capture then
-            timelineMs = debugprofilestop() - branchStartedAt
-            perf:RecordTiming("TrashCD.Scheduler.Timer.TimelineManaged", timelineMs)
         end
 
         if action ~= "remove" then
@@ -5162,12 +5125,7 @@ function Scheduler:_OnUpdate(elapsed)
                 and now >= (timer.castTime - ResolveBunBarLeadTime()) then
                 timer.bunBarShown = true
                 if ExBoss.UI.BunBar and ExBoss.UI.BunBar.AddTimer then
-                    branchStartedAt = capture and debugprofilestop()
                     ExBoss.UI.BunBar:AddTimer(timer)
-                    if capture then
-                        bunBarAddMs = debugprofilestop() - branchStartedAt
-                        perf:RecordTiming("TrashCD.Scheduler.Timer.ShowBunBar", bunBarAddMs)
-                    end
                 end
             end
 
@@ -5177,19 +5135,13 @@ function Scheduler:_OnUpdate(elapsed)
                 timer.timerBarShown = true
                 timer.timerBarDuration = ResolveTimerBarDisplayDuration(timer, now)
                 if ExBoss.UI.TimerBar and ExBoss.UI.TimerBar.AddTimer then
-                    branchStartedAt = capture and debugprofilestop()
                     ExBoss.UI.TimerBar:AddTimer(timer)
-                    if capture then
-                        timerBarAddMs = debugprofilestop() - branchStartedAt
-                        perf:RecordTiming("TrashCD.Scheduler.Timer.ShowTimerBar", timerBarAddMs)
-                    end
                 end
             end
 
             if not timer.fiveSecBroadcastFired and not timer.castFired then
                 local remaining = timer.castTime - now
                 if remaining <= TIMER_FIVE_SEC_REMAINING_THRESHOLD and remaining > 0 then
-                    branchStartedAt = capture and debugprofilestop()
                     timer.fiveSecBroadcastFired = true
                     BossProgressDebugPrint(string.format(
                         "five-sec timer=%s event=%s source=%s mode=%s remaining=%.3f disabled=%s useRing=%s ring=%s castBar=%s observe=%s",
@@ -5200,10 +5152,6 @@ function Scheduler:_OnUpdate(elapsed)
                     ))
                     TimerEventEmitter.PublishTimerFiveSecRemaining(timer, self._encounterID, remaining)
                     self:_QueueBossCastObserveForTimer(timer, now)
-                    if capture then
-                        fiveSecMs = debugprofilestop() - branchStartedAt
-                        perf:RecordTiming("TrashCD.Scheduler.Timer.FiveSecEvent", fiveSecMs)
-                    end
                 end
             end
 
@@ -5219,7 +5167,6 @@ function Scheduler:_OnUpdate(elapsed)
                 end
             end
 
-            branchStartedAt = capture and debugprofilestop()
             if not timer.timelineManaged and action ~= "remove" and timer.source == "trash" then
                 local remaining = math.max(0, timer.castTime - now)
                 if timer.countdownMode == "own" and timer.preAlertEnabled == true and not timer.preAlertFired and timer.preAlertTime and now >= timer.preAlertTime then
@@ -5261,12 +5208,7 @@ function Scheduler:_OnUpdate(elapsed)
                     end
                 end
             end
-            if capture then
-                trashBranchMs = debugprofilestop() - branchStartedAt
-                perf:RecordTiming("TrashCD.Scheduler.Timer.TrashBranch", trashBranchMs)
-            end
 
-            branchStartedAt = capture and debugprofilestop()
             if not timer.timelineManaged and action ~= "remove" and timer.source ~= "trash" and not (timer.trashKeepTimerBarAfterReadyEnabled == true and timer.trashReadyAt ~= nil) then
                 if timer.source == "fixed_ai" and timer.fixedAIPaused == true then
                     local lastTick = tonumber(timer.fixedAIPausedTick) or tonumber(timer.fixedAIPausedAt) or now
@@ -5369,67 +5311,17 @@ function Scheduler:_OnUpdate(elapsed)
                     action = "remove"
                 end
             end
-            if capture then
-                otherBranchMs = debugprofilestop() - branchStartedAt
-                perf:RecordTiming("TrashCD.Scheduler.Timer.OtherBranch", otherBranchMs)
-            end
         end
 
         if action == "remove" then
             if not toRemove then toRemove = {} end
             toRemove[id] = true
-            if capture then removeCount = removeCount + 1 end
-        end
-
-        if capture then
-            local timerElapsedMs = debugprofilestop() - timerStartedAt
-            if isTrashTimer then
-                perf:IncrementCounter("TrashCD.Counter.Scheduler.Timer.Trash.Visits")
-                perf:RecordTiming("TrashCD.Scheduler.Timer.Trash.Total", timerElapsedMs)
-            else
-                perf:IncrementCounter("TrashCD.Counter.Scheduler.Timer.Other.Visits")
-                perf:RecordTiming("TrashCD.Scheduler.Timer.Other.Total", timerElapsedMs)
-            end
-            if timerElapsedMs > maxTimerMs then
-                maxTimerMs = timerElapsedMs
-                maxTimerID = id
-                maxTimerSource = timer.source
-                maxTimerSpellID = timer.spellID
-            end
-            if timerElapsedMs >= 2 and type(perf.RecordSpike) == "function" then
-                perf:RecordSpike("TrashCD.Scheduler.Timer", timerElapsedMs, string.format(
-                    "source=%s id=%s spell=%s action=%s timelineManaged=%s ms[timeline=%.3f,bun=%.3f,timer=%.3f,five=%.3f,trash=%.3f,other=%.3f]",
-                    tostring(timer.source), tostring(id), tostring(timer.spellID or "nil"), tostring(action or "nil"),
-                    tostring(timer.timelineManaged == true), timelineMs, bunBarAddMs, timerBarAddMs,
-                    fiveSecMs, trashBranchMs, otherBranchMs))
-            end
         end
     end
-    local loopElapsedMs = capture and (debugprofilestop() - loopStartedAt) or 0
 
-    local removeStartedAt = capture and debugprofilestop()
     if toRemove then
         for id in pairs(toRemove) do
             self:_RemoveActiveTimerByID(id)
-        end
-    end
-    local removeElapsedMs = capture and (debugprofilestop() - removeStartedAt) or 0
-    if capture then
-        perf:RecordTiming("TrashCD.Scheduler.Tick.Prelude", preludeElapsedMs)
-        perf:RecordTiming("TrashCD.Scheduler.Tick.TimerLoop", loopElapsedMs)
-        perf:RecordTiming("TrashCD.Scheduler.Tick.Remove", removeElapsedMs)
-        local tickElapsedMs = debugprofilestop() - tickStartedAt
-        perf:RecordTiming("TrashCD.Scheduler.Tick.Total", tickElapsedMs)
-        if tickElapsedMs >= 2 and type(perf.RecordSpike) == "function" then
-            perf:RecordSpike("TrashCD.Scheduler.Tick", tickElapsedMs, string.format(
-                "active=%d trash=%d other=%d remove=%d ms[prelude=%.3f,loop=%.3f,remove=%.3f] maxTimer=%.3f source=%s id=%s spell=%s",
-                activeCount, trashCount, otherCount, removeCount, preludeElapsedMs, loopElapsedMs, removeElapsedMs,
-                maxTimerMs, tostring(maxTimerSource or "nil"), tostring(maxTimerID or "nil"),
-                tostring(maxTimerSpellID or "nil")))
-        end
-        if tickWasEmpty then
-            perf:IncrementCounter("TrashCD.Counter.Scheduler.Tick.Empty")
-            perf:RecordTiming("TrashCD.Scheduler.Tick.Empty", tickElapsedMs)
         end
     end
 end

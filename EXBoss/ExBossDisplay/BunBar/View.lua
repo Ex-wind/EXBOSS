@@ -14,12 +14,6 @@ local function TraceColor(stage, timer, color, note)
     local trace = ExBoss and ExBoss.ColorTrace
     if trace and type(trace.Record) == "function" then trace:Record(stage, timer, color, note) end
 end
-local function RecordPerfTiming(key, startedAt)
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    if perf and startedAt and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
 local LSM                   = LibStub and LibStub("LibSharedMedia-3.0", true)
 local EXUI                  = ExwindTools.UI
 
@@ -1806,10 +1800,7 @@ _updateFrame:Hide()
 SetClickThrough(_updateFrame)
 EXUI:RequireLegacyRuntimeTickOwner(MODULE_KEY, "ExBoss.BunBar runtime OnUpdate")
 _updateFrame:SetScript("OnUpdate", function(_, elapsed)
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    local startedAt = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() and debugprofilestop()
     RuntimeTick(elapsed)
-    RecordPerfTiming("TrashCD.Root.BunBar", startedAt)
 end)
 
 function BunBar:AddTimer(timer)

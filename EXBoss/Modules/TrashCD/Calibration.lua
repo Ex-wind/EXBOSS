@@ -23,26 +23,6 @@ local CAST_TIME_TOLERANCE = 0.20
 local IsCastStartCDMode
 local SpellStartKindMatches
 
-local function GetPerfMonitor()
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        return perf
-    end
-    return nil
-end
-
-local function RecordPerfTiming(perf, key, startedAt)
-    if perf and startedAt and type(debugprofilestop) == "function" then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
-
-local function IncrementPerf(perf, key, amount)
-    if perf and type(perf.IncrementCounter) == "function" then
-        perf:IncrementCounter(key, amount)
-    end
-end
-
 function Mod.GetCurrentTrashMapID(dungeonKey)
     local state = ExwindTools and ExwindTools.State or nil
     local mapID = tonumber(state and state.MapID) or 0
@@ -1144,9 +1124,6 @@ local function RebuildSpellSchedule(runtime, mobData, spellData, defaultAnchorAt
         return
     end
 
-    local perf = GetPerfMonitor()
-    local totalStartedAt = perf and debugprofilestop()
-
     runtime.spellCastStartVoiceEligible = runtime.spellCastStartVoiceEligible or {}
     runtime.spellCastStartKindEligible = runtime.spellCastStartKindEligible or {}
     runtime.spellChannelRefreshOnInterruptible = runtime.spellChannelRefreshOnInterruptible or {}
@@ -1155,9 +1132,7 @@ local function RebuildSpellSchedule(runtime, mobData, spellData, defaultAnchorAt
     runtime.spellChannelRefreshOnInterruptible[spellID] = Mod.IsChannelRefreshOnInterruptible(spellData) == true or nil
 
     if Output and type(Output.CancelRuntimeSpellScriptEvents) == "function" then
-        local cancelStartedAt = perf and debugprofilestop()
         Output.CancelRuntimeSpellScriptEvents(runtime, spellID)
-        RecordPerfTiming(perf, "TrashCD.Calibration.Spell.CancelExisting", cancelStartedAt)
     end
 
     runtime.nextSpellStartAt = runtime.nextSpellStartAt or {}
@@ -1181,22 +1156,15 @@ local function RebuildSpellSchedule(runtime, mobData, spellData, defaultAnchorAt
                 runtime.nextSpellAnchorAt[spellID] = succeededAt
                 runtime.nextSpellSeqIndex[spellID] = GetFollowingSequenceIndex(seq, nextSeqIndex)
                 if Output and type(Output.AddRuntimeScriptEvent) == "function" then
-                    local registerStartedAt = perf and debugprofilestop()
                     Output.AddRuntimeScriptEvent(runtime, mobData, spellData, nextAt - now, 136243)
-                    IncrementPerf(perf, "TrashCD.Counter.Calibration.Spell.RegisterAttempts")
-                    RecordPerfTiming(perf, "TrashCD.Calibration.Spell.RegisterEvent", registerStartedAt)
                 end
-                IncrementPerf(perf, "TrashCD.Counter.Calibration.Spell.RebuildVisits")
-                RecordPerfTiming(perf, "TrashCD.Calibration.Spell.RebuildTotal", totalStartedAt)
                 return "success"
             end
         end
     end
 
     local anchorAt, anchorMode, anchorSeqIndex = Mod.GetSpellAnchor(runtime, spellData, defaultAnchorAt)
-    local occurrencesStartedAt = perf and debugprofilestop()
     local times = Mod.BuildSpellOccurrences(spellData, anchorAt, now, anchorSeqIndex)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Spell.BuildOccurrences", occurrencesStartedAt)
     if #times > 0 then
         local first = times[1]
         runtime.nextSpellStartAt[spellID] = tonumber(first and first.at)
@@ -1207,25 +1175,16 @@ local function RebuildSpellSchedule(runtime, mobData, spellData, defaultAnchorAt
     local maxEvents = math.min(#times, 1)
     for i = 1, maxEvents do
         if Output and type(Output.AddRuntimeScriptEvent) == "function" then
-            local registerStartedAt = perf and debugprofilestop()
             Output.AddRuntimeScriptEvent(runtime, mobData, spellData, tonumber(times[i] and times[i].at) - now, 136243)
-            IncrementPerf(perf, "TrashCD.Counter.Calibration.Spell.RegisterAttempts")
-            RecordPerfTiming(perf, "TrashCD.Calibration.Spell.RegisterEvent", registerStartedAt)
         end
     end
 
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.Spell.RebuildVisits")
-    RecordPerfTiming(perf, "TrashCD.Calibration.Spell.RebuildTotal", totalStartedAt)
     return tostring(anchorMode or "enter")
 end
 
 local function RebuildAllSpellSchedules(runtime, mobData, defaultAnchorAt, now)
-    local perf = GetPerfMonitor()
-    local totalStartedAt = perf and debugprofilestop()
     if Output and type(Output.CancelRuntimeScriptEvents) == "function" then
-        local cancelStartedAt = perf and debugprofilestop()
         Output.CancelRuntimeScriptEvents(runtime)
-        RecordPerfTiming(perf, "TrashCD.Calibration.FullRebuild.CancelAll", cancelStartedAt)
     end
     runtime.anchorAt = defaultAnchorAt
     runtime.scriptEventIDs = runtime.scriptEventIDs or {}
@@ -1238,27 +1197,18 @@ local function RebuildAllSpellSchedules(runtime, mobData, defaultAnchorAt, now)
     runtime.spellChannelRefreshOnInterruptible = {}
 
     local sawSuccessAnchor = false
-    local spellCount = 0
-    local loopStartedAt = perf and debugprofilestop()
     for _, spellData in pairs(mobData.spells) do
-        if type(spellData) == "table" then
-            spellCount = spellCount + 1
-        end
         local anchorMode = RebuildSpellSchedule(runtime, mobData, spellData, defaultAnchorAt, now)
         if anchorMode == "success" then
             sawSuccessAnchor = true
         end
     end
-    RecordPerfTiming(perf, "TrashCD.Calibration.FullRebuild.SpellLoop", loopStartedAt)
 
     if sawSuccessAnchor then
         runtime.anchorMode = "success"
     else
         runtime.anchorMode = "enter"
     end
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.FullRebuild.Visits")
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.FullRebuild.Spells", spellCount)
-    RecordPerfTiming(perf, "TrashCD.Calibration.FullRebuild.Total", totalStartedAt)
 end
 
 local function HasRuntimeSchedule(runtime)
@@ -1284,12 +1234,8 @@ local function ResetRuntimeSchedule(runtime)
     if type(runtime) ~= "table" then
         return
     end
-    local perf = GetPerfMonitor()
-    local totalStartedAt = perf and debugprofilestop()
     if HasRuntimeSchedule(runtime) and Output and type(Output.CancelRuntimeScriptEvents) == "function" then
-        local cancelStartedAt = perf and debugprofilestop()
         Output.CancelRuntimeScriptEvents(runtime)
-        RecordPerfTiming(perf, "TrashCD.Calibration.Reset.CancelAll", cancelStartedAt)
     end
     runtime.scheduleSignature = nil
     runtime.scheduleInitialized = false
@@ -1339,15 +1285,12 @@ local function ResetRuntimeSchedule(runtime)
     runtime.pendingInterruptedAt = nil
     runtime.pendingBehavior = nil
     runtime.pendingResolvedCasts = nil
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.Reset.Visits")
-    RecordPerfTiming(perf, "TrashCD.Calibration.Reset.Total", totalStartedAt)
 end
 
 function Mod.SyncUnitCDTimers(runtime, obs, candidate, mapID)
     if not runtime then
         return
     end
-    local perf = GetPerfMonitor()
     if not obs or not candidate or not mapID then
         ResetRuntimeSchedule(runtime)
         return
@@ -1515,15 +1458,10 @@ function Mod.SyncUnitCDTimers(runtime, obs, candidate, mapID)
         runtime.scheduleDirty = runtime.scheduleDirty == true or resolveMode == "success" or advancedSpellID ~= nil
     end
 
-    local signatureStartedAt = perf and debugprofilestop()
     local signature = Mod.BuildRuntimeScheduleSignature(runtime, candidate.npcID, defaultAnchorAt)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Sync.BuildSignature", signatureStartedAt)
-    local missingSignature = runtime.scheduleSignature == nil
-    local uninitialized = runtime.scheduleInitialized ~= true
-    local requireFullRebuild = missingSignature or uninitialized or candidateChanged or configChanged
+    local requireFullRebuild = runtime.scheduleSignature == nil or runtime.scheduleInitialized ~= true or candidateChanged or configChanged
     local hasStartAdvanced = type(advancedSpellIDs) == "table" and #advancedSpellIDs > 0
     if not requireFullRebuild and not advancedSpellID and not hasStartAdvanced and runtime.scheduleSignature == signature and not runtime.scheduleDirty then
-        IncrementPerf(perf, "TrashCD.Counter.Calibration.Sync.FastPath")
         return
     end
 
@@ -1535,19 +1473,6 @@ function Mod.SyncUnitCDTimers(runtime, obs, candidate, mapID)
 
     local now = GetTime()
     if requireFullRebuild then
-        IncrementPerf(perf, "TrashCD.Counter.Calibration.Sync.FullRebuild")
-        if missingSignature then
-            IncrementPerf(perf, "TrashCD.Counter.Calibration.Sync.FullRebuild.MissingSignature")
-        end
-        if uninitialized then
-            IncrementPerf(perf, "TrashCD.Counter.Calibration.Sync.FullRebuild.Uninitialized")
-        end
-        if candidateChanged then
-            IncrementPerf(perf, "TrashCD.Counter.Calibration.Sync.FullRebuild.CandidateChanged")
-        end
-        if configChanged then
-            IncrementPerf(perf, "TrashCD.Counter.Calibration.Sync.FullRebuild.ConfigChanged")
-        end
         local spellCount = 0
         for _, spellData in pairs(mobData.spells or {}) do
             if type(spellData) == "table" then

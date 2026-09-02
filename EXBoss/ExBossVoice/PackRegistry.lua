@@ -10,26 +10,6 @@ local NAME_KEY = "X-EXBoss-VoicePackName"
 local _cachedPacks = nil
 local _cachedPackByDisplay = nil
 
-local function GetPerfMonitor()
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        return perf
-    end
-    return nil
-end
-
-local function RecordPerfTiming(perf, key, startedAt)
-    if perf and startedAt and type(debugprofilestop) == "function" then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
-
-local function IncrementPerf(perf, key, amount)
-    if perf and type(perf.IncrementCounter) == "function" then
-        perf:IncrementCounter(key, amount)
-    end
-end
-
 local function ReadMetadata(addon, key)
     if type(C_AddOns) == "table" and type(C_AddOns.GetAddOnMetadata) == "function" then
         return C_AddOns.GetAddOnMetadata(addon, key)
@@ -50,12 +30,11 @@ local function GetAddonName(index)
     return nil
 end
 
-local function BuildPackCache(perf)
+local function BuildPackCache()
     local out, seen = {}, {}
     local byDisplay = {}
     local count = type(C_AddOns) == "table" and type(C_AddOns.GetNumAddOns) == "function"
         and C_AddOns.GetNumAddOns() or 0
-    local scanStartedAt = perf and debugprofilestop()
     for index = 1, count do
         local addon = tostring(GetAddonName(index) or "")
         if addon ~= "" and tostring(ReadMetadata(index, MARKER) or "") == "1" then
@@ -75,24 +54,18 @@ local function BuildPackCache(perf)
             end
         end
     end
-    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.PackRegistry.ScanAddons", scanStartedAt)
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.Voice.PackRegistry.AddonsScanned", count)
-    local sortStartedAt = perf and debugprofilestop()
     table.sort(out, function(a, b) return a.display < b.display end)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.PackRegistry.Sort", sortStartedAt)
 
     _cachedPacks = out
     _cachedPackByDisplay = byDisplay
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.Voice.PackRegistry.CacheBuilds")
     return out, byDisplay
 end
 
-local function EnsurePackCache(perf)
+local function EnsurePackCache()
     if type(_cachedPacks) == "table" and type(_cachedPackByDisplay) == "table" then
-        IncrementPerf(perf, "TrashCD.Counter.Calibration.Voice.PackRegistry.CacheHits")
         return _cachedPacks, _cachedPackByDisplay
     end
-    return BuildPackCache(perf)
+    return BuildPackCache()
 end
 
 function Registry.InvalidateCache()
@@ -101,25 +74,19 @@ function Registry.InvalidateCache()
 end
 
 function Registry.GetPacks()
-    local perf = GetPerfMonitor()
-    local totalStartedAt = perf and debugprofilestop()
-    local packs = EnsurePackCache(perf)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.PackRegistry.GetPacks", totalStartedAt)
+    local packs = EnsurePackCache()
     return packs
 end
 
 function Registry.GetPackDirectory(displayName)
-    local perf = GetPerfMonitor()
-    local startedAt = perf and debugprofilestop()
     local target = tostring(displayName or "")
-    local _, byDisplay = EnsurePackCache(perf)
+    local _, byDisplay = EnsurePackCache()
     local pack = byDisplay[target]
-    RecordPerfTiming(perf, "TrashCD.Calibration.Voice.PackRegistry.GetPackDirectory", startedAt)
     return pack and pack.addon or nil
 end
 
 function Registry.GetPack(displayName)
     local target = tostring(displayName or "")
-    local _, byDisplay = EnsurePackCache(GetPerfMonitor())
+    local _, byDisplay = EnsurePackCache()
     return byDisplay[target]
 end

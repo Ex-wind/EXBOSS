@@ -20,20 +20,6 @@ local DISABLED_BOSS_ENCOUNTER_IDS = {
 
 local _timelineEventMeta = {}
 
-local function GetPerfMonitor()
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        return perf
-    end
-    return nil
-end
-
-local function RecordPerfTiming(perf, key, startedAt)
-    if perf and startedAt and type(debugprofilestop) == "function" then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
-
 local function GetVoiceEngine()
     return ExBoss and ExBoss.Voice and ExBoss.Voice.Engine or nil
 end
@@ -388,10 +374,7 @@ function Mod.BuildResolvedMeta(runtime, mobData, spellData, fallbackIconFileID)
         return nil
     end
 
-    local perf = GetPerfMonitor()
-    local stepStartedAt = perf and debugprofilestop()
     local cfg = Store.GetRuntimeSpellEntry(mapID, npcID, spellID)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.GetRuntimeSpellEntry", stepStartedAt)
     if type(cfg) ~= "table" then
         return nil
     end
@@ -402,14 +385,11 @@ function Mod.BuildResolvedMeta(runtime, mobData, spellData, fallbackIconFileID)
         return nil
     end
 
-    stepStartedAt = perf and debugprofilestop()
     local voiceBlacklist = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.VoiceBlacklist or nil
     local voiceBlock = voiceBlacklist and type(voiceBlacklist.GetEntry) == "function"
         and voiceBlacklist.GetEntry(mapID, npcID, spellID)
         or nil
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.GetVoiceBlacklist", stepStartedAt)
 
-    stepStartedAt = perf and debugprofilestop()
     local defaultSpellName = BuildDefaultSpellName(spellData)
     local displayName = NormalizeText(cfg.customName)
     if displayName == "" then
@@ -420,45 +400,26 @@ function Mod.BuildResolvedMeta(runtime, mobData, spellData, fallbackIconFileID)
     if cfg.timerBarRenameEnabled == true and NormalizeText(cfg.timerBarName) ~= "" then
         timerBarName = tostring(cfg.timerBarName)
     end
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.BuildNames", stepStartedAt)
 
-    stepStartedAt = perf and debugprofilestop()
     local colorConfig = BuildColorConfig(cfg)
     local eventColor = BuildResolvedEventColor(colorConfig)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.BuildColors", stepStartedAt)
 
-    stepStartedAt = perf and debugprofilestop()
     local voicePlan = (type(voiceBlock) ~= "table") and BuildVoicePlan(cfg, displayName) or nil
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.BuildVoicePlan", stepStartedAt)
-
-    stepStartedAt = perf and debugprofilestop()
     local progressEnabled = (cfg.ringEnabled == true or cfg.castProgressBarEnabled == true)
     local ringPlan = progressEnabled and BuildRingPlan(spellData) or nil
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.BuildProgressPlan", stepStartedAt)
-
-    stepStartedAt = perf and debugprofilestop()
     local hideLongTimerBar = GetHideLongTimerBarConfig()
     local keepTimerBarAfterReady = GetKeepTimerBarAfterReadyConfig()
     local nameplateGrowthSide = (Store and type(Store.GetNameplateGrowthSide) == "function") and Store.GetNameplateGrowthSide() or "right"
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.GetGlobalConfig", stepStartedAt)
-
-    local triggerSoundsStartedAt = perf and debugprofilestop()
     local triggerSounds = {}
     if type(voicePlan) == "table" and type(voicePlan.triggers) == "table" then
         if voicePlan.triggers[1] and voicePlan.triggers[1].enabled == true then
-            stepStartedAt = perf and debugprofilestop()
             triggerSounds[1] = ResolveStandaloneSoundInfo(voicePlan.triggers[1], 1)
-            RecordPerfTiming(perf, "TrashCD.Calibration.Meta.ResolveTriggerSound.1", stepStartedAt)
         end
         if voicePlan.triggers[2] and voicePlan.triggers[2].enabled == true then
-            stepStartedAt = perf and debugprofilestop()
             triggerSounds[2] = ResolveStandaloneSoundInfo(voicePlan.triggers[2], 2)
-            RecordPerfTiming(perf, "TrashCD.Calibration.Meta.ResolveTriggerSound.2", stepStartedAt)
         end
     end
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.ResolveTriggerSounds", triggerSoundsStartedAt)
 
-    local assembleStartedAt = perf and debugprofilestop()
     local countdownEnabled = (cfg.countdownEnabled == true) or (cfg.preAlertEnabled == true)
     local countdownLead = tonumber(cfg.countdownLead)
     if countdownLead == nil then
@@ -514,7 +475,6 @@ function Mod.BuildResolvedMeta(runtime, mobData, spellData, fallbackIconFileID)
         keepTimerBarAfterReadyEnabled = keepTimerBarAfterReady.enabled == true,
         keepTimerBarAfterReadySeconds = keepTimerBarAfterReady.seconds,
     }
-    RecordPerfTiming(perf, "TrashCD.Calibration.Meta.Assemble", assembleStartedAt)
     return meta
 end
 

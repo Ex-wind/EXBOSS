@@ -30,37 +30,6 @@ local SNAPSHOT_RETRY_DELAY = 0.12
 local MARKER_REFRESH_DELAY = 1.0
 local COPRESENCE_TENTATIVE_DELAY = 0.50
 
-local function GetPerfMonitor()
-    local perf = ET and ET.PerfMonitor or nil
-    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        return perf
-    end
-    return nil
-end
-
-local function RecordPerfTiming(perf, key, startedAt)
-    if perf and startedAt and type(debugprofilestop) == "function" then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
-
-local function IncrementPerf(perf, key, amount)
-    if perf and type(perf.IncrementCounter) == "function" then
-        perf:IncrementCounter(key, amount)
-    end
-end
-
--- C_Timer 回调不经 Event 框架；它们属于独立的 Runtime 异步根链。
-local function WrapRuntimeTimer(callback)
-    return function(...)
-        local perf = GetPerfMonitor()
-        local startedAt = perf and debugprofilestop()
-        callback(...)
-        IncrementPerf(perf, "TrashCD.Counter.Root.RuntimeTimers.Visits")
-        RecordPerfTiming(perf, "TrashCD.Root.RuntimeTimers", startedAt)
-    end
-end
-
 local function IsNameplateInCombat(unit, refresh)
     if State and type(State.IsUnitInCombat) == "function" then
         return State.IsUnitInCombat(unit, refresh) == true
@@ -798,16 +767,11 @@ local function GetScheduler()
 end
 
 local function BuildNameplateTimerRows(runtime)
-    local perf = GetPerfMonitor()
-    local startedAt = perf and debugprofilestop()
     local scheduler = GetScheduler()
     if not (scheduler and type(scheduler.GetTrashNameplateTimers) == "function") then
-        RecordPerfTiming(perf, "TrashCD.Nameplate.SchedulerQuery", startedAt)
         return {}
     end
     local rows = scheduler:GetTrashNameplateTimers(runtime, GetTime())
-    RecordPerfTiming(perf, "TrashCD.Nameplate.SchedulerQuery", startedAt)
-    IncrementPerf(perf, "TrashCD.Counter.Nameplate.TimerRows", #rows)
     if ExBoss and ExBoss.Debug and ExBoss.Debug.CastBar and ExBoss.Debug.CastBar.enabled == true then
         CacheDebug(string.format(
             "marker-rows runtime=%s matchedNPC=%s rows=%d",
@@ -930,18 +894,13 @@ local function AcceptRuntimeIdentity(runtime, result, mapID)
 end
 
 local function UpdateUnitNameplate(unit, resolved, runtime)
-    local perf = GetPerfMonitor()
-    local startedAt = perf and debugprofilestop()
     if not NameplateMarker then
-        RecordPerfTiming(perf, "TrashCD.Root.Nameplate", startedAt)
         return
     end
     local runtimeSettings = Store and type(Store.GetRuntimeSettings) == "function" and Store.GetRuntimeSettings() or nil
     if type(NameplateMarker.SetUnitText) == "function" then
-        local textStartedAt = perf and debugprofilestop()
         NameplateMarker.SetUnitText(unit, BuildNameplateMarkerText(unit, resolved, runtime),
             type(resolved) == "table" and resolved.npcID ~= nil, runtimeSettings)
-        RecordPerfTiming(perf, "TrashCD.Nameplate.SetText", textStartedAt)
     end
     if type(NameplateMarker.SetUnitTimers) == "function" then
         local markerRows = {}
@@ -949,14 +908,11 @@ local function UpdateUnitNameplate(unit, resolved, runtime)
         if resolvedNPCID and type(runtime) == "table" and tonumber(runtime.matchedNPCID) == resolvedNPCID then
             markerRows = BuildNameplateTimerRows(runtime)
         end
-        local timersStartedAt = perf and debugprofilestop()
         NameplateMarker.SetUnitTimers(unit, markerRows, runtimeSettings)
-        RecordPerfTiming(perf, "TrashCD.Nameplate.SetTimers", timersStartedAt)
         if #markerRows > 0 then
             Mod:ScheduleMarkerRefresh(unit)
         end
     end
-    RecordPerfTiming(perf, "TrashCD.Root.Nameplate", startedAt)
 end
 
 local function UntrackNameplate(unit)
@@ -1000,18 +956,15 @@ function Mod:ScheduleUnitRefresh(unit, delay, reason, forceSnapshot)
     delay = math.max(0.01, tonumber(delay) or SNAPSHOT_RETRY_DELAY)
     local key = unit .. ":" .. tostring(reason or "refresh")
     if self._pendingUnitRefresh[key] then
-        IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Refresh.Deduped." .. tostring(reason or "refresh"))
         return
     end
-    IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Refresh.Scheduled." .. tostring(reason or "refresh"))
     self._pendingUnitRefresh[key] = true
-    C_Timer.After(delay, WrapRuntimeTimer(function()
+    C_Timer.After(delay, function()
         self._pendingUnitRefresh[key] = nil
         if self._running == true then
-            IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.Refresh.Executed." .. tostring(reason or "refresh"))
             self:RefreshUnit(unit, reason or "delayed", forceSnapshot == true)
         end
-    end))
+    end)
 end
 
 if KingsRestWaves and type(KingsRestWaves.SetRefreshCallback) == "function" then
@@ -1033,27 +986,21 @@ function Mod:ScheduleMarkerRefresh(unit)
         return
     end
     if self._pendingMarkerRefresh[unit] then
-        IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.MarkerRefresh.Deduped")
         return
     end
-    IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.MarkerRefresh.Scheduled")
     self._pendingMarkerRefresh[unit] = true
-    C_Timer.After(MARKER_REFRESH_DELAY, WrapRuntimeTimer(function()
+    C_Timer.After(MARKER_REFRESH_DELAY, function()
         self._pendingMarkerRefresh[unit] = nil
         if self._running == true then
-            IncrementPerf(GetPerfMonitor(), "TrashCD.Counter.MarkerRefresh.Executed")
             self:RefreshUnitMarker(unit)
         end
-    end))
+    end)
 end
 
 function Mod:RefreshUnitMarker(unit)
-    local perf = GetPerfMonitor()
-    local startedAt = perf and debugprofilestop()
     unit = NormalizeNameplateUnit(unit)
     if not unit or not IsHostileNameplate(unit) then
         UntrackNameplate(unit)
-        RecordPerfTiming(perf, "TrashCD.Marker.Refresh", startedAt)
         return
     end
     local runtime = GetRuntimeObs(unit)
@@ -1061,7 +1008,6 @@ function Mod:RefreshUnitMarker(unit)
         if NameplateMarker and type(NameplateMarker.SetUnitTimers) == "function" then
             NameplateMarker.SetUnitTimers(unit, {})
         end
-        RecordPerfTiming(perf, "TrashCD.Marker.Refresh", startedAt)
         return
     end
     local resolved = {
@@ -1069,16 +1015,12 @@ function Mod:RefreshUnitMarker(unit)
         name = runtime.lastResolvedName,
     }
     UpdateUnitNameplate(unit, resolved, runtime)
-    RecordPerfTiming(perf, "TrashCD.Marker.Refresh", startedAt)
 end
 
 function Mod:RefreshUnresolvedNameplatesForCoPresence(mapID, sourceUnit)
     if self._running ~= true or not tonumber(mapID) then
         return
     end
-    local perf = GetPerfMonitor()
-    local startedAt = perf and debugprofilestop()
-    IncrementPerf(perf, "TrashCD.Counter.CoPresence.ScanTokens", MAX_NAMEPLATES)
     for i = 1, MAX_NAMEPLATES do
         local unit = "nameplate" .. i
         if unit ~= sourceUnit and IsHostileNameplate(unit) then
@@ -1088,30 +1030,22 @@ function Mod:RefreshUnresolvedNameplatesForCoPresence(mapID, sourceUnit)
             end
         end
     end
-    RecordPerfTiming(perf, "TrashCD.CoPresence.Fanout", startedAt)
 end
 
 function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
-    local perf = GetPerfMonitor()
-    local startedAt = perf and debugprofilestop()
-    local perfKey = "TrashCD.RefreshUnit." .. tostring(reason or "unknown")
     unit = NormalizeNameplateUnit(unit)
     if not unit then
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
     if not ShouldRunRuntime() then
         self:Stop()
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
     if not IsHostileNameplate(unit) then
         UntrackNameplate(unit)
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
     if not (Observation and type(Observation.CollectTrackedNameplate) == "function" and Inference and type(Inference.ResolveCandidates) == "function") then
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
 
@@ -1126,17 +1060,13 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
             })
         end
         UntrackNameplate(unit)
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
 
-    local collectStartedAt = perf and debugprofilestop()
     local obs = Observation.CollectTrackedNameplate(Mod, unit, IsHostileNameplate, CancelRuntimeScriptEvents,
         forceSnapshot == true, combatConfirmed == true)
-    RecordPerfTiming(perf, "TrashCD.Refresh.Collect", collectStartedAt)
     if not obs then
         UntrackNameplate(unit)
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
     if obs.pending == true then
@@ -1158,7 +1088,6 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
             NameplateMarker.SetUnitTimers(unit, {}, runtimeSettings)
         end
         self:ScheduleUnitRefresh(unit, tonumber(obs.retryAfter) or SNAPSHOT_RETRY_DELAY, "snapshot", true)
-        RecordPerfTiming(perf, perfKey, startedAt)
         return
     end
 
@@ -1180,31 +1109,12 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
     -- identityLockedNPCID 的业务语义是同一 runtime 生命周期内不可再被推理翻转。
     -- 正常路径直接使用锁定候选；debug 模式仍跑完整推理以保留冲突诊断。
     if type(runtime) == "table" and tonumber(runtime.identityLockedNPCID) and Mod._debug ~= true then
-        IncrementPerf(perf, "TrashCD.Counter.Inference.LockedFastPath")
         resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, nil, trashMapID)
     end
     if not resolved then
-        IncrementPerf(perf, "TrashCD.Counter.Inference.Full")
-        local inferenceStartedAt = perf and debugprofilestop()
-        local traitsStartedAt = perf and debugprofilestop()
         local traits = GetMobTraits()
         local traitRows = type(traits.rows) == "table" and traits.rows or {}
-        RecordPerfTiming(perf, "TrashCD.Inference.GetMobTraits", traitsStartedAt)
-        local resolveStartedAt = perf and debugprofilestop()
         result = Inference.ResolveCandidates(obs, dungeonKey, traitRows, runtime, trashMapID, GetTime())
-        RecordPerfTiming(perf, "TrashCD.Inference.ResolveCandidates.CoreCall", resolveStartedAt)
-        local inferenceElapsedMs = perf and (debugprofilestop() - inferenceStartedAt) or 0
-        if perf then
-            perf:RecordTiming("TrashCD.Inference.ResolveCandidates", inferenceElapsedMs)
-            if inferenceElapsedMs >= 2 and type(perf.RecordSpike) == "function" then
-                perf:RecordSpike("TrashCD.Inference.ResolveCandidates", inferenceElapsedMs, string.format(
-                    "unit=%s reason=%s rows=%d trusted=%d l1=%d l2=%d",
-                    tostring(unit), tostring(reason or "?"), #traitRows,
-                    type(result and result.trustedLayer1Candidates) == "table" and #result.trustedLayer1Candidates or 0,
-                    type(result and result.layer1Candidates) == "table" and #result.layer1Candidates or 0,
-                    type(result and result.candidates) == "table" and #result.candidates or 0))
-            end
-        end
         resolved, resolutionSource, identityJustLocked = AcceptRuntimeIdentity(runtime, result, trashMapID)
     end
     if identityJustLocked == true and KingsRestWaves and type(KingsRestWaves.OnIdentityLocked) == "function" then
@@ -1298,7 +1208,6 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
     if type(runtime) == "table" then
         runtime._debugUnit = unit
     end
-    local calibrationStartedAt = perf and debugprofilestop()
     if resolvedNPCID and canSchedule then
         if runtime and resolved.name then
             runtime.lastResolvedName = resolved.name
@@ -1319,7 +1228,6 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
     else
         SyncUnitCDTimers(unit, nil, nil, nil)
     end
-    RecordPerfTiming(perf, "TrashCD.Calibration.Sync", calibrationStartedAt)
 
     -- 锁在读条期间取得时，立刻按确认后的怪物播放一次；同一 activeCastSeq 的后续
     -- UNIT_SPELLCAST_START 调用会被 Output 的序号去重挡住。
@@ -1343,17 +1251,6 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
         State.SyncUnit(unit, runtime, obs, displayResolved, trashMapID)
     end
     UpdateUnitNameplate(unit, displayResolved, runtime)
-    if perf and startedAt then
-        local refreshElapsedMs = debugprofilestop() - startedAt
-        perf:RecordTiming(perfKey, refreshElapsedMs)
-        if refreshElapsedMs >= 2 and type(perf.RecordSpike) == "function" then
-            perf:RecordSpike(perfKey, refreshElapsedMs, string.format(
-                "unit=%s reason=%s combat=%s resolvedNPC=%s lockedNPC=%s identityJustLocked=%s",
-                tostring(unit), tostring(reason or "?"), tostring(obs and obs.inCombat == true),
-                tostring(resolvedNPCID or "nil"), tostring(runtime and runtime.identityLockedNPCID or "nil"),
-                tostring(identityJustLocked == true)))
-        end
-    end
 end
 
 function Mod:RefreshTargetDebug(reason)
@@ -1526,7 +1423,7 @@ function Mod:ScheduleCoPresenceTentativeFallback(unit, runtime)
         return false
     end
     runtime._coPresenceTentativeTimerSession = session
-    C_Timer.After(COPRESENCE_TENTATIVE_DELAY, WrapRuntimeTimer(function()
+    C_Timer.After(COPRESENCE_TENTATIVE_DELAY, function()
         if Mod._running ~= true then
             return
         end
@@ -1539,7 +1436,7 @@ function Mod:ScheduleCoPresenceTentativeFallback(unit, runtime)
         runtime._coPresenceTentativeReadySession = session
         DebugPrint(string.format("co-presence-timeout-ready unit=%s session=%s", tostring(unit), tostring(session)))
         Mod:RefreshUnit(unit, "co-presence-timeout", true)
-    end))
+    end)
     return true
 end
 
@@ -1587,20 +1484,7 @@ end
 
 local function Register(event, owner, func)
     if ET and ET.RegisterEvent then
-        ET:RegisterEvent(event, owner, function(...)
-            local perf = GetPerfMonitor()
-            local startedAt = perf and debugprofilestop()
-            func(...)
-            IncrementPerf(perf, "TrashCD.Counter.Root.RuntimeEvents.Visits")
-            if perf and startedAt then
-                local elapsedMs = debugprofilestop() - startedAt
-                perf:RecordTiming("TrashCD.Root.RuntimeEvents", elapsedMs)
-                if elapsedMs >= 2 and type(perf.RecordSpike) == "function" then
-                    perf:RecordSpike("TrashCD.RuntimeEvent", elapsedMs,
-                        string.format("event=%s owner=%s", tostring(event), tostring(owner)))
-                end
-            end
-        end)
+        ET:RegisterEvent(event, owner, func)
     end
 end
 

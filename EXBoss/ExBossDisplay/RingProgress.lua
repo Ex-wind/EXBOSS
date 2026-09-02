@@ -11,13 +11,6 @@ local EXUI = ExwindTools.UI or _G.ExwindToolsUI
 ExBoss.UI.RingProgress = ExBoss.UI.RingProgress or {}
 local Ring = ExBoss.UI.RingProgress
 
-local function RecordPerfTiming(key, startedAt)
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    if perf and startedAt and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
-
 local MODULE_KEY = "ExBoss.RingProgress"
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 
@@ -496,12 +489,9 @@ local function SetRuntimeUpdatesEnabled()
         return
     end
     frame:SetScript("OnUpdate", function()
-        local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-        local startedAt = perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() and debugprofilestop()
         local anim = activeAnim
         if not anim then
             frame:SetScript("OnUpdate", nil)
-            RecordPerfTiming("TrashCD.Root.RingProgress", startedAt)
             return
         end
 
@@ -509,7 +499,6 @@ local function SetRuntimeUpdatesEnabled()
             local now = GetTime()
             if now >= anim.endAt then
                 AdvanceActivePhase()
-                RecordPerfTiming("TrashCD.Root.RingProgress", startedAt)
                 return
             end
             local remaining = math.max(0.01, anim.endAt - now)
@@ -524,7 +513,6 @@ local function SetRuntimeUpdatesEnabled()
         elseif activeAnim and activeAnim.manualProgress ~= true then
             frame:SetScript("OnUpdate", nil)
         end
-        RecordPerfTiming("TrashCD.Root.RingProgress", startedAt)
     end)
 end
 

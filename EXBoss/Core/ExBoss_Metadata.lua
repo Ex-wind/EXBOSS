@@ -3,13 +3,84 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.9.1.0408",
+    version = "v26.9.2.0206",
     changelog = {
-        version = "v26.9.1.0408",
-        title = "v26.9.1.0408 更新日志",
-        publishedAt = "2026-09-01 04:08",
+        version = "v26.9.1.1224",
+        title = "v26.9.1.1224 更新日志",
+        publishedAt = "2026-09-01 12:24",
         fontSize = 14,
         content = [[
+@H1@ v26.9.1.1224
+
+@CN@ @H2@ 性能优化
+@CN@ - 本轮整体性能优化初步完成 性能消耗大幅度降低
+
+@CN@ - 我们注意到了一个EXUI渲染时高频重绘的问题 现在将计时条改完传入DUR渲染后
+@CN@ 整体性能较S2发布时性能消耗降低90% (如果开启计时条对比)
+
+@CN@ - 得益于我们的事件分发系统架构 我们在(开发版本)做了性能预警功能 现在我们可以非常快的在第一时间发现性能问题并处理
+
+@CN@ - 往后我们预计每周进行简单的性能审查优化 并且每半个月进行一次深度的性能优化
+
+@CN@ - 还有很多地方可以优化 但是以当前的性能表现优化后几乎对体感和帧数不明显 因此优先级较低
+
+@CN@ @H2@ EXUI 和框架池
+@CN@ - 界面重载后的首次进入世界会异步预创建 TimerBar、BunBar 和姓名板 CD 图标，达到目标后再释放，避免战斗中首次创建多个控件造成瞬时卡顿。
+
+@CN@ - 姓名板CD图标改为专用完整复合池。姓名板消失后图标会归还池中，不再随 nameplate1~40隐藏。
+
+@CN@ - TimerBar Collection 的 ItemRoot 已接入框架池，释放后可以完整复用。
+
+@CN@ - 预加载使用独立的低预算异步任务。若过程中进入战斗，会先释放已完整创建的对象，再执行 CancelAsync()脱战后自动重新开始。
+
+@CN@ - PS:Lua Coroutine 会分配独立调用栈 此内存增长是正常现象 并属于可回收内存。
+
+@CN@ @H2@ 语音包
+@CN@ - 第三方语音包仅在首次查询时扫描一次，并在当前登录会话中缓存包列表与目录索引，避免每次播放声音时重复扫描。
+
+@CN@ @H2@ EXBoss
+@CN@ - 重做 TimerBar 运行时渲染逻辑。倒数文字和进度填充现在通过 EXUI 使用暴雪原生 Duration 驱动。
+@CN@ - 普通帧不再为每条活动计时条重复构建和应用完整 Presentation；只有新增、时间校正或名称、图标、颜色等静态内容变化时才刷新。
+@CN@ - 到零等待、施法释放、校时、A/B 怪物改判以及 Scheduler 调度规则保持不变。
+@CN@ - 本次优化覆盖 Boss、小怪、Pull Timer、Test Timer 和 External Timer，不仅限于小怪计时条。
+
+@CN@ @H2@ 小怪CD
+@CN@ - 我们已经收到一些零散的场景下某些技能语音没提示的问题 将在明天修复
+
+@EN@ @H2@ Performance Optimizations
+@EN@ - The initial phase of this performance optimization pass is complete, with a significant reduction in overall resource usage.
+
+@EN@ - We identified a high-frequency redraw issue in EXUI. After switching timer bars to Duration-based rendering, overall performance cost has been reduced by approximately 90% compared with the S2 release when timer bars are enabled.
+
+@EN@ - Thanks to our event-dispatch architecture, we have added performance alerts to the development build. This allows us to identify and address performance issues much more quickly.
+
+@EN@ - Going forward, we plan to conduct a lightweight performance review and optimization pass every week, along with an in-depth optimization pass every two weeks.
+
+@EN@ - There are still more areas that could be optimized. However, given the current performance level, further improvements would have little noticeable effect on responsiveness or frame rate, so they are currently a lower priority.
+
+@EN@ @H2@ EXUI and Frame Pools
+@EN@ - After the first login following a UI reload, TimerBar, BunBar, and nameplate cooldown icons are pre-created asynchronously and then released into their pools once the target capacity is reached. This avoids brief hitches caused by creating multiple controls for the first time during combat.
+
+@EN@ - Nameplate cooldown icons now use a dedicated composite frame pool. When a nameplate disappears, its icons are returned to the pool instead of accumulating as hidden objects across nameplate1–40.
+
+@EN@ - TimerBar Collection ItemRoot frames are now pooled and can be fully reused after release.
+
+@EN@ - Preloading uses a separate low-budget asynchronous task. If combat begins while preloading is in progress, all fully created objects are released before CancelAsync() is called. Preloading resumes automatically after combat ends.
+
+@EN@ - Note: Lua coroutines allocate independent call stacks. The resulting memory increase is normal and reclaimable.
+
+@EN@ @H2@ Voice Packs
+@EN@ - Third-party voice packs are now scanned only on the first lookup. Their pack list and directory index are cached for the current login session, preventing repeated scans whenever a sound is played.
+
+@EN@ @H2@ EXBoss
+@EN@ - Reworked the TimerBar runtime rendering pipeline. Countdown text and progress fills are now driven through EXUI using Blizzard's native Duration system.
+@EN@ - Active timer bars no longer rebuild and apply their full Presentation every frame. They are refreshed only when first created, time-corrected, or when static content such as the name, icon, or color changes.
+@EN@ - Zero-time waiting, cast release, time calibration, A/B mob reassignment, and Scheduler rules remain unchanged.
+@EN@ - This optimization applies to Boss, trash mob, Pull, Test, and External timers—not only trash mob timer bars.
+
+@EN@ @H2@ Trash Mob Cooldowns
+@EN@ - We have received reports of a few isolated situations where voice alerts for certain abilities do not play. We plan to fix these issues tomorrow.
+
 @H1@ v26.9.1.0408
 
 @CN@ @H2@ 性能优化

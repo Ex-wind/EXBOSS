@@ -18,26 +18,6 @@ local RuntimeConfig = ExBoss.TrashCD and ExBoss.TrashCD.RuntimeConfig or nil
 local State = ExBoss.TrashCD and ExBoss.TrashCD.State or nil
 local GetRuntimeMobData
 
-local function GetPerfMonitor()
-    local perf = ExwindTools and ExwindTools.PerfMonitor or nil
-    if perf and type(perf.IsCaptureActive) == "function" and perf:IsCaptureActive() then
-        return perf
-    end
-    return nil
-end
-
-local function RecordPerfTiming(perf, key, startedAt)
-    if perf and startedAt and type(debugprofilestop) == "function" then
-        perf:RecordTiming(key, debugprofilestop() - startedAt)
-    end
-end
-
-local function IncrementPerf(perf, key, amount)
-    if perf and type(perf.IncrementCounter) == "function" then
-        perf:IncrementCounter(key, amount)
-    end
-end
-
 local function GetScheduler()
     return ExBoss and ExBoss.Timeline and ExBoss.Timeline.Scheduler or nil
 end
@@ -537,32 +517,23 @@ function Mod.AddRuntimeScriptEvent(runtime, mobData, spellData, remaining, fallb
         return
     end
 
-    local perf = GetPerfMonitor()
-
     local info = nil
     if C_Spell and C_Spell.GetSpellInfo then
         info = C_Spell.GetSpellInfo(spellID)
     end
 
-    local metaStartedAt = perf and debugprofilestop()
     local meta = RuntimeConfig and type(RuntimeConfig.BuildResolvedMeta) == "function"
         and RuntimeConfig.BuildResolvedMeta(runtime, mobData, spellData, tonumber(spellData.iconFileID) or (info and tonumber(info.iconID)) or tonumber(fallbackIcon) or 136243)
         or nil
-    RecordPerfTiming(perf, "TrashCD.Calibration.Register.BuildResolvedMeta", metaStartedAt)
     if type(meta) ~= "table" then
-        IncrementPerf(perf, "TrashCD.Counter.Calibration.Register.MetaRejected")
         return
     end
 
-    local registerStartedAt = perf and debugprofilestop()
     local ok, result = pcall(scheduler.RegisterTrashLocalTimer, scheduler, runtime, mobData, spellData, delay, meta)
-    RecordPerfTiming(perf, "TrashCD.Calibration.Register.RegisterTrashLocalTimer", registerStartedAt)
     local timerID = tonumber(result)
     if not (ok and timerID and timerID > 0) then
-        IncrementPerf(perf, "TrashCD.Counter.Calibration.Register.Failed")
         return
     end
-    IncrementPerf(perf, "TrashCD.Counter.Calibration.Register.Succeeded")
 end
 
 local function TryPlayRuntimeSpellStartVoice(runtime)
