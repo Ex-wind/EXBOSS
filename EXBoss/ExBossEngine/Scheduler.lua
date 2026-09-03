@@ -3475,15 +3475,52 @@ local function ShouldSuppressTrashCastStartVoiceByCooldown(timer)
     return false, remaining, muteWindow
 end
 
-function Scheduler:PlayTrashObservedCastStartVoice(runtime, spellID)
+local function IsTrashObservedSpellAllowedForCurrentRole(runtime, spellID)
+    if not (TrashRuntimeConfig and type(TrashRuntimeConfig.IsRuntimeSpellAllowedForCurrentRole) == "function") then
+        return true
+    end
+    return TrashRuntimeConfig.IsRuntimeSpellAllowedForCurrentRole(runtime, spellID) ~= false
+end
+
+-- 预判语音的诊断沿用 TrashCD Runtime Debug；不开 Debug 时完全无输出。
+local function DebugPriorityPreviewVoice(runtime, stage, detail)
+    local controller = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if not (controller and type(controller.AppendExternalDebug) == "function") then
+        return
+    end
+    if type(controller.IsDebug) == "function" and controller.IsDebug() ~= true then
+        return
+    end
+    local seq = tonumber(type(runtime) == "table" and runtime.activeCastSeq or nil) or 0
+    local key = "scheduler:" .. tostring(stage or "?") .. ":" .. tostring(seq)
+    if type(runtime) == "table" and runtime._debugPriorityPreviewVoiceKey == key then
+        return
+    end
+    if type(runtime) == "table" then
+        runtime._debugPriorityPreviewVoiceKey = key
+    end
+    controller.AppendExternalDebug("TrashCD PreviewVoice", string.format(
+        "%s seq=%s spell=%s preview=%s %s", tostring(stage or "?"), tostring(seq),
+        tostring(type(runtime) == "table" and runtime.activeSpellID or "nil"),
+        tostring(type(runtime) == "table" and runtime.priorityPreviewVoiceNPCID or "nil"),
+        tostring(detail or "")), true)
+end
+
+function Scheduler:PlayTrashObservedCastStartVoice(runtime, spellID, options)
     if type(runtime) == "table" and runtime.activeSpellAmbiguous == true then
+        DebugPriorityPreviewVoice(runtime, "deny-ambiguous", "spell=" .. tostring(spellID))
         return false
     end
 
     if type(runtime) ~= "table" then
         return false
     end
-    if not tonumber(runtime.identityLockedNPCID) then
+    if not IsTrashObservedSpellAllowedForCurrentRole(runtime, spellID) then
+        return false
+    end
+    local priorityPreviewVoice = type(options) == "table" and options.priorityPreviewVoice == true
+    local priorityPreviewNPCID = priorityPreviewVoice and tonumber(options.priorityPreviewNPCID) or nil
+    if not tonumber(runtime.identityLockedNPCID) and not priorityPreviewNPCID then
         return false
     end
     runtime._trashCastStartVoiceKeys = runtime._trashCastStartVoiceKeys or {}
@@ -3495,6 +3532,12 @@ function Scheduler:PlayTrashObservedCastStartVoice(runtime, spellID)
 
     local timer = self:GetTrashLocalTimer(runtime, spellID)
     if type(timer) ~= "table" then
+        -- 预判语音必须已有来自同一优先级候选的本地 CD 计时；不允许走
+        -- fallback，否则没有充分的排程归因，也会绕开 CD 内静音判断。
+        if priorityPreviewNPCID then
+            DebugPriorityPreviewVoice(runtime, "deny-no-local-timer", "spell=" .. tostring(spellID))
+            return false
+        end
         local fallbackTimer, fallbackErr = BuildTrashObservedCastStartDisplayTimer(runtime, spellID)
         DispatchTrashObservedCastStartEvent(runtime, spellID, fallbackTimer)
         local progressShown = false
@@ -3538,16 +3581,32 @@ function Scheduler:PlayTrashObservedCastStartVoice(runtime, spellID)
         end
         return (ok == true), err
     end
+    if priorityPreviewNPCID then
+        if timer.source ~= "trash"
+            or timer.trashRuntime ~= runtime
+            or tonumber(timer.trashNPCID) ~= priorityPreviewNPCID
+            or type(timer.trashSpellData) ~= "table"
+            or timer.trashSpellData.allowPriorityPreviewCastStartVoice ~= true then
+            DebugPriorityPreviewVoice(runtime, "deny-timer-mismatch", "spell=" .. tostring(spellID))
+            return false
+        end
+    end
     DispatchTrashObservedCastStartEvent(runtime, spellID, timer)
     PlayTrashObservedCastStartRing(runtime, timer, spellID)
 
     local voicePlan = type(timer.voicePlan) == "table" and timer.voicePlan or nil
     local triggerCfg = voicePlan and type(voicePlan.triggers) == "table" and voicePlan.triggers[1] or nil
     if not (type(triggerCfg) == "table" and triggerCfg.enabled == true) then
+        if priorityPreviewNPCID then
+            DebugPriorityPreviewVoice(runtime, "deny-trigger", "spell=" .. tostring(spellID))
+        end
         return false
     end
     local Engine = ExBoss and ExBoss.Voice and ExBoss.Voice.Engine
     if not (Engine and Engine.TryPlayStandaloneSound) then
+        if priorityPreviewNPCID then
+            DebugPriorityPreviewVoice(runtime, "deny-voice-engine", "spell=" .. tostring(spellID))
+        end
         return false
     end
 
@@ -3556,6 +3615,11 @@ function Scheduler:PlayTrashObservedCastStartVoice(runtime, spellID)
         runtime._trashCastStartVoiceKeys[dedupeKey] = true
         timer.fixedVoiceTrigger1Fired = true
         timer.fixedVoiceTrigger1Enabled = false
+        if priorityPreviewNPCID then
+            DebugPriorityPreviewVoice(runtime, "deny-cooldown", "spell=" .. tostring(spellID)
+                .. " remaining=" .. tostring(cooldownRemaining)
+                .. " mute=" .. tostring(muteWindow))
+        end
 
         return false
     end
@@ -3574,6 +3638,10 @@ function Scheduler:PlayTrashObservedCastStartVoice(runtime, spellID)
         timer.fixedVoiceTrigger1Fired = true
         timer.fixedVoiceTrigger1Enabled = false
         DispatchTrashCastStartVoiceTriggeredEvent(runtime, spellID, timer)
+    end
+    if priorityPreviewNPCID then
+        DebugPriorityPreviewVoice(runtime, ok and "played" or "deny-engine-result",
+            "spell=" .. tostring(spellID) .. " err=" .. tostring(err or "nil"))
     end
     return ok, err
 end

@@ -1162,8 +1162,8 @@ _G.EXBOSS_TRASH_MOB_TRAITS = {
             secondarySignature = "skill=1|cast=1|channel=0|castTime=1/4|channelTime=-|spellN=2|castN=2|intN=0|int=0|noInt=1",
             bossEncounter = nil,
             priority = nil,
-            bossPriorities = { [3] = 120 },
-            bossCounts = { [3] = 2 },
+            bossPriorities = nil,
+            bossCounts = nil,
         },
         {
             dungeon = "密谋小径",
@@ -1229,7 +1229,7 @@ _G.EXBOSS_TRASH_MOB_TRAITS = {
             bossEncounter = nil,
             priority = nil,
             bossPriorities = nil,
-            bossCounts = { [1] = 1 },
+            bossCounts = nil,
         },
         {
             dungeon = "密谋小径",
@@ -1261,8 +1261,8 @@ _G.EXBOSS_TRASH_MOB_TRAITS = {
             secondarySignature = "skill=1|cast=1|channel=1|castTime=2/2.5|channelTime=1.2/2.5|spellN=2|castN=2|intN=0|int=0|noInt=1",
             bossEncounter = nil,
             priority = nil,
-            bossPriorities = { [3] = 110 },
-            bossCounts = { [3] = 1 },
+            bossPriorities = nil,
+            bossCounts = nil,
         },
         {
             dungeon = "毒牙祭坛",
@@ -1361,7 +1361,7 @@ _G.EXBOSS_TRASH_MOB_TRAITS = {
             bossEncounter = nil,
             priority = nil,
             bossPriorities = nil,
-            bossCounts = nil,
+            bossCounts = { [3] = 4 },
         },
         {
             dungeon = "毒牙祭坛",
@@ -1473,7 +1473,7 @@ _G.EXBOSS_TRASH_MOB_TRAITS = {
             minimapIDs = nil,
             wmoAreaIDs = nil,
             mapIDs = nil,
-            preCombatChanneling = true,
+            preCombatChanneling = nil,
             isLieutenant = nil,
             hasCreatureFamily = false,
             coPresenceNPCIDs = nil,

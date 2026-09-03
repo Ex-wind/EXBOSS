@@ -847,12 +847,64 @@ function Engine:ResolveStandaloneSound(triggerCfg, opts)
     return soundInfo
 end
 
+local function DebugTrashStandaloneVoice(throttleKey, stage, detail)
+    local key = tostring(throttleKey or "")
+    if not key:match("^trash%-cast:") then
+        return
+    end
+    local controller = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if not (controller and type(controller.AppendExternalDebug) == "function") then
+        return
+    end
+    if type(controller.IsDebug) == "function" and controller.IsDebug() ~= true then
+        return
+    end
+    controller.AppendExternalDebug("TrashCD PreviewVoice", string.format(
+        "engine-%s %s", tostring(stage or "?"), tostring(detail or "")), true)
+end
+
+local function DebugTrashTimerVoice(timer, stage, detail)
+    if type(timer) ~= "table" or tostring(timer.source or "") ~= "trash" then
+        return
+    end
+    local controller = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if not (controller and type(controller.AppendExternalDebug) == "function") then
+        return
+    end
+    if type(controller.IsDebug) == "function" and controller.IsDebug() ~= true then
+        return
+    end
+    local runtime = type(timer.trashRuntime) == "table" and timer.trashRuntime or nil
+    controller.AppendExternalDebug("TrashCD Voice", string.format(
+        "timer-%s spell=%s lock=%s %s", tostring(stage or "?"),
+        tostring(timer.spellID or "nil"),
+        tostring(runtime and runtime.identityLockedNPCID or "none"),
+        tostring(detail or "")), true)
+end
+
 function Engine:TryPlayStandaloneSound(triggerCfg, throttleKey, opts)
     local soundInfo, err = self:ResolveStandaloneSound(triggerCfg, opts)
     if not soundInfo then
+        DebugTrashStandaloneVoice(throttleKey, "resolve-deny", tostring(err or "unknown"))
         return false, err
     end
-    return TryPlaySoundInfo(soundInfo, tostring(throttleKey or "standalone"), opts)
+    local normalized = NormalizeStandaloneTriggerConfig(triggerCfg) or {}
+    local sourceType = tostring(normalized.sourceType or "pack")
+    local sourceDetail
+    if soundInfo.isTTS then
+        local voices = C_VoiceChat and C_VoiceChat.GetTtsVoices and C_VoiceChat.GetTtsVoices()
+        sourceDetail = "source=tts voices=" .. tostring(type(voices) == "table" and #voices or 0)
+    else
+        sourceDetail = "source=" .. sourceType
+            .. " channel=" .. tostring(soundInfo.channel or "Master")
+            .. " file=" .. tostring(soundInfo.file or "")
+    end
+    DebugTrashStandaloneVoice(throttleKey, "resolved", sourceDetail)
+
+    local ok, playErr = TryPlaySoundInfo(soundInfo, tostring(throttleKey or "standalone"), opts)
+    DebugTrashStandaloneVoice(throttleKey, ok and "queued" or "play-deny",
+        sourceDetail .. " err=" .. tostring(playErr or "nil"))
+    return ok, playErr
 end
 
 function Engine:TryPlayLabel(label, timer, opts)
@@ -881,14 +933,17 @@ function Engine:TryPlayForTimer(timer, trigger)
     local db = EnsureDB()
     local g  = db.global
     if g.enabled == false then
+        DebugTrashTimerVoice(timer, "deny", "voice-disabled")
         return false, "voice disabled"
     end
     if not IsContextEnabled(g) then
+        DebugTrashTimerVoice(timer, "deny", "context-disabled")
         return false, "context disabled"
     end
 
     local eventCfg, eventKey = ResolveEventConfig(db, timer)
     if eventCfg and eventCfg.enabled == false then
+        DebugTrashTimerVoice(timer, "deny", "event-muted")
         return false, "event muted"
     end
 
@@ -896,12 +951,16 @@ function Engine:TryPlayForTimer(timer, trigger)
     if eventCfg and type(eventCfg.triggers) == "table" then
         local triggerCfg  = eventCfg.triggers[trigger]
         if type(triggerCfg) == "table" and triggerCfg.enabled == false then
+            DebugTrashTimerVoice(timer, "deny", "trigger-muted trigger=" .. tostring(trigger))
             return false, "trigger muted"
         end
         local triggerSound = ResolveTriggerSound(g, triggerCfg, trigger)
         if triggerSound then
             local tk = "event:" .. tostring(eventKey or "unknown") .. ":tr:" .. tostring(trigger)
             local ok, err = TryPlaySoundInfo(triggerSound, tk, { throttle = false })
+            DebugTrashTimerVoice(timer, ok and "event-queued" or "event-deny",
+                "trigger=" .. tostring(trigger) .. " source=" .. tostring(triggerCfg.sourceType or "pack")
+                .. " file=" .. tostring(triggerSound.file or "tts") .. " err=" .. tostring(err or "nil"))
             return ok, err
         end
     end
@@ -911,16 +970,21 @@ function Engine:TryPlayForTimer(timer, trigger)
         label = timer.voiceLabel
     end
     if not label then
+        DebugTrashTimerVoice(timer, "deny", "no-label")
         return false, "no label"
     end
 
     local soundInfo = ResolveLabelSoundInfo(g, eventCfg, label)
     if not soundInfo then
+        DebugTrashTimerVoice(timer, "deny", "sound-not-found label=" .. tostring(label))
         return false, "sound not found"
     end
 
     local tk = "timer:" .. tostring(eventKey or "noevent") .. ":" .. tostring(label)
     local ok, err = TryPlaySoundInfo(soundInfo, tk, { throttle = false })
+    DebugTrashTimerVoice(timer, ok and "label-queued" or "label-deny",
+        "label=" .. tostring(label) .. " file=" .. tostring(soundInfo.file or "tts")
+        .. " err=" .. tostring(err or "nil"))
     return ok, err
 end
 

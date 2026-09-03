@@ -96,6 +96,36 @@ local function IsSpellEnabled(cfg)
     return true
 end
 
+-- Reuse the Boss role filter verbatim.  `spellData` is the static fact row
+-- exported from the TrashCD Excel, just as Boss reads eventType from
+-- EncounterData.  This must remain a display-time decision: no profile row is
+-- changed when the player switches roles.
+function Mod.ShouldSuppressEventForCurrentRole(spellData)
+    local presentation = ExBoss and ExBoss.Modules and ExBoss.Modules.Boss and
+        ExBoss.Modules.Boss.TimelinePresentation or nil
+    if presentation and type(presentation.ShouldSuppressTankEventForCurrentRole) == "function" then
+        return presentation.ShouldSuppressTankEventForCurrentRole(spellData) == true
+    end
+    return false
+end
+
+-- Cast-start voice can be requested after an earlier local timer was created.
+-- Scheduler uses this exported check before any fallback or retained-timer
+-- voice path, so a role switch cannot leak a suppressed tank event.
+function Mod.IsRuntimeSpellAllowedForCurrentRole(runtime, spellID)
+    local mapID = tonumber(runtime and runtime.matchedMapID)
+    local npcID = tonumber(runtime and runtime.matchedNPCID)
+    local sid = tonumber(spellID)
+    if not (mapID and npcID and sid) then
+        return true
+    end
+    local root = Data and type(Data.GetTrashCDDataRoot) == "function" and Data.GetTrashCDDataRoot() or nil
+    local mapData = type(root) == "table" and type(root[mapID]) == "table" and root[mapID] or nil
+    local mobData = mapData and type(mapData.mobs) == "table" and mapData.mobs[npcID] or nil
+    local spellData = mobData and type(mobData.spells) == "table" and mobData.spells[sid] or nil
+    return Mod.ShouldSuppressEventForCurrentRole(spellData) ~= true
+end
+
 local function ParsePlacementSet(text)
     local raw = NormalizeText(text)
     if raw == "" then
@@ -379,6 +409,9 @@ function Mod.BuildResolvedMeta(runtime, mobData, spellData, fallbackIconFileID)
         return nil
     end
     if not IsSpellEnabled(cfg) then
+        return nil
+    end
+    if Mod.ShouldSuppressEventForCurrentRole(spellData) then
         return nil
     end
     if not IsPlacementAllowed(cfg, mapID) then

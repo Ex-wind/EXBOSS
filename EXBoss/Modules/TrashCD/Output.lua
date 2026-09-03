@@ -22,6 +22,33 @@ local function GetScheduler()
     return ExBoss and ExBoss.Timeline and ExBoss.Timeline.Scheduler or nil
 end
 
+-- 仅在 Runtime Debug 开启时写入聊天与调试缓冲；每个读条序号、每个阶段只记一次。
+local function DebugPriorityPreviewVoice(runtime, stage, detail)
+    local controller = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Runtime or nil
+    if not (controller and type(controller.AppendExternalDebug) == "function") then
+        return
+    end
+    if type(controller.IsDebug) == "function" and controller.IsDebug() ~= true then
+        return
+    end
+    local seq = tonumber(type(runtime) == "table" and runtime.activeCastSeq or nil) or 0
+    local key = tostring(stage or "?") .. ":" .. tostring(seq)
+    if type(runtime) == "table" and runtime._debugPriorityPreviewVoiceKey == key then
+        return
+    end
+    if type(runtime) == "table" then
+        runtime._debugPriorityPreviewVoiceKey = key
+    end
+    controller.AppendExternalDebug("TrashCD PreviewVoice", string.format(
+        "%s seq=%s source=%s preview=%s matched=%s/%s %s",
+        tostring(stage or "?"), tostring(seq),
+        tostring(type(runtime) == "table" and runtime.priorityPreviewVoiceSource or "nil"),
+        tostring(type(runtime) == "table" and runtime.priorityPreviewVoiceNPCID or "nil"),
+        tostring(type(runtime) == "table" and runtime.matchedMapID or "nil"),
+        tostring(type(runtime) == "table" and runtime.matchedNPCID or "nil"),
+        tostring(detail or "")), true)
+end
+
 local function HasPositiveDurationValue(value)
     if type(value) == "table" then
         for _, item in pairs(value) do
@@ -177,6 +204,49 @@ local function TryResolveRuntimeStartCandidate(runtime)
         npcID = npcID,
         name = runtime.lastResolvedName,
     }
+end
+
+-- 预判语音是一个严格受限的输出授权，不是身份结论。它只能读取 Runtime
+-- 在本轮推理中记录的 priority 候选，且必须与当前本地排程的 map/NPC 一致。
+local function GetRuntimePriorityPreviewVoiceNPCID(runtime)
+    if type(runtime) ~= "table" or tonumber(runtime.identityLockedNPCID) then
+        return nil
+    end
+    local source = tostring(runtime.priorityPreviewVoiceSource or "")
+    if source ~= "priority" and source ~= "candidate-preview" then
+        return nil
+    end
+    local previewNPCID = tonumber(runtime.priorityPreviewVoiceNPCID)
+    local previewMapID = tonumber(runtime.priorityPreviewVoiceMapID)
+    if not previewNPCID or not previewMapID then
+        return nil
+    end
+    if tonumber(runtime.matchedNPCID) ~= previewNPCID or tonumber(runtime.matchedMapID) ~= previewMapID then
+        return nil
+    end
+    return previewNPCID
+end
+
+local function GetRuntimePriorityPreviewVoiceOptions(runtime, spellID)
+    local previewNPCID = GetRuntimePriorityPreviewVoiceNPCID(runtime)
+    local sid = tonumber(spellID)
+    if not previewNPCID or not sid then
+        return nil
+    end
+    local mobData = GetRuntimeMobData(runtime)
+    local spellData = type(mobData) == "table" and type(mobData.spells) == "table" and mobData.spells[sid] or nil
+    if type(spellData) ~= "table" or spellData.allowPriorityPreviewCastStartVoice ~= true then
+        return nil
+    end
+    return {
+        priorityPreviewVoice = true,
+        priorityPreviewNPCID = previewNPCID,
+    }
+end
+
+local function HasRuntimeCastStartVoiceAuthority(runtime)
+    return type(runtime) == "table"
+        and (tonumber(runtime.identityLockedNPCID) ~= nil or GetRuntimePriorityPreviewVoiceNPCID(runtime) ~= nil)
 end
 
 local function RuntimeNeedsTargetFingerprint(runtime, kind)
@@ -544,7 +614,8 @@ local function TryPlayRuntimeSpellStartVoice(runtime)
     if type(runtime) ~= "table" then
         return false
     end
-    if not tonumber(runtime.identityLockedNPCID) then
+    if not HasRuntimeCastStartVoiceAuthority(runtime) then
+        DebugPriorityPreviewVoice(runtime, "deny-authority")
         return false
     end
     local seq = tonumber(runtime.activeCastSeq)
@@ -553,9 +624,21 @@ local function TryPlayRuntimeSpellStartVoice(runtime)
     end
     local sid = ResolveRuntimeSpellForStartVoice(runtime)
     if not sid then
+        DebugPriorityPreviewVoice(runtime, "deny-spell")
         return false
     end
-    local ok, err = scheduler:PlayTrashObservedCastStartVoice(runtime, sid)
+    local previewOptions = nil
+    if not tonumber(runtime.identityLockedNPCID) then
+        previewOptions = GetRuntimePriorityPreviewVoiceOptions(runtime, sid)
+        if not previewOptions then
+            DebugPriorityPreviewVoice(runtime, "deny-whitelist", "spell=" .. tostring(sid))
+            return false
+        end
+    end
+    DebugPriorityPreviewVoice(runtime, "request", "spell=" .. tostring(sid))
+    local ok, err = scheduler:PlayTrashObservedCastStartVoice(runtime, sid, previewOptions)
+    DebugPriorityPreviewVoice(runtime, ok and "played" or "scheduler-deny",
+        "spell=" .. tostring(sid) .. " err=" .. tostring(err or "nil"))
     if ok then
         runtime._voicePlayedForSeq = tonumber(runtime.activeCastSeq)
     end
@@ -667,7 +750,8 @@ function Mod.PlayRuntimeCastStartVoice(runtime, kind)
     if type(runtime) ~= "table" then
         return false
     end
-    if not tonumber(runtime.identityLockedNPCID) then
+    if not HasRuntimeCastStartVoiceAuthority(runtime) then
+        DebugPriorityPreviewVoice(runtime, "deny-authority")
         return false
     end
     local seq = tonumber(runtime.activeCastSeq)

@@ -3,13 +3,23 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.9.2.0206",
+    version = "v26.9.3.1122",
     changelog = {
-        version = "v26.9.1.1224",
-        title = "v26.9.1.1224 更新日志",
-        publishedAt = "2026-09-01 12:24",
+        version = "v26.9.3.1122",
+        title = "v26.9.3.1122 更新日志",
+        publishedAt = "2026-09-03 11:22",
         fontSize = 14,
         content = [[
+@H1@ v26.9.3.1122
+
+@CN@ @H2@ 小怪CD
+@CN@ - 修复了L1预锁定时不播放首个技能语音的问题
+@CN@ - 优化L1预锁定逻辑
+
+@EN@ @H2@ Trash Mob Cooldowns
+@EN@ - Fixed an issue where the first ability voice alert did not play during L1 pre-locking.
+@EN@ - Optimized the L1 pre-locking logic.
+
 @H1@ v26.9.1.1224
 
 @CN@ @H2@ 性能优化

@@ -185,9 +185,10 @@ end
 -- This is deliberately a display-time rule, not an event configuration
 -- change.  Tank, DPS, and healer slots may all point at one Author/User
 -- configuration, so setting row.enabled = false here would also disable the
--- event when the player later changes back to tank.
-local function ShouldSuppressTankEventForCurrentRole(encounterRow)
-    if type(encounterRow) ~= "table" or encounterRow.eventType ~= "坦克" then
+-- event when the player later changes back to tank.  TrashCD calls this same
+-- predicate for its Excel-backed eventType; do not create a second role rule.
+function Presentation.ShouldSuppressTankEventForCurrentRole(eventRow)
+    if type(eventRow) ~= "table" or eventRow.eventType ~= "坦克" then
         return false
     end
 
@@ -278,7 +279,7 @@ function Presentation:Resolve(timer, explicitMode)
 
     -- Only suppress the current display.  Do not write to `row`: the active
     -- profile can be shared by all three roles.
-    if ShouldSuppressTankEventForCurrentRole(encounterRow) then
+    if Presentation.ShouldSuppressTankEventForCurrentRole(encounterRow) then
         out.eventEnabled = false
     end
 

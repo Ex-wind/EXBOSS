@@ -841,6 +841,51 @@ local function ClearRuntimeIdentityLock(runtime)
     runtime.identityLockedAt = nil
     runtime.identityLockSource = nil
     runtime.identityLockedCandidate = nil
+    runtime.priorityPreviewVoiceNPCID = nil
+    runtime.priorityPreviewVoiceMapID = nil
+    runtime.priorityPreviewVoiceSource = nil
+end
+
+-- 优先级候选只可在 Excel 白名单技能上临时授权读条语音；它不是身份锁，
+-- 不能参与 Population、同场证据、缓存或任何其他身份业务。
+local function ClearRuntimePriorityPreviewVoice(runtime)
+    if type(runtime) ~= "table" then
+        return
+    end
+    runtime.priorityPreviewVoiceNPCID = nil
+    runtime.priorityPreviewVoiceMapID = nil
+    runtime.priorityPreviewVoiceSource = nil
+end
+
+local function SyncRuntimePriorityPreviewVoice(runtime, candidate, resolutionSource, mapID)
+    if type(runtime) ~= "table" then
+        return
+    end
+    local npcID = tonumber(type(candidate) == "table" and candidate.npcID or nil)
+    local source = tostring(resolutionSource or "")
+    local isPreviewSource = source == "priority" or source == "candidate-preview"
+    if tonumber(runtime.identityLockedNPCID) then
+        ClearRuntimePriorityPreviewVoice(runtime)
+        return
+    end
+
+    if isPreviewSource and npcID and tonumber(mapID) then
+        runtime.priorityPreviewVoiceNPCID = npcID
+        runtime.priorityPreviewVoiceMapID = tonumber(mapID)
+        runtime.priorityPreviewVoiceSource = source
+        return
+    end
+
+    -- 读条刚开始时，单帧快照可能暂时无法复现 L1/L2 候选；Calibration 会继续
+    -- 保留同一预判候选的本地排程。此时不能先清掉语音授权，否则真实读条会被静音。
+    -- 一旦候选实际变更、正式锁定或排程被重置，下面的匹配条件自然失效或被清除。
+    if not npcID
+        and tonumber(runtime.priorityPreviewVoiceNPCID) == tonumber(runtime.matchedNPCID)
+        and tonumber(runtime.priorityPreviewVoiceMapID) == tonumber(runtime.matchedMapID) then
+        return
+    end
+
+    ClearRuntimePriorityPreviewVoice(runtime)
 end
 
 -- Runtime 是唯一可接受身份结论的入口。
@@ -1159,6 +1204,7 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
         and CoPresence and type(CoPresence.MarkRuntimeLocked) == "function" then
         coPresenceJustRegistered = CoPresence.MarkRuntimeLocked(runtime, trashMapID, runtime.identityLockedNPCID) == true
     end
+    SyncRuntimePriorityPreviewVoice(runtime, resolved, resolutionSource, trashMapID)
     -- 预览候选不能占用 bossCounts 名额；只有已经上锁的真实身份才写 Population。
     if runtime and tonumber(runtime.identityLockedNPCID)
         and resolved and Population and type(Population.MarkResolved) == "function" then
@@ -1229,9 +1275,15 @@ function Mod:RefreshUnit(unit, reason, forceSnapshot, combatConfirmed)
         SyncUnitCDTimers(unit, nil, nil, nil)
     end
 
-    -- 锁在读条期间取得时，立刻按确认后的怪物播放一次；同一 activeCastSeq 的后续
-    -- UNIT_SPELLCAST_START 调用会被 Output 的序号去重挡住。
-    if identityJustLocked and runtime and runtime.activeCastStartAt
+    -- 锁定或预判在读条期间才取得时，立刻重试一次；同一 activeCastSeq 的后续
+    -- UNIT_SPELLCAST_START / 刷新调用会被 Output 的序号去重挡住。
+    local previewVoicePending = type(runtime) == "table"
+        and not tonumber(runtime.identityLockedNPCID)
+        and tonumber(runtime.priorityPreviewVoiceNPCID)
+        and tonumber(runtime.priorityPreviewVoiceMapID)
+        and (tostring(runtime.priorityPreviewVoiceSource or "") == "priority"
+            or tostring(runtime.priorityPreviewVoiceSource or "") == "candidate-preview")
+    if (identityJustLocked or previewVoicePending) and runtime and runtime.activeCastStartAt
         and Output and type(Output.PlayRuntimeCastStartVoice) == "function" then
         Output.PlayRuntimeCastStartVoice(runtime, runtime.activeCastKind)
     end

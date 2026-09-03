@@ -633,6 +633,57 @@ function BossConfig:ExportAuthorUserPair(category, authorID)
     return { author = author, user = { values = values } }
 end
 
+-- Create a fully independent editable Author from the selected Author.  The
+-- source may be built in or imported, but it is never changed: its Author
+-- values and its bound User override are exported as copies before the new
+-- pair is imported under the caller-provided name.
+function BossConfig:DuplicateAuthorConfiguration(category, authorID, name)
+    category, authorID, name = tostring(category or ""), Trim(authorID), Trim(name)
+    if (category ~= "mplus" and category ~= "raid") or not authorID or not name
+        or not AuthorExists(category, authorID) then
+        return false, "Author configuration not found"
+    end
+
+    local api = API()
+    if not api or type(api.ExportAuthorConfiguration) ~= "function"
+        or type(api.ImportAuthorConfiguration) ~= "function"
+        or type(api.ImportUserConfiguration) ~= "function"
+        or type(api.IsAuthorNameAvailable) ~= "function" then
+        return false, "configuration copy unavailable"
+    end
+    if api.IsAuthorNameAvailable(category, name) ~= true then
+        return false, "Author configuration name already exists"
+    end
+
+    local author, authorReason = api.ExportAuthorConfiguration(category, authorID)
+    if type(author) ~= "table" then
+        return false, authorReason or "Author configuration not found"
+    end
+
+    -- A missing binding means this Author has no player overrides yet.  Copy
+    -- that state as an empty independent override rather than creating or
+    -- modifying a binding on the source configuration.
+    local values = {}
+    local db = EnsureDB()
+    local bindings = type(db.userByAuthor) == "table" and db.userByAuthor[category] or nil
+    local userID = type(bindings) == "table" and bindings[authorID] or nil
+    if IsValidUser(category, userID) then
+        if type(api.ExportUserConfiguration) ~= "function" then
+            return false, "configuration copy unavailable"
+        end
+        local userReason
+        values, userReason = api.ExportUserConfiguration(category, userID)
+        if type(values) ~= "table" then
+            return false, userReason or "user configuration not found"
+        end
+    end
+
+    return self:ImportAuthorUserPair(category, {
+        author = author,
+        user = { values = values },
+    }, name)
+end
+
 function BossConfig:BuildSceneTransfer(category)
     category = tostring(category or "")
     if category ~= "mplus" and category ~= "raid" then return nil, "invalid configuration category" end

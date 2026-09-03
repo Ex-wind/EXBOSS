@@ -838,6 +838,34 @@ local function RenameManagedConfiguration()
     end
 end
 
+local function CopyManagedConfiguration()
+    local db = GetPageDB()
+    local category, configID = ParseConfigurationRef(db.selectedConfiguration)
+    local bossCfg = GetBossConfig()
+    local name = tostring(db.configurationName or "")
+    if not category or not configID or name == "" or not (bossCfg and bossCfg.DuplicateAuthorConfiguration) then
+        SetStatus(L["请选择 Author 配置并输入新名称"], false)
+        return
+    end
+
+    local ok, result = bossCfg:DuplicateAuthorConfiguration(category, configID, name)
+    if not ok then
+        SetStatus(L["复制失败："] .. tostring(result), false)
+        return
+    end
+
+    local copiedID = type(result) == "table" and result.authorID or nil
+    if not copiedID then
+        SetStatus(L["复制失败：未返回新配置"], false)
+        return
+    end
+    db.selectedConfiguration = category .. ":" .. tostring(copiedID)
+    db.configurationName = name
+    lastSyncedConfigurationRef = db.selectedConfiguration
+    RefreshBossConfigurationUI()
+    SetStatus(L["已复制为新配置："] .. name, true)
+end
+
 local function DeleteManagedConfiguration()
     local db = GetPageDB()
     local category, configID = ParseConfigurationRef(db.selectedConfiguration)
@@ -957,11 +985,12 @@ local function BuildConfigurationLayout()
     local managedConfiguration = FindConfigurationRow(db.selectedConfiguration)
     local builtInDeleteHint = managedConfiguration and managedConfiguration.builtIn == true
         and ApplyStatusColor(L["内置 Author 无法重命名或删除"], false, true) or ""
-    layout[#layout + 1] = { key = "card_configuration_manager", type = "card", x = 135, y = manageTop, w = 60, h = 52, title = L["Author 配置管理"], desc = L["这里只管理 Author。User 覆盖始终绑定 Author，不可独立选择或管理。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } }
+    layout[#layout + 1] = { key = "card_configuration_manager", type = "card", x = 135, y = manageTop, w = 60, h = 52, title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } }
     layout[#layout + 1] = { key = "selectedConfiguration", type = "dropdown", x = 137, y = 23, w = 56, h = 4, label = L["选择 Author 配置"], items = allConfigurations, labelPos = "top", search = true }
     layout[#layout + 1] = { key = "configurationName", type = "input", x = 137, y = 35, w = 56, h = 4, label = L["Author 名称"], labelPos = "top" }
-    layout[#layout + 1] = { key = "btn_rename_configuration", type = "button", x = 137, y = 45, w = 27, h = 4, label = L["重命名"], func = RenameManagedConfiguration }
-    layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", x = 166, y = 45, w = 27, h = 4, label = L["删除"], func = DeleteManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", x = 137, y = 45, w = 18, h = 4, label = L["复制配置"], func = CopyManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_rename_configuration", type = "button", x = 156, y = 45, w = 18, h = 4, label = L["重命名"], func = RenameManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", x = 175, y = 45, w = 18, h = 4, label = L["删除"], func = DeleteManagedConfiguration }
     layout[#layout + 1] = { key = "desc_builtin_delete_hint", type = "description", x = 137, y = 51, w = 56, h = 3, label = builtInDeleteHint }
     layout[#layout + 1] = { key = "desc_config_status", type = "description", x = 137, y = 57, w = 56, h = 4, label = ApplyStatusColor(pageStatus.configText, pageStatus.configOk, pageStatus.configOk == false) }
     return layout
@@ -1079,6 +1108,12 @@ UpdateConfigurationManagerButtonState = function(Grid)
     -- selected Author was imported and shows the precise reason for built-ins.
     -- Grid's disabled-state handling was leaving the rename button inert even
     -- after an imported Author had been selected.
+    local copyButton = Grid.Widgets.btn_copy_configuration
+    if copyButton and copyButton.SetEnabled then
+        copyButton:SetEnabled(true)
+    elseif copyButton and copyButton.Enable then
+        copyButton:Enable()
+    end
     local renameButton = Grid.Widgets.btn_rename_configuration
     if renameButton and renameButton.SetEnabled then
         renameButton:SetEnabled(true)
