@@ -3,13 +3,27 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.9.3.1122",
+    version = "v26.9.4.0415",
     changelog = {
-        version = "v26.9.3.1122",
-        title = "v26.9.3.1122 更新日志",
-        publishedAt = "2026-09-03 11:22",
+        version = "v26.9.4.0415",
+        title = "v26.9.4.0415 更新日志",
+        publishedAt = "2026-09-04 04:15",
         fontSize = 14,
         content = [[
+@H1@ v26.9.4.0415
+
+@CN@ @H2@ 小怪CD
+@CN@ - 现在在设置勾选DPS/治疗 不启用坦克技能提示时 会正确的过滤
+
+@CN@ @H2@ 配置系统
+@CN@ - 新增配置过滤功能
+
+@EN@ @H2@ Trash Mob CDs
+@EN@ - Tank-skill alerts are now correctly filtered when “Disable tank-skill alerts for DPS/Healers” is enabled.
+
+@EN@ @H2@ Profile System
+@EN@ - Added profile filtering.
+
 @H1@ v26.9.3.1122
 
 @CN@ @H2@ 小怪CD

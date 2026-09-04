@@ -726,6 +726,7 @@ GetSpellRows = function(mapID)
                             mobName = GetDisplayMobName(npcID, mob.name),
                             spellID = tonumber(spellID),
                             spellName = spellName,
+                            eventType = tostring(spellData.eventType or "其他"),
                             first = tonumber(spellData.first),
                             castTime = tonumber(spellData.castTime),
                             cd = type(spellData.cd) == "table" and spellData.cd or nil,
@@ -814,24 +815,29 @@ local function ResolveSpellEntryBorderColor(cfg)
     return nil
 end
 
-local function ResolveSpellEntryAlertIcon(cfg)
-    local mode = NormalizeEventColorMode(type(cfg) == "table" and cfg.eventColorMode or nil)
-    if type(cfg) ~= "table" or cfg.eventColorEnabled ~= true then
-        return nil
-    end
-    if mode == "tank" then
-        return "icons_64x64_tank"
-    end
-    if mode == "heal" then
-        return "icons_64x64_heal"
-    end
-    if mode == "target" then
-        return "cursor_crosshairs_48"
-    end
-    if mode == "mechanic" then
-        return "icons_64x64_deadly"
-    end
-    return "Ping_Wheel_Icon_Warning_Disabled_Small"
+-- 事件类型是 Excel 导出的战斗事实；图标绝不能从用户的颜色设置反推。
+-- 此映射与 Boss Factory 的 eventTypeSchemes 完全一致：特殊和机制共用 mechanic。
+local EVENT_TYPE_SCHEMES = {
+    ["坦克"] = "tank",
+    ["治疗"] = "heal",
+    ["点名"] = "target",
+    ["机制"] = "mechanic",
+    ["特殊"] = "mechanic",
+    ["其他"] = "cooldown",
+}
+
+-- 与 Boss 技能卡使用的同一组类别图标；此处不读取任何用户配置。
+local EVENT_SCHEME_ICONS = {
+    tank = "icons_64x64_tank",
+    heal = "icons_64x64_heal",
+    target = "cursor_crosshairs_48",
+    mechanic = "icons_64x64_deadly",
+    cooldown = "Ping_Wheel_Icon_Warning_Disabled_Small",
+}
+
+local function ResolveEventTypeIcon(eventType)
+    local scheme = EVENT_TYPE_SCHEMES[tostring(eventType or "")] or "cooldown"
+    return EVENT_SCHEME_ICONS[scheme]
 end
 
 local function NormalizeCountdownLeadSeconds(v)
@@ -1702,9 +1708,9 @@ function Page:RefreshSpellList()
         row._borderG = borderG
         row._borderB = borderB
         row.icon:ClearAllPoints()
-        local alertAtlas = ResolveSpellEntryAlertIcon(cfg)
-        if alertAtlas and row.alertIcon and row.alertIcon.SetAtlas then
-            row.alertIcon:SetAtlas(alertAtlas, false)
+        local eventTypeAtlas = ResolveEventTypeIcon(rowData.eventType)
+        if eventTypeAtlas and row.alertIcon and row.alertIcon.SetAtlas then
+            row.alertIcon:SetAtlas(eventTypeAtlas, false)
             row.alertIcon:Show()
             row.icon:SetPoint("LEFT", row.alertIcon, "RIGHT", 6, 0)
         else
