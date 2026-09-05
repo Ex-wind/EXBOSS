@@ -20,6 +20,7 @@ end
 local anchorController, anchorGroupOptions, anchorFrame
 local runtimeCollection, worldCollection, panelSurface, panelPreview, panelDock
 local worldEditing, sequence = false, 0
+local runtimeRendering, runtimeRenderPending = false, false
 local active = {}
 local ReapplyAll = nil
 local RemoveActive, ScheduleActiveExpiry, CancelActiveExpiry = nil, nil, nil
@@ -68,10 +69,25 @@ local function GetRowHeight(db)
     local textHeight = math.max(1, SafeNum(text.size, 24))
     local timeHeight = math.max(1, SafeNum(time.size, 22))
     local iconY = SafeNum(icon.y, 0)
-    local timeY = SafeNum(time.y, 0)
-    local lower = math.min(iconY - iconHeight * .5, -textHeight * .5, timeY - timeHeight * .5)
-    local upper = math.max(iconY + iconHeight * .5, textHeight * .5, timeY + timeHeight * .5)
+    -- 数字 Y 是单条内部视觉偏移，不能进入集合本体高度；否则 WidgetLayout
+    -- 会把它再次计入相邻条目的语义步距。
+    local lower = math.min(iconY - iconHeight * .5, -textHeight * .5, -timeHeight * .5)
+    local upper = math.max(iconY + iconHeight * .5, textHeight * .5, timeHeight * .5)
     return math.max(1, upper - lower)
+end
+
+local function GetDeclaredRowVerticalBounds(db, rowHeight)
+    local icon = type(db.icon) == "table" and db.icon or {}
+    local text = type(db.font_text) == "table" and db.font_text or {}
+    local time = type(db.font_time) == "table" and db.font_time or {}
+    local iconHeight = math.max(1, SafeNum(icon.height, 30))
+    local textHeight = math.max(1, SafeNum(text.size, 24))
+    local timeHeight = math.max(1, SafeNum(time.size, 22))
+    local iconY = SafeNum(icon.y, 0)
+    local timeY = SafeNum(time.y, 0)
+    local halfHeight = rowHeight * .5
+    return math.min(-halfHeight, iconY - iconHeight * .5, -textHeight * .5, timeY - timeHeight * .5),
+        math.max(halfHeight, iconY + iconHeight * .5, textHeight * .5, timeY + timeHeight * .5)
 end
 
 local EX_DEFAULTS = {
@@ -189,6 +205,8 @@ end
 local function BuildPresentation(record, mode)
     local db, icon = DB(), DB().icon or {}
     local geometry = GetRowGeometry(db)
+    local rowHeight = GetRowHeight(db)
+    local rowBottom, rowTop = GetDeclaredRowVerticalBounds(db, rowHeight)
     local static = mode ~= "runtime"
     -- Normal and Secret labels deliberately share the same fixed centre slot.
     -- Secret text is still passed through the native label path, but it never
@@ -209,8 +227,8 @@ local function BuildPresentation(record, mode)
         style = { icon = icon, text = { label = labelStyle, countdown = countdownStyle } },
         icon = record.icon, label = label, cooldown = cooldown,
         countdownTextVisible = true, cooldownDone = not static,
-        bodySize = { width = BODY_WIDTH, height = GetRowHeight(db) },
-        declaredBounds = { left = -BODY_WIDTH * .5, right = BODY_WIDTH * .5, bottom = -GetRowHeight(db) * .5, top = GetRowHeight(db) * .5 },
+        bodySize = { width = BODY_WIDTH, height = rowHeight },
+        declaredBounds = { left = -BODY_WIDTH * .5, right = BODY_WIDTH * .5, bottom = rowBottom, top = rowTop },
         -- 名称锚点可携带 Secret 几何；保留已经建立的边框视觉，但禁止
         -- Backdrop 在之后读取该 Secret 尺寸并重算九宫格坐标。
         suppressIconBorderGeometry = true,
@@ -226,7 +244,7 @@ local function BuildPresentation(record, mode)
                 anchor = { point = "RIGHT", relativeElement = "core.label.content", relativePoint = "LEFT", x = geometry.iconOffsetX, y = geometry.iconOffsetY },
             },
             time = {
-                bounds = { width = geometry.timeWidth, height = GetRowHeight(db) },
+                bounds = { width = geometry.timeWidth, height = rowHeight },
                 anchor = { point = "LEFT", relativeElement = "core.label.content", relativePoint = "RIGHT", x = geometry.timeOffsetX, y = geometry.timeOffsetY },
             },
         },
@@ -265,6 +283,24 @@ local function RenderCollection(collection, records, mode)
     end
     collection:SetItems(items, BuildLayout(DB()))
 end
+local function PruneRuntimeItems()
+    if not runtimeCollection then return end
+
+    local wanted, stale = {}, {}
+    for _, record in ipairs(active) do
+        wanted[tostring(record.id)] = true
+    end
+
+    for itemID in pairs(runtimeCollection:GetItems()) do
+        if not wanted[itemID] then
+            stale[#stale + 1] = itemID
+        end
+    end
+
+    for _, itemID in ipairs(stale) do
+        runtimeCollection:ReleaseItem(itemID)
+    end
+end
 local function EnsureRuntime()
     if anchorFrame then return end
     anchorFrame = EnsureAnchorController():Ensure()
@@ -277,7 +313,22 @@ end
 local function RenderRuntime()
     EnsureRuntime()
     if worldEditing then return end
-    RenderCollection(runtimeCollection, active, "runtime")
+
+    -- SetDurationObject may synchronously complete while ApplyItem is still
+    -- using the item. Defer the recursive render and any release until the
+    -- outer render has fully returned from the collection.
+    if runtimeRendering then
+        runtimeRenderPending = true
+        return
+    end
+
+    runtimeRendering = true
+    repeat
+        runtimeRenderPending = false
+        RenderCollection(runtimeCollection, active, "runtime")
+    until not runtimeRenderPending
+    PruneRuntimeItems()
+    runtimeRendering = false
     if #active > 0 then anchorFrame:Show() else anchorFrame:Hide() end
 end
 
@@ -383,7 +434,7 @@ function Countdown:Show(spec)
     while #active > math.min(3, math.max(1, math.floor(SafeNum(db.stackMax_1205, 2)))) do CancelActiveExpiry(active[#active]); table.remove(active) end
     RenderRuntime()
 end
-function Countdown:Stop() for index = #active, 1, -1 do CancelActiveExpiry(active[index]); active[index] = nil end; if runtimeCollection then runtimeCollection:SetItems({}, BuildLayout(DB())) end; if anchorFrame and not worldEditing then anchorFrame:Hide() end end
+function Countdown:Stop() for index = #active, 1, -1 do CancelActiveExpiry(active[index]); active[index] = nil end; if runtimeCollection then runtimeCollection:SetItems({}, BuildLayout(DB())); PruneRuntimeItems() end; if anchorFrame and not worldEditing then anchorFrame:Hide() end end
 function Countdown:RefreshVisuals() EnsureRuntime(); EnsureAnchorController():ApplyPosition(); ReapplyAll() end
 function Countdown:StartFramePicker() return EnsureAnchorController():StartFramePicker() end
 
@@ -405,7 +456,7 @@ ReapplyAll = function()
     if panelSurface and type(panelSurface.ReapplyPanelPresentation) == "function" then panelSurface:ReapplyPanelPresentation() end
     ResizePanelDock()
     ReapplyCollection(worldCollection, BuildPreviewRecords(), "world")
-    ReapplyCollection(runtimeCollection, active, "runtime")
+    RenderRuntime()
 end
 local STANDARD_CONFIG_BINDING = EXUI:RegisterStandardConfigBinding({ moduleKey = MODULE_KEY, getConfig = DB, reapplyExisting = ReapplyAll, schemaPaths = CONFIG_SCHEMA_PATHS })
 EXUI:RegisterModuleValueController(MODULE_KEY, { RefreshActiveSurfaces = function() return STANDARD_CONFIG_BINDING.reapplyExisting() end })
