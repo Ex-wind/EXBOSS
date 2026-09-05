@@ -342,8 +342,6 @@ end
 local function NotifyRuntime()
     local aura = ExBoss.AuraSound
     if aura and type(aura.RefreshActiveRegistrations) == "function" then aura:RefreshActiveRegistrations() end
-    local target = ExBoss.TargetAlert
-    if target and type(target.RefreshActiveRegistrations) == "function" then target:RefreshActiveRegistrations() end
 end
 
 local function RefreshAuraSound()
@@ -462,7 +460,23 @@ function BossConfig:GetRuntimeConfig(scene, slot)
 end
 function BossConfig:GetRuntimeEvent(scene, eventID)
     local runtime = API() and API().GetRuntime(scene)
-    return type(runtime) == "table" and type(runtime.events) == "table" and runtime.events[tonumber(eventID)] or nil
+    local eid = tonumber(eventID)
+    return type(runtime) == "table" and type(runtime.events) == "table" and eid
+        and (runtime.events[eid] or runtime.events[tostring(eid)]) or nil
+end
+
+-- ENCOUNTER_WARNING 的机制参数由 EXBossData 静态规则定义；显示方式完整沿用
+-- Boss 页面原有「被点名提示」配置，不新增或替换任何 GUI 字段。
+function BossConfig:GetEncounterWarningAlertConfig(scene, eventID)
+    local row = self:GetRuntimeEvent(tostring(scene or ""):lower(), eventID)
+    if type(row) ~= "table" or row.targetAlertStartEnabled ~= true then
+        return nil
+    end
+    return row
+end
+
+function BossConfig:IsEncounterWarningAlertEnabled(scene, eventID)
+    return self:GetEncounterWarningAlertConfig(scene, eventID) ~= nil
 end
 
 -- Boss 页面上的倒数文字和计时条改名都是事件行自身的纯文本字段。这里不能再

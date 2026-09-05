@@ -88,7 +88,6 @@ Modules\TrashCD\Observation.lua
 Modules\TrashCD\TrashCache.lua
 Modules\TrashCD\Calibration.lua
 Modules\TrashCD\NameplateMarker.lua
-Modules\Tools\TargetIdentityState.lua
 Modules\Tools\MythicCast.lua
 Modules\Tools\InterruptTracker.lua
 
@@ -123,7 +122,7 @@ ExBossVoice\Engine.lua
 ExBossVoice\CountdownVoice.lua
 # ExBossVoice\OtherSounds.lua
 Modules\AuraSound\Runtime.lua
-# TargetAlert\Runtime.lua -- 临时停用：被点名提示
+TargetAlert\Runtime.lua
 
 # ── 6. GUI 层
 Modules\TrashCD\Bootstrap.lua

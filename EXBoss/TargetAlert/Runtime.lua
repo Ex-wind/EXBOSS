@@ -1,1792 +1,477 @@
----@diagnostic disable: undefined-global
+---@diagnostic disable: undefined-global, undefined-field
+-- =============================================================
+-- TargetAlert/Runtime.lua
+-- 声明式 ENCOUNTER_WARNING 提示：以 Boss event 的预计结束时刻为窗口中心。
+-- 不读取目标、名字、GUID 或其他受限的 EncounterWarningInfo 字段。
+-- =============================================================
 
 ExBoss = ExBoss or {}
 ExBoss.TargetAlert = ExBoss.TargetAlert or {}
 
 local Runtime = ExBoss.TargetAlert
-local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
-local PlaySoundFile = _G.PlaySoundFile
-local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+local OWNER_PREFIX = "ExBoss.EncounterWarningAlert"
 
-local OWNER = "ExBoss.TargetAlert.Runtime"
-local BOSS_CAST_START_EVENT = "EXBOSS_BOSS_OBSERVED_CAST_START"
-local BOSS_CAST_STOP_EVENT = "EXBOSS_BOSS_OBSERVED_CAST_STOP"
-local TRASH_CAST_START_EVENT = "EXBOSS_TRASH_OBSERVED_CAST_START"
-local TRASH_VOICE_START_EVENT = "EXBOSS_TRASH_CAST_START_VOICE_TRIGGERED"
-local TRASH_CAST_STOP_EVENT = "EXBOSS_TRASH_CASTBAR_STOP"
-local FIXED_AI_EVENT_FINISHED_EVENT = "EXBOSS_FIXED_AI_EVENT_FINISHED"
-local TARGET_ALERT_TRIGGERED_EVENT = "EXBOSS_TARGET_ALERT_TRIGGERED"
-local TARGET_ALERT_A_DELAY = 0.10
+local EMPTY_DECLARATIONS = {}
 
-Runtime._bossRules = Runtime._bossRules or {}
-Runtime._trashRules = Runtime._trashRules or {}
-Runtime._pending = Runtime._pending or {}
-Runtime._pendingNextID = tonumber(Runtime._pendingNextID) or 1
-Runtime._generation = tonumber(Runtime._generation) or 1
-Runtime._fired = Runtime._fired or {}
-Runtime._displayKeys = Runtime._displayKeys or {}
-Runtime._encounterWarningRevision = tonumber(Runtime._encounterWarningRevision) or 0
-Runtime._encounterWarningLastAt = tonumber(Runtime._encounterWarningLastAt) or 0
-
-local function NormalizeMode(value)
-    local mode = tostring(value or "A"):upper()
-    if mode == "TARGET_TOKEN" then
-        return "A"
+local function GetDeclarations()
+    local data = _G.EXBossData
+    if type(data) == "table" and type(data.GetEncounterWarningRules) == "function" then
+        local declarations = data.GetEncounterWarningRules()
+        if type(declarations) == "table" then
+            return declarations
+        end
     end
-    if mode == "PLAYER_DEBUFF_DELTA" then
-        return "B"
-    end
-    if mode == "ENCOUNTER_WARNING" or mode == "WARNING_DELTA" then
-        return "C"
-    end
-    if mode == "EITHER" then
-        return "A_OR_B"
-    end
-    if mode ~= "A" and mode ~= "B" and mode ~= "C" and mode ~= "A_OR_B" then
-        mode = "A"
-    end
-    return mode
+    return EMPTY_DECLARATIONS
 end
 
-local function NormalizeAnchor(value)
-    local anchor = tostring(value or "cast_start"):lower()
-    if anchor ~= "cast_start" and anchor ~= "cast_end" then
-        anchor = "cast_start"
+local function GetCurrentBossScene()
+    if type(GetInstanceInfo) ~= "function" then
+        return "mplus"
     end
-    return anchor
+    local _, instanceType = GetInstanceInfo()
+    if instanceType == "party" then
+        return "mplus"
+    end
+    if instanceType == "raid" then
+        return "raid"
+    end
+    -- BossConfig 在副本外原本就预载 M+ Runtime；测试命令沿用同一选择，
+    -- 不建立第二份 GUI 配置来源。
+    return "mplus"
 end
 
-local function NormalizeWarningAnchor(value)
-    local anchor = tostring(value or "cast_start"):lower()
-    if anchor ~= "cast_start" and anchor ~= "cast_end" and anchor ~= "scheduler_finish" then
-        anchor = "cast_start"
-    end
-    return anchor
-end
-
-local function NormalizeWindow(value)
-    local window = tonumber(value)
-    if not window then
-        return 0.10
-    end
-    if window < 0.01 then
-        return 0.01
-    end
-    if window > 1.00 then
-        return 1.00
-    end
-    return window
-end
-
-local function NormalizeSeconds(value, defaultValue, maxValue)
-    local seconds = tonumber(value)
-    if not seconds then
-        return tonumber(defaultValue) or 0
-    end
-    if seconds < 0 then
-        return 0
-    end
-    local cap = tonumber(maxValue) or 10.0
-    if seconds > cap then
-        return cap
-    end
-    return seconds
-end
-
-local function ResolveDebuffTiming(rule)
-    if type(rule) ~= "table" then
-        return 0, 0.10
-    end
-    if rule.debuffDelay ~= nil then
-        return 0, NormalizeSeconds(rule.debuffDelay, 0.10, 10.0)
-    end
-    local beforeWindow = NormalizeSeconds(rule.debuffWindowBefore, 0, 10.0)
-    local afterWindow = rule.debuffWindowAfter
-    if afterWindow == nil and rule.debuffWindow ~= nil then
-        afterWindow = NormalizeWindow(rule.debuffWindow)
-    end
-    afterWindow = NormalizeSeconds(afterWindow, 0.10, 10.0)
-    return beforeWindow, afterWindow
-end
-
-local function ResolveWarningTiming(rule)
-    if type(rule) ~= "table" then
-        return 0, 0.75
-    end
-    if rule.warningDelay ~= nil then
-        return 0, NormalizeSeconds(rule.warningDelay, 0.75, 10.0)
-    end
-    local beforeWindow = rule.warningWindowBefore
-    if beforeWindow == nil then
-        beforeWindow = rule.debuffWindowBefore
-    end
-    beforeWindow = NormalizeSeconds(beforeWindow, 0, 10.0)
-    local afterWindow = rule.warningWindowAfter
-    if afterWindow == nil then
-        afterWindow = rule.warningWindow
-    end
-    if afterWindow == nil then
-        afterWindow = rule.debuffWindowAfter
-    end
-    if afterWindow == nil and rule.debuffWindow ~= nil then
-        afterWindow = NormalizeWindow(rule.debuffWindow)
-    end
-    afterWindow = NormalizeSeconds(afterWindow, 0.75, 10.0)
-    return beforeWindow, afterWindow
-end
-
-local function GetRuleBucket(encounterID, eventID, createIfMissing)
-    local eventKey = tonumber(eventID)
-    if not eventKey then
+local function GetBossGUIConfig(eventID)
+    local scene = GetCurrentBossScene()
+    local bossConfig = ExBoss.BossConfig
+    if scene == nil or not bossConfig
+        or type(bossConfig.GetEncounterWarningAlertConfig) ~= "function" then
         return nil
     end
-    local eid = tonumber(encounterID)
-    local scopeKey = eid or "__any"
-    if createIfMissing then
-        Runtime._bossRules[scopeKey] = Runtime._bossRules[scopeKey] or {}
-        Runtime._bossRules[scopeKey][eventKey] = Runtime._bossRules[scopeKey][eventKey] or {}
-    end
-    return Runtime._bossRules[scopeKey] and Runtime._bossRules[scopeKey][eventKey] or nil
+    return bossConfig:GetEncounterWarningAlertConfig(scene, eventID)
 end
 
-local function GetMatchingRules(payload)
-    local encounterID = tonumber(type(payload) == "table" and payload.encounterID or nil)
-    local eventID = tonumber(type(payload) == "table" and payload.eventID or nil)
-    local bucket = GetRuleBucket(encounterID, eventID, false)
-    local anyBucket = GetRuleBucket(nil, eventID, false)
-    local specificCount = type(bucket) == "table" and #bucket or 0
-    local anyCount = type(anyBucket) == "table" and #anyBucket or 0
-    if specificCount == 0 and anyCount == 0 then
+local function IsEnabledByBossGUI(eventID)
+    return GetBossGUIConfig(eventID) ~= nil
+end
+
+Runtime._windows = {}
+
+local function Now()
+    return GetTime and GetTime() or 0
+end
+
+local function Say(message)
+    if ExBoss.Print and type(ExBoss.Print.Say) == "function" then
+        ExBoss.Print.Say(message)
+    elseif type(print) == "function" then
+        print("<EXBOSS> " .. tostring(message))
+    end
+end
+
+local function ResolveDeclaration(raw, index)
+    if type(raw) ~= "table" then
         return nil
     end
-    if anyCount == 0 then
-        return bucket
+
+    local eventID = tonumber(raw.eventID)
+    local severity = tonumber(raw.severity)
+    local spellID = tonumber(raw.spellID)
+    local duration = tonumber(raw.duration)
+    if not eventID or severity == nil or not spellID or not duration or duration <= 0 then
+        return nil
     end
-    if specificCount == 0 then
-        return anyBucket
+
+    local windowBefore = tonumber(raw.windowBefore)
+    local windowAfter = tonumber(raw.windowAfter)
+    if windowBefore == nil or windowAfter == nil or windowBefore < 0 or windowAfter < 0 then
+        return nil
     end
-    local merged = {}
-    for i = 1, specificCount do
-        merged[#merged + 1] = bucket[i]
+
+    local encounterID = raw.encounterID ~= nil and tonumber(raw.encounterID) or nil
+    if raw.encounterID ~= nil and not encounterID then
+        return nil
     end
-    for i = 1, anyCount do
-        merged[#merged + 1] = anyBucket[i]
-    end
-    return merged
+
+    return {
+        index = index,
+        encounterID = encounterID,
+        eventID = eventID,
+        severity = severity,
+        windowBefore = windowBefore,
+        windowAfter = windowAfter,
+        spellID = spellID,
+        duration = duration,
+    }
 end
 
-local function BuildFireKey(rule, payload)
+local function IsBossTimer(timer)
+    if type(timer) ~= "table" then
+        return false
+    end
+    -- 不让 TrashCD 或独立小怪计时器成为此功能的窗口来源。
+    if timer.source == "trash" or timer.displaySource == "trash"
+        or timer.trashMeta ~= nil or timer.trashRuntime ~= nil or timer.trashSpellData ~= nil then
+        return false
+    end
+    return true
+end
+
+local function GetTimerEventID(timer)
+    if type(timer) ~= "table" then
+        return nil
+    end
+    -- fixed / fixed_ai 使用 eventID；原生时间轴计时器使用 timelineEventID。
+    return tonumber(timer.eventID) or tonumber(timer.timelineEventID)
+end
+
+local function BuildWindowKey(encounterID, eventID, timerID, declaration)
     return table.concat({
-        tostring(rule and rule.key or "rule"),
-        tostring(type(payload) == "table" and (payload.runtimeID or payload.runtimeKey) or 0),
-        tostring(type(payload) == "table" and payload.castKind or ""),
-        tostring(type(payload) == "table" and payload.castBarID or 0),
+        tostring(encounterID or "any"),
+        tostring(eventID),
+        tostring(timerID),
+        tostring(declaration.index),
     }, ":")
 end
 
-local function BuildDisplayKey(rule, payload)
-    return "targetalert:" .. BuildFireKey(rule, payload)
-end
-
-local function ResolveDisplayText(rule, payload)
-    local custom = tostring(type(rule) == "table" and rule.placeholderText or "")
-    if custom ~= "" then
-        return custom
+local function StopWindowDisplay(window)
+    local iconAlert = ExBoss.UI and ExBoss.UI.IconAlert or nil
+    if iconAlert and type(iconAlert.StopByOwner) == "function" and window and window.owner then
+        iconAlert:StopByOwner(window.owner)
+        if window.stealthOwner then iconAlert:StopByOwner(window.stealthOwner) end
     end
-    local displayName = tostring(type(payload) == "table" and payload.displayName or "")
-    if displayName ~= "" then
-        return displayName .. " " .. L["点你"]
-    end
-    return L["被点名"]
-end
-
-local function ResolveCountdownText(rule, payload)
-    local custom = tostring(type(rule) == "table" and rule.placeholderText or "")
-    if custom ~= "" then
-        return custom
-    end
-    local displayName = tostring(type(payload) == "table" and payload.displayName or "")
-    if displayName ~= "" then
-        return displayName
-    end
-    return ResolveDisplayText(rule, payload)
-end
-
-local function ClonePayloadWithMatchAt(payload, matchAt)
-    if type(payload) ~= "table" then
-        return {
-            _matchAt = tonumber(matchAt) or nil,
-        }
-    end
-    local copy = {}
-    for key, value in pairs(payload) do
-        copy[key] = value
-    end
-    copy._matchAt = tonumber(matchAt) or nil
-    return copy
-end
-
-local function DeepCopy(value)
-    if type(value) ~= "table" then
-        return value
-    end
-    local out = {}
-    for key, item in pairs(value) do
-        out[DeepCopy(key)] = DeepCopy(item)
-    end
-    return out
-end
-
-local _encounterEventIndexCache = nil
-local _encounterEventIndexSource = nil
-
-local function BuildEncounterEventIndex()
-    local data = _G.EXBOSS_ENCOUNTER_DATA
-    if _encounterEventIndexCache and _encounterEventIndexSource == data then
-        return _encounterEventIndexCache
-    end
-    local out = {}
-    if type(data) == "table" and type(data.maps) == "table" then
-        for _, mapRow in pairs(data.maps) do
-            if type(mapRow) == "table" and type(mapRow.bosses) == "table" then
-                for _, bossRow in pairs(mapRow.bosses) do
-                    if type(bossRow) == "table" and type(bossRow.events) == "table" then
-                        for rawEventID, eventRow in pairs(bossRow.events) do
-                            local eid = tonumber(rawEventID) or
-                                (type(eventRow) == "table" and tonumber(eventRow.eventID))
-                            if eid and type(eventRow) == "table" then
-                                out[eid] = eventRow
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    _encounterEventIndexCache = out
-    _encounterEventIndexSource = data
-    return out
-end
-
-local function BuildEncounterEventPlanByID(eventID)
-    local eid = tonumber(eventID)
-    if not eid then
-        return nil
-    end
-    local row = BuildEncounterEventIndex()[eid]
-    if type(row) ~= "table" then
-        return nil
-    end
-    local castDuration = tonumber(row.castDuration)
-    local channelDuration = tonumber(row.channelDuration)
-    local plan = {}
-    local totalDuration = 0
-    if castDuration and castDuration > 0.05 then
-        plan[#plan + 1] = {
-            duration = castDuration,
-            castKind = "cast",
-        }
-        totalDuration = totalDuration + castDuration
-    end
-    if channelDuration and channelDuration > 0.05 then
-        plan[#plan + 1] = {
-            duration = channelDuration,
-            castKind = "channel",
-        }
-        totalDuration = totalDuration + channelDuration
-    end
-    if #plan == 0 then
-        return nil
-    end
-    return {
-        plan = plan,
-        totalDuration = totalDuration,
-    }
-end
-
-local function GetEncounterEventDurationByID(eventID)
-    local timing = BuildEncounterEventPlanByID(eventID)
-    if type(timing) ~= "table" then
-        return nil
-    end
-    local totalDuration = tonumber(timing.totalDuration)
-    if totalDuration and totalDuration > 0.05 then
-        return totalDuration
-    end
-    return nil
-end
-
-local function GetEncounterEventPlanByID(eventID)
-    local timing = BuildEncounterEventPlanByID(eventID)
-    if type(timing) ~= "table" or type(timing.plan) ~= "table" or #timing.plan == 0 then
-        return nil
-    end
-    return DeepCopy(timing.plan)
-end
-
-local function GetTrashSpellRow(payload)
-    if type(payload) ~= "table" then
-        return nil
-    end
-    local mapID = tonumber(payload.mapID)
-    local npcID = tonumber(payload.npcID)
-    local spellID = tonumber(payload.spellID)
-    if not (mapID and npcID and spellID) then
-        return nil
-    end
-    local root = rawget(_G, "EXBOSS_TRASH_CD_DATA")
-    local mapRow = type(root) == "table" and root[mapID] or nil
-    local mobRow = type(mapRow) == "table" and type(mapRow.mobs) == "table" and mapRow.mobs[npcID] or nil
-    local spellRow = type(mobRow) == "table" and type(mobRow.spells) == "table" and mobRow.spells[spellID] or nil
-    if type(spellRow) ~= "table" then
-        return nil
-    end
-    return spellRow
-end
-
-local function BuildTrashSpellPlan(payload)
-    local row = GetTrashSpellRow(payload)
-    if type(row) ~= "table" then
-        return nil
-    end
-    local castDuration = tonumber(row.castTime) or tonumber(row.castDuration)
-    local channelDuration = tonumber(row.channelTime) or tonumber(row.channelDuration)
-    local plan = {}
-    local totalDuration = 0
-    if castDuration and castDuration > 0.05 then
-        plan[#plan + 1] = {
-            duration = castDuration,
-            castKind = "cast",
-        }
-        totalDuration = totalDuration + castDuration
-    end
-    if channelDuration and channelDuration > 0.05 then
-        plan[#plan + 1] = {
-            duration = channelDuration,
-            castKind = "channel",
-        }
-        totalDuration = totalDuration + channelDuration
-    end
-    if #plan == 0 then
-        return nil
-    end
-    return {
-        plan = plan,
-        totalDuration = totalDuration,
-    }
-end
-
-local function GetTrashSpellDuration(payload)
-    local timing = BuildTrashSpellPlan(payload)
-    if type(timing) ~= "table" then
-        return nil
-    end
-    local totalDuration = tonumber(timing.totalDuration)
-    if totalDuration and totalDuration > 0.05 then
-        return totalDuration
-    end
-    return nil
-end
-
-local function GetTrashSpellPlan(payload)
-    local timing = BuildTrashSpellPlan(payload)
-    if type(timing) ~= "table" or type(timing.plan) ~= "table" or #timing.plan == 0 then
-        return nil
-    end
-    return DeepCopy(timing.plan)
-end
-
-local function ResolveDisplayDuration(rule, payload)
-    local configuredDuration = tonumber(type(rule) == "table" and rule.displayDuration or nil)
-    if configuredDuration and configuredDuration > 0.05 then
-        local matchAt = tonumber(type(payload) == "table" and payload._matchAt or nil)
-        if matchAt and matchAt > 0 then
-            return math.max(0, configuredDuration - math.max(0, (GetTime and GetTime() or 0) - matchAt))
-        end
-        return configuredDuration
-    end
-    local trashDuration = GetTrashSpellDuration(payload)
-    if trashDuration and trashDuration > 0.05 then
-        return trashDuration
-    end
-    local encounterDuration = GetEncounterEventDurationByID(type(payload) == "table" and payload.eventID or nil)
-    if encounterDuration and encounterDuration > 0.05 then
-        return encounterDuration
-    end
-    local totalDuration = tonumber(type(payload) == "table" and payload.totalDuration or nil)
-    if totalDuration and totalDuration > 0.05 then
-        return totalDuration
-    end
-    return nil
-end
-
-local function IsRingProgressGloballyEnabled()
-    local Ring = ExBoss and ExBoss.UI and ExBoss.UI.RingProgress or nil
-    if not (Ring and type(Ring.ShowEntry) == "function") then
-        return false
-    end
-    local db = nil
-    if ExwindTools and type(ExwindTools.GetModuleDB) == "function" then
-        local ok, mdb = pcall(ExwindTools.GetModuleDB, ExwindTools, "ExBoss.RingProgress", { enabled = true })
-        if ok and type(mdb) == "table" then
-            db = mdb
-        end
-    end
-    if type(db) ~= "table" then
-        db = EXBOSS12S2 and EXBOSS12S2.timer and EXBOSS12S2.timer.ringProgress or nil
-    end
-    return type(db) == "table" and db.enabled == true
-end
-
-local function ShowRuleRing(rule, payload)
-    if not (type(rule) == "table" and rule.ringEnabled == true and IsRingProgressGloballyEnabled()) then
-        return false
-    end
-    local Ring = ExBoss and ExBoss.UI and ExBoss.UI.RingProgress or nil
-    if not (Ring and type(Ring.ShowEntry) == "function") then
-        return false
-    end
-    local configuredDuration = tonumber(type(rule) == "table" and rule.displayDuration or nil)
-    local matchAt = tonumber(type(payload) == "table" and payload._matchAt or nil)
-    local phasePlan = GetTrashSpellPlan(payload) or
-        GetEncounterEventPlanByID(type(payload) == "table" and payload.eventID or nil)
-    if configuredDuration and configuredDuration > 0.05 then
-        local remaining = ResolveDisplayDuration(rule, payload)
-        if not remaining or remaining <= 0.05 then
-            return false
-        end
-        local totalDuration = configuredDuration
-        local endAt = matchAt and (matchAt + totalDuration) or ((GetTime and GetTime() or 0) + remaining)
-        Ring:ShowEntry({
-            duration = totalDuration,
-            endTime = endAt,
-            castKind = "cast",
-            castCheckEnabled = false,
-            displayName = ResolveCountdownText(rule, payload),
-            progressDisplayName = ResolveCountdownText(rule, payload),
-            spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-            owner = {
-                source = "targetalert",
-                earlyStopEnabled = true,
-                eventID = tonumber(type(payload) == "table" and payload.eventID or nil),
-                spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-                ruleKey = tostring(rule.key or ""),
-            },
-        })
-        return true
-    end
-    if type(phasePlan) == "table" and #phasePlan > 0 then
-        for i = 1, #phasePlan do
-            local phase = phasePlan[i]
-            if type(phase) == "table" then
-                phase.displayName = ResolveCountdownText(rule, payload)
-                phase.progressDisplayName = ResolveCountdownText(rule, payload)
-                phase.spellID = tonumber(type(payload) == "table" and payload.spellID or nil)
-                phase.castCheckEnabled = false
-            end
-        end
-        if #phasePlan > 1 and type(Ring.ShowSequence) == "function" then
-            Ring:ShowSequence(phasePlan, {
-                castCheckEnabled = false,
-                owner = {
-                    source = "targetalert",
-                    earlyStopEnabled = true,
-                    eventID = tonumber(type(payload) == "table" and payload.eventID or nil),
-                    spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-                    ruleKey = tostring(rule.key or ""),
-                },
-            })
-            return true
-        end
-        local phase = phasePlan[1]
-        Ring:ShowEntry({
-            duration = tonumber(phase.duration) or 0,
-            endTime = (GetTime and GetTime() or 0) + (tonumber(phase.duration) or 0),
-            castKind = tostring(phase.castKind or "cast"),
-            castCheckEnabled = false,
-            displayName = ResolveCountdownText(rule, payload),
-            progressDisplayName = ResolveCountdownText(rule, payload),
-            spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-            owner = {
-                source = "targetalert",
-                earlyStopEnabled = true,
-                eventID = tonumber(type(payload) == "table" and payload.eventID or nil),
-                spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-                ruleKey = tostring(rule.key or ""),
-            },
-        })
-        return true
-    end
-    local remaining = ResolveDisplayDuration(rule, payload)
-    if (not remaining or remaining <= 0.05) and (not configuredDuration or configuredDuration <= 0.05) then
-        return false
-    end
-    local totalDuration = configuredDuration and configuredDuration > 0.05 and configuredDuration or remaining
-    local endAt = matchAt and totalDuration and (matchAt + totalDuration) or
-        ((GetTime and GetTime() or 0) + (remaining or totalDuration))
-    Ring:ShowEntry({
-        duration = totalDuration,
-        endTime = endAt,
-        castKind = "cast",
-        castCheckEnabled = false,
-        displayName = ResolveCountdownText(rule, payload),
-        progressDisplayName = ResolveCountdownText(rule, payload),
-        spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-        owner = {
-            source = "targetalert",
-            earlyStopEnabled = true,
-            eventID = tonumber(type(payload) == "table" and payload.eventID or nil),
-            spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-            ruleKey = tostring(rule.key or ""),
-        },
-    })
-    return true
-end
-
-local function IsIconAlertGloballyEnabled()
-    local Icon = ExBoss and ExBoss.UI and ExBoss.UI.IconAlert or nil
-    if not (Icon and type(Icon.ShowEntry) == "function" and type(Icon.GetDB) == "function") then
-        return false
-    end
-    local db = Icon:GetDB()
-    return type(db) == "table" and db.enabled == true
-end
-
-local function ShowRuleIcon(rule, payload)
-    local ruleIconEnabled = type(rule) == "table" and rule.iconEnabled == true
-    local globalIconEnabled = IsIconAlertGloballyEnabled()
-    if not (ruleIconEnabled and globalIconEnabled) then
-        return false
-    end
-    local Icon = ExBoss and ExBoss.UI and ExBoss.UI.IconAlert or nil
-    if not (Icon and type(Icon.ShowEntry) == "function") then
-        return false
-    end
-    local remaining = ResolveDisplayDuration(rule, payload)
-    local configuredDuration = tonumber(type(rule) == "table" and rule.displayDuration or nil)
-    if (not remaining or remaining <= 0.05) and (not configuredDuration or configuredDuration <= 0.05) then
-        return false
-    end
-    local totalDuration = configuredDuration and configuredDuration > 0.05 and configuredDuration or remaining
-    local matchAt = tonumber(type(payload) == "table" and payload._matchAt or nil)
-    local endAt = matchAt and totalDuration and (matchAt + totalDuration) or
-        ((GetTime and GetTime() or 0) + (remaining or totalDuration))
-    local state = ExwindTools and ExwindTools.State or nil
-    local shadowmeldAvailable = type(state) == "table" and state.ShadowmeldAvailable == true
-    local shadowmeldOnCooldown = type(state) == "table" and state.ShadowmeldCD == true
-    local shadowmeldEnabled = type(rule) == "table" and rule.stealthEnabled == true
-    if shadowmeldEnabled and shadowmeldAvailable and not shadowmeldOnCooldown then
-        Icon:ShowEntry({
-            duration = totalDuration,
-            endTime = endAt,
-            text = " ",
-            icon = 132089,
-            hideCooldown = true,
-            hideCountdownNumbers = true,
-            owner = {
-                key = tostring(rule.key or "targetalert") .. ":stealth",
-            },
-        })
-    end
-    local key = Icon:ShowEntry({
-        duration = totalDuration,
-        endTime = endAt,
-        displayName = ResolveCountdownText(rule, payload),
-        spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-        owner = {
-            source = "targetalert",
-            eventID = tonumber(type(payload) == "table" and payload.eventID or nil),
-            spellID = tonumber(type(payload) == "table" and payload.spellID or nil),
-            ruleKey = tostring(rule.key or ""),
-            castBarID = tonumber(type(payload) == "table" and payload.castBarID or nil),
-        },
-    })
-    return true
-end
-
-local function StopDisplayKey(displayKey)
-    if tostring(displayKey or "") == "" then
-        return
-    end
-    if ExBoss and type(ExBoss.StopFlashCountdown) == "function" then
-        ExBoss:StopFlashCountdown(displayKey)
+    local ring = ExBoss.UI and ExBoss.UI.RingProgress or nil
+    if ring and type(ring.StopByOwner) == "function" and window and window.ringOwner then
+        ring:StopByOwner(window.ringOwner)
     end
 end
 
-local function StopRuntimeDisplays(runtimeID)
-    local rid = tostring(runtimeID or "")
-    if rid == "" then
-        return
-    end
-    local keys = Runtime._displayKeys[rid]
-    if type(keys) ~= "table" then
-        return
-    end
-    for i = 1, #keys do
-        StopDisplayKey(keys[i])
-    end
-    Runtime._displayKeys[rid] = nil
-end
-
-local function ResolveRuntimeToken(payload)
-    if type(payload) ~= "table" then
-        return ""
-    end
-    local token = payload.runtimeID or payload.runtimeKey or payload.runtime
-    return tostring(token or "")
-end
-
-local function CancelPendingForRuntime(runtimeToken)
-    local rid = tostring(runtimeToken or "")
-    if rid == "" then
-        return
-    end
-    for pendingID, current in pairs(Runtime._pending or {}) do
-        if type(current) == "table" and tostring(current.runtimeToken or "") == rid then
-            Runtime._pending[pendingID] = nil
+local function PruneExpiredWindows(now)
+    for key, window in pairs(Runtime._windows) do
+        if type(window) ~= "table" or now > (tonumber(window.endAt) or 0) then
+            Runtime._windows[key] = nil
         end
     end
 end
 
-local function PlayRuleSound(rule)
-    local voiceConfig = type(rule) == "table" and rule.voiceConfig or nil
-    local engine = ExBoss and ExBoss.Voice and ExBoss.Voice.Engine
-    if type(voiceConfig) == "table" and engine and type(engine.TryPlayStandaloneSound) == "function" then
-        local played = engine:TryPlayStandaloneSound(voiceConfig, "target_alert:" .. tostring(rule.key or ""), {
-            triggerIndex = 0,
-        })
-        if played then
-            return true
+local function GetSpellName(spellID)
+    if C_Spell and type(C_Spell.GetSpellName) == "function" then
+        local ok, name = pcall(C_Spell.GetSpellName, spellID)
+        if ok and type(name) == "string" and name ~= "" then
+            return name
         end
     end
-    local soundKey = tostring(type(rule) == "table" and rule.soundKey or "")
-    if soundKey == "" or not (LSM and type(LSM.Fetch) == "function" and PlaySoundFile) then
-        return false
+    if type(GetSpellInfo) == "function" then
+        local ok, name = pcall(GetSpellInfo, spellID)
+        if ok and type(name) == "string" and name ~= "" then return name end
     end
-    local soundPath = LSM:Fetch("sound", soundKey, true)
-    if type(soundPath) ~= "string" or soundPath == "" then
-        return false
-    end
-    pcall(PlaySoundFile, soundPath, "Master")
-    return true
+    return tostring(spellID)
 end
 
-local function BuildBossTargetAlertVoiceConfig(row)
-    if type(row) ~= "table" or row.targetAlertVoiceEnabled == false then
-        return nil
-    end
-    local sourceType = tostring(row.targetAlertStartSource or "lsm"):lower()
+local function BuildVoiceConfig(config)
+    if type(config) ~= "table" or config.targetAlertVoiceEnabled ~= true then return nil end
+    local sourceType = tostring(config.targetAlertStartSource or "lsm"):lower()
     if sourceType ~= "pack" and sourceType ~= "lsm" and sourceType ~= "file" and sourceType ~= "tts" then
         sourceType = "lsm"
     end
     return {
         enabled = true,
         sourceType = sourceType,
-        label = tostring(row.targetAlertStartLabel or ""),
-        customLSM = tostring(row.targetAlertStartLSM or ""),
-        customPath = tostring(row.targetAlertStartPath or ""),
-        ttsText = tostring(row.targetAlertStartTtsText or ""),
+        label = tostring(config.targetAlertStartLabel or ""),
+        customLSM = tostring(config.targetAlertStartLSM or ""),
+        customPath = tostring(config.targetAlertStartPath or ""),
+        ttsText = tostring(config.targetAlertStartTtsText or ""),
     }
 end
 
-local function SendTriggeredEvent(rule, payload, reason)
-    if ExwindTools and type(ExwindTools.SendEvent) == "function" then
-        ExwindTools:SendEvent(TARGET_ALERT_TRIGGERED_EVENT, {
-            ruleKey = tostring(rule and rule.key or ""),
-            source = tostring(payload and payload.source or ""),
-            encounterID = tonumber(payload and payload.encounterID or nil),
-            eventID = tonumber(payload and payload.eventID or nil),
-            runtimeID = tonumber(payload and payload.runtimeID or nil),
-            runtimeKey = tostring(payload and payload.runtimeKey or ""),
-            mapID = tonumber(payload and payload.mapID or nil),
-            npcID = tonumber(payload and payload.npcID or nil),
-            spellID = tonumber(payload and payload.spellID or nil),
-            displayName = tostring(payload and payload.displayName or ""),
-            unit = tostring(payload and payload.unit or ""),
-            castKind = tostring(payload and payload.castKind or ""),
-            castBarID = tonumber(payload and payload.castBarID or nil),
-            totalDuration = tonumber(payload and payload.totalDuration or nil),
-            reason = tostring(reason or ""),
-        })
-    end
-end
+local function ShowWindow(window, now, config)
+    config = type(config) == "table" and config or {}
 
-local function ShowPlaceholder(rule, payload, reason, fireKey)
-    if type(rule) == "table" and rule.textEnabled == false then
-        SendTriggeredEvent(rule, payload, reason)
-        PlayRuleSound(rule)
-        return
-    end
-    local text = ResolveDisplayText(rule, payload)
-    local countdownText = ResolveCountdownText(rule, payload)
-    local displayKey = BuildDisplayKey(rule, payload)
-    local displayDuration = ResolveDisplayDuration(rule, payload)
-    local configuredDuration = tonumber(type(rule) == "table" and rule.displayDuration or nil)
-    local payloadDuration = tonumber(type(payload) == "table" and payload.totalDuration or nil)
-    local totalDisplayDuration = nil
-    if configuredDuration and configuredDuration > 0.05 then
-        totalDisplayDuration = configuredDuration
-    elseif payloadDuration and payloadDuration > 0.05 then
-        totalDisplayDuration = payloadDuration
-    end
-    local matchAt = tonumber(type(payload) == "table" and payload._matchAt or nil)
-    local displayEndAt = matchAt and totalDisplayDuration and (matchAt + totalDisplayDuration) or nil
-    SendTriggeredEvent(rule, payload, reason)
-    PlayRuleSound(rule)
-    if displayDuration and ExBoss and type(ExBoss.FlashCountdown) == "function" then
-        local runtimeID = tostring(type(payload) == "table" and (payload.runtimeID or payload.runtimeKey) or "")
-        if runtimeID ~= "" then
-            Runtime._displayKeys[runtimeID] = Runtime._displayKeys[runtimeID] or {}
-            Runtime._displayKeys[runtimeID][#Runtime._displayKeys[runtimeID] + 1] = displayKey
-        end
-        ExBoss:FlashCountdown(countdownText, displayDuration, {
-            key = displayKey,
-            template = "{text} > {time}",
-            channel = "central_medium",
-            endAt = displayEndAt,
-            noAnimation = true,
-            tickDuration = 0.10,
-        })
-        return
-    end
-    local medium = ExBoss and ExBoss.UI and ExBoss.UI.FlashTextMedium
-    if medium and type(medium.Show) == "function" then
-        medium:Show({
-            text = text,
-            duration = 1.5,
-            noAnimation = true,
-        })
-    end
-end
-
-local IsCurrentPlayerTank
-local IsRuleAllowedForCurrentRole
-
-local function TryFireRule(rule, payload, reason, matchAt)
-    local fireKey = BuildFireKey(rule, payload)
-    if Runtime._fired[fireKey] == true then
-        return false
-    end
-    if not IsRuleAllowedForCurrentRole(rule) then
-        return false
-    end
-    local effectivePayload = ClonePayloadWithMatchAt(payload, matchAt)
-    if tostring(reason or "") == "A" and type(effectivePayload) == "table" then
-        local directDuration = GetTrashSpellDuration(effectivePayload) or
-            GetEncounterEventDurationByID(effectivePayload.eventID)
-        if directDuration and directDuration > 0.05 then
-            effectivePayload.totalDuration = directDuration
-        end
-    end
-    Runtime._fired[fireKey] = true
-    local firedDuration = nil
-    if type(rule) == "table" and tonumber(rule.displayDuration) and tonumber(rule.displayDuration) > 0.05 then
-        firedDuration = tonumber(rule.displayDuration)
-    elseif type(effectivePayload) == "table" then
-        firedDuration = tonumber(effectivePayload.totalDuration)
-    end
-    ShowPlaceholder(rule, effectivePayload, reason, fireKey)
-    ShowRuleRing(rule, effectivePayload)
-    ShowRuleIcon(rule, effectivePayload)
-    return true
-end
-
-local function EvaluatePendingDebuffMatch(current, state)
-    state = state or (ExwindTools and ExwindTools.State or nil)
-    local currentRevision = tonumber(state and state.PlayerDebuffRevision or 0) or 0
-    local currentCount = tonumber(state and state.PlayerDebuffCount or 0) or 0
-    local lastAddedAt = tonumber(state and state.PlayerDebuffLastAddedAt or 0) or 0
-    local lastAddedRevision = tonumber(state and state.PlayerDebuffLastAddedRevision or 0) or 0
-    local matched = current.preMatched == true
-    local matchAt = current.preMatched == true and tonumber(current.preMatchedAt) or nil
-
-    if not matched
-        and lastAddedRevision > current.anchorLastAddedRevision
-        and lastAddedAt >= ((current.anchorAt or 0) - (current.beforeWindow or 0) - 0.02)
-        and lastAddedAt <= ((current.anchorAt or 0) + (current.afterWindow or 0) + 0.05) then
-        matched = true
-        matchAt = lastAddedAt
+    local rule = window.rule
+    if type(rule) ~= "table" then
+        return 0
     end
 
-    return matched, matchAt, currentRevision, currentCount, lastAddedAt, lastAddedRevision
-end
+    local shown = 0
+    local spellName = GetSpellName(rule.spellID)
+    local endTime = now + rule.duration
 
-local function EvaluatePendingEncounterWarningMatch(current)
-    local currentRevision = tonumber(Runtime._encounterWarningRevision) or 0
-    local lastWarningAt = tonumber(Runtime._encounterWarningLastAt) or 0
-    local lastWarningRevision = currentRevision
-    local matched = current.preMatched == true
-    local matchAt = current.preMatched == true and tonumber(current.preMatchedAt) or nil
-
-    if not matched
-        and lastWarningRevision > current.anchorLastWarningRevision
-        and lastWarningAt >= ((current.anchorAt or 0) - (current.beforeWindow or 0) - 0.02)
-        and lastWarningAt <= ((current.anchorAt or 0) + (current.afterWindow or 0) + 0.10) then
-        matched = true
-        matchAt = lastWarningAt
-    end
-
-    return matched, matchAt, currentRevision, lastWarningAt, lastWarningRevision
-end
-
-local function GetTargetIdentity()
-    return ExBoss and ExBoss.TargetIdentity or nil
-end
-
-local function BeginObservedTargetForPayload(payload, sourceTag)
-    local targetIdentity = GetTargetIdentity()
-    if not (targetIdentity and type(targetIdentity.BeginObservedCast) == "function") then
-        return nil
-    end
-    if type(payload) ~= "table" then
-        return nil
-    end
-    local unit = type(payload.unit) == "string" and payload.unit or nil
-    if not unit or unit == "" then
-        return nil
-    end
-    return targetIdentity.BeginObservedCast(unit, payload.castBarID, {
-        matchedNPCID = tonumber(payload.matchedNPCID or payload.npcID),
-        source = tostring(sourceTag or "targetalert"),
-    })
-end
-
-local function EndObservedTargetForPayload(payload)
-    local targetIdentity = GetTargetIdentity()
-    if not (targetIdentity and type(targetIdentity.EndObservedCast) == "function") then
-        return false
-    end
-    if type(payload) ~= "table" then
-        return false
-    end
-    local unit = type(payload.unit) == "string" and payload.unit or nil
-    if not unit or unit == "" then
-        return false
-    end
-    return targetIdentity.EndObservedCast(unit, payload.castBarID)
-end
-
-local function IsPlayerTargetedByUnit(unit)
-    local targetIdentity = GetTargetIdentity()
-    if targetIdentity and type(targetIdentity.GetPlayerIdentityState) == "function"
-        and type(targetIdentity.IsObservedTargetPlayer) == "function" then
-        local playerState = targetIdentity.GetPlayerIdentityState()
-        if type(playerState) ~= "table" or playerState.usableForSelfAlert ~= true then
-            return false
-        end
-        return targetIdentity.IsObservedTargetPlayer(unit) == true
-    end
-    -- nameplateXtarget 的身份比较会返回 secret boolean，不能在 Lua 中判断。
-    return false
-end
-
-local function GetTargetAlertCheckDelay(payload)
-    local unit = type(payload) == "table" and payload.unit or nil
-    local targetIdentity = GetTargetIdentity()
-    if targetIdentity and type(targetIdentity.GetObservedResolveDelay) == "function" then
-        local delay = tonumber(targetIdentity.GetObservedResolveDelay(unit))
-        if delay and delay >= 0 then
-            return math.max(0.01, delay)
-        end
-    end
-    return TARGET_ALERT_A_DELAY
-end
-
-local function ShouldCheckTargetAlertByPayload(payload)
-    local trashSpellRow = GetTrashSpellRow(payload)
-    if type(trashSpellRow) == "table" and type(trashSpellRow.targetExists) == "boolean" then
-        return trashSpellRow.targetExists == true
-    end
-    local unit = type(payload) == "table" and payload.unit or nil
-    local targetIdentity = GetTargetIdentity()
-    if targetIdentity and type(targetIdentity.GetObservedUnitState) == "function" then
-        local observedState = targetIdentity.GetObservedUnitState(unit)
-        if type(observedState) == "table" and observedState.targetExists ~= nil then
-            return observedState.targetExists == true
-        end
-    end
-    if type(unit) ~= "string" or unit == "" then
-        return false
-    end
-    if type(UnitShouldDisplaySpellTargetName) ~= "function" then
-        return false
-    end
-    return UnitShouldDisplaySpellTargetName(unit) == true
-end
-
-IsCurrentPlayerTank = function()
-    local state = ExwindTools and ExwindTools.State or nil
-    return tostring(state and state.RoleKey or ""):lower() == "tank"
-end
-
-IsRuleAllowedForCurrentRole = function(rule)
-    if not IsCurrentPlayerTank() then
-        return true
-    end
-    return type(rule) == "table" and rule.tankEnabled == true
-end
-
-local function QueueDebuffCheck(rule, payload)
-    local pendingID = tonumber(Runtime._pendingNextID) or 1
-    Runtime._pendingNextID = pendingID + 1
-    local now = GetTime and GetTime() or 0
-    local beforeWindow, afterWindow = ResolveDebuffTiming(rule)
-    local state = ExwindTools and ExwindTools.State or nil
-    local anchorRevision = tonumber(state and state.PlayerDebuffRevision or 0) or 0
-    local anchorCount = tonumber(state and state.PlayerDebuffCount or 0) or 0
-    local lastAddedAt = tonumber(state and state.PlayerDebuffLastAddedAt or 0) or 0
-    local lastAddedRevision = tonumber(state and state.PlayerDebuffLastAddedRevision or 0) or 0
-    local preMatched = lastAddedRevision > 0
-        and lastAddedAt >= (now - beforeWindow)
-        and lastAddedAt <= (now + 0.02)
-    local item = {
-        id = pendingID,
-        kind = "B",
-        generation = tonumber(Runtime._generation) or 0,
-        rule = rule,
-        payload = payload,
-        runtimeToken = ResolveRuntimeToken(payload),
-        anchorAt = now,
-        anchorRevision = anchorRevision,
-        anchorCount = anchorCount,
-        anchorLastAddedRevision = lastAddedRevision,
-        beforeWindow = beforeWindow,
-        afterWindow = afterWindow,
-        preMatched = preMatched == true,
-        preMatchedAt = preMatched == true and lastAddedAt or nil,
-        dueAt = now + afterWindow,
-    }
-    Runtime._pending[pendingID] = item
-
-    if item.preMatched == true then
-        Runtime._pending[pendingID] = nil
-        TryFireRule(item.rule, item.payload, "B", item.preMatchedAt)
-        return
-    end
-
-    if C_Timer and C_Timer.After then
-        C_Timer.After(math.max(0.01, item.dueAt - now), function()
-            local current = Runtime._pending[pendingID]
-            if not current then
-                return
-            end
-            Runtime._pending[pendingID] = nil
-            if current.generation ~= (tonumber(Runtime._generation) or 0) then
-                return
-            end
-
-            local state = ExwindTools and ExwindTools.State or nil
-            local matched, matchAt, currentRevision, currentCount, lastAddedAt, lastAddedRevision =
-                EvaluatePendingDebuffMatch(current, state)
-
-
-            if matched then
-                TryFireRule(current.rule, current.payload, "B", matchAt)
-            end
-        end)
-    end
-end
-
-local function QueueEncounterWarningCheck(rule, payload)
-    local pendingID = tonumber(Runtime._pendingNextID) or 1
-    Runtime._pendingNextID = pendingID + 1
-    local now = GetTime and GetTime() or 0
-    local beforeWindow, afterWindow = ResolveWarningTiming(rule)
-    local anchorRevision = tonumber(Runtime._encounterWarningRevision) or 0
-    local lastWarningAt = tonumber(Runtime._encounterWarningLastAt) or 0
-    local lastWarningRevision = anchorRevision
-    local preMatched = lastWarningRevision > 0
-        and lastWarningAt >= (now - beforeWindow)
-        and lastWarningAt <= (now + 0.02)
-    local item = {
-        id = pendingID,
-        kind = "C",
-        generation = tonumber(Runtime._generation) or 0,
-        rule = rule,
-        payload = payload,
-        runtimeToken = ResolveRuntimeToken(payload),
-        anchorAt = now,
-        anchorRevision = anchorRevision,
-        anchorLastWarningRevision = lastWarningRevision,
-        beforeWindow = beforeWindow,
-        afterWindow = afterWindow,
-        preMatched = preMatched == true,
-        preMatchedAt = preMatched == true and lastWarningAt or nil,
-        dueAt = now + afterWindow,
-    }
-    Runtime._pending[pendingID] = item
-
-    if item.preMatched == true then
-        Runtime._pending[pendingID] = nil
-        TryFireRule(item.rule, item.payload, "C", item.preMatchedAt)
-        return
-    end
-
-    if C_Timer and C_Timer.After then
-        C_Timer.After(math.max(0.01, item.dueAt - now), function()
-            local current = Runtime._pending[pendingID]
-            if not current then
-                return
-            end
-            Runtime._pending[pendingID] = nil
-            if current.generation ~= (tonumber(Runtime._generation) or 0) then
-                return
-            end
-
-            local matched, matchAt, currentRevision, currentLastWarningAt, currentLastWarningRevision =
-                EvaluatePendingEncounterWarningMatch(current)
-
-            if matched then
-                TryFireRule(current.rule, current.payload, "C", matchAt)
-            end
-        end)
-    end
-end
-
-local function HandleBossSchedulerFinishPayload(payload)
-    local rules = GetMatchingRules(payload)
-    if type(rules) ~= "table" then
-        return
-    end
-    local enrichedPayload = type(payload) == "table" and payload or {}
-    if enrichedPayload.runtimeKey == nil then
-        enrichedPayload.runtimeKey = table.concat({
-            "fixedai_finish",
-            tostring(type(payload) == "table" and payload.timerID or "0"),
-            tostring(type(payload) == "table" and payload.eventID or "0"),
-            tostring(type(payload) == "table" and payload.fireAt or "0"),
-        }, ":")
-    end
-    for i = 1, #rules do
-        local rule = rules[i]
-        if type(rule) == "table"
-            and rule.enabled == true
-            and NormalizeMode(rule.mode) == "C"
-            and NormalizeWarningAnchor(rule.warningAnchor or rule.debuffAnchor) == "scheduler_finish" then
-            QueueEncounterWarningCheck(rule, enrichedPayload)
-        end
-    end
-end
-
-local function QueueTargetCheck(rule, payload, sourceTag, checkFn, delaySeconds)
-    if type(checkFn) ~= "function" then
-        return
-    end
-    local pendingID = tonumber(Runtime._pendingNextID) or 1
-    Runtime._pendingNextID = pendingID + 1
-    local now = GetTime and GetTime() or 0
-    local delay = tonumber(delaySeconds)
-    if not delay or delay < 0.01 then
-        delay = TARGET_ALERT_A_DELAY
-    end
-    local item = {
-        id = pendingID,
-        kind = "A",
-        generation = tonumber(Runtime._generation) or 0,
-        rule = rule,
-        payload = payload,
-        runtimeToken = ResolveRuntimeToken(payload),
-        dueAt = now + delay,
-        delay = delay,
-        sourceTag = tostring(sourceTag or "A"),
-    }
-    Runtime._pending[pendingID] = item
-
-    if C_Timer and C_Timer.After then
-        C_Timer.After(delay, function()
-            local current = Runtime._pending[pendingID]
-            if not current then
-                return
-            end
-            Runtime._pending[pendingID] = nil
-            if current.generation ~= (tonumber(Runtime._generation) or 0) then
-                return
-            end
-            local okCheck, shouldFire = pcall(checkFn, current.payload)
-            if okCheck and shouldFire == true then
-                TryFireRule(current.rule, current.payload, "A")
-            end
-        end)
-    end
-end
-
-local function HandleBossCastPayload(payload, phase)
-    if phase == "cast_end" then
-        EndObservedTargetForPayload(payload)
-        StopRuntimeDisplays(type(payload) == "table" and (payload.runtimeID or payload.runtimeKey) or nil)
-        CancelPendingForRuntime(ResolveRuntimeToken(payload))
-    end
-    local rules = GetMatchingRules(payload)
-    if type(rules) ~= "table" then
-        return
-    end
-    local suppressA = false
-    for i = 1, #rules do
-        local rule = rules[i]
-        local mode = type(rule) == "table" and NormalizeMode(rule.mode) or nil
-        if mode == "B" or mode == "C" or mode == "A_OR_B" then
-            suppressA = true
-            break
+    if config.targetAlertRingEnabled == true then
+        local ring = ExBoss.UI and ExBoss.UI.RingProgress or nil
+        local ringDB = ring and type(ring.GetDB) == "function" and ring:GetDB() or nil
+        if ring and type(ring.ShowEntry) == "function" and type(ringDB) == "table" and ringDB.enabled == true then
+            window.ringOwner = {
+                source = "encounter_warning_alert",
+                earlyStopEnabled = true,
+                eventID = rule.eventID,
+                spellID = rule.spellID,
+                key = window.owner,
+            }
+            ring:ShowEntry({
+                owner = window.ringOwner,
+                spellID = rule.spellID,
+                displayName = spellName,
+                progressDisplayName = spellName,
+                duration = rule.duration,
+                endTime = endTime,
+                castKind = "cast",
+                castCheckEnabled = false,
+            })
+            shown = shown + 1
         end
     end
 
-    for i = 1, #rules do
-        local rule = rules[i]
-        if type(rule) == "table" and rule.enabled == true then
-            local mode = NormalizeMode(rule.mode)
-            if phase == "cast_start" and suppressA ~= true and (mode == "A" or mode == "A_OR_B") then
-                BeginObservedTargetForPayload(payload, "targetalert_filtered")
-                local shouldDisplayTarget = true
-                local isPlayerTargeted = IsPlayerTargetedByUnit(payload.unit)
-                local targetCheckDelay = GetTargetAlertCheckDelay(payload)
-                if shouldDisplayTarget then
-                    QueueTargetCheck(rule, payload, "boss", function(currentPayload)
-                        return IsPlayerTargetedByUnit(type(currentPayload) == "table" and currentPayload.unit or nil)
-                    end, targetCheckDelay)
-                end
-            end
-            if (mode == "B" or mode == "A_OR_B") and NormalizeAnchor(rule.debuffAnchor) == phase then
-                QueueDebuffCheck(rule, payload)
-            end
-            if mode == "C" and NormalizeWarningAnchor(rule.warningAnchor or rule.debuffAnchor) == phase then
-                QueueEncounterWarningCheck(rule, payload)
-            end
-        end
+    local iconAlert = ExBoss.UI and ExBoss.UI.IconAlert or nil
+    if config.targetAlertIconEnabled == true
+        and iconAlert and type(iconAlert.ShowEntry) == "function"
+        and iconAlert:ShowEntry({
+            owner = window.owner,
+            spellID = rule.spellID,
+            duration = rule.duration,
+            endTime = endTime,
+        }) ~= nil then
+        shown = shown + 1
     end
-end
 
-local function ClearRuntimeState()
-    for runtimeID in pairs(Runtime._displayKeys or {}) do
-        StopRuntimeDisplays(runtimeID)
-    end
-    Runtime._generation = (tonumber(Runtime._generation) or 0) + 1
-    Runtime._pending = {}
-    Runtime._fired = {}
-    Runtime._displayKeys = {}
-    Runtime._encounterWarningRevision = 0
-    Runtime._encounterWarningLastAt = 0
-end
-
-local function GetTrashRuleBucket(mapID, npcID, spellID, createIfMissing)
-    local sid = tonumber(spellID)
-    if not sid then
-        return nil
-    end
-    local mid = tonumber(mapID)
-    local nid = tonumber(npcID)
-    local bucketKey = table.concat({
-        tostring(mid or "__any"),
-        tostring(nid or "__any"),
-        tostring(sid),
-    }, ":")
-    if createIfMissing then
-        Runtime._trashRules[bucketKey] = Runtime._trashRules[bucketKey] or {}
-    end
-    return Runtime._trashRules[bucketKey]
-end
-
-local function GetMatchingTrashRules(payload)
-    local exactBucket = GetTrashRuleBucket(
-        type(payload) == "table" and payload.mapID or nil,
-        type(payload) == "table" and payload.npcID or nil,
-        type(payload) == "table" and payload.spellID or nil,
-        false
-    )
-    local anyBucket = GetTrashRuleBucket(
-        nil,
-        nil,
-        type(payload) == "table" and payload.spellID or nil,
-        false
-    )
-    local exactCount = type(exactBucket) == "table" and #exactBucket or 0
-    local anyCount = type(anyBucket) == "table" and #anyBucket or 0
-    if exactCount == 0 and anyCount == 0 then
-        return nil
-    end
-    if anyCount == 0 then
-        return exactBucket
-    end
-    if exactCount == 0 then
-        return anyBucket
-    end
-    local merged = {}
-    for i = 1, exactCount do
-        merged[#merged + 1] = exactBucket[i]
-    end
-    for i = 1, anyCount do
-        merged[#merged + 1] = anyBucket[i]
-    end
-    return merged
-end
-
-local function HandleTrashCastPayload(payload, phase, allowA)
-    if phase == "cast_end" then
-        EndObservedTargetForPayload(payload)
-        StopRuntimeDisplays(type(payload) == "table" and (payload.runtimeKey or payload.runtime) or nil)
-        CancelPendingForRuntime(ResolveRuntimeToken(payload))
-    end
-    local rules = GetMatchingTrashRules(payload)
-    if type(rules) ~= "table" then
-        return
-    end
-    local suppressA = false
-    for i = 1, #rules do
-        local rule = rules[i]
-        local mode = type(rule) == "table" and NormalizeMode(rule.mode) or nil
-        if mode == "B" or mode == "C" or mode == "A_OR_B" then
-            suppressA = true
-            break
-        end
-    end
-    for i = 1, #rules do
-        local rule = rules[i]
-        if type(rule) == "table" and rule.enabled == true then
-            local mode = NormalizeMode(rule.mode)
-            if phase == "cast_start"
-                and allowA ~= false
-                and suppressA ~= true
-                and (mode == "A" or mode == "A_OR_B") then
-                BeginObservedTargetForPayload(payload, "targetalert_filtered")
-                local shouldDisplayTarget = ShouldCheckTargetAlertByPayload(payload)
-                local isPlayerTargeted = shouldDisplayTarget and IsPlayerTargetedByUnit(payload.unit) or false
-                local targetCheckDelay = GetTargetAlertCheckDelay(payload)
-                if shouldDisplayTarget then
-                    QueueTargetCheck(rule, payload, "trash", function(currentPayload)
-                        local shouldDisplay = ShouldCheckTargetAlertByPayload(currentPayload)
-                        return shouldDisplay and
-                            IsPlayerTargetedByUnit(type(currentPayload) == "table" and currentPayload.unit or nil)
-                    end, targetCheckDelay)
-                end
-            end
-            if (mode == "B" or mode == "A_OR_B") and NormalizeAnchor(rule.debuffAnchor) == phase then
-                QueueDebuffCheck(rule, payload)
-            end
-            if mode == "C" and NormalizeWarningAnchor(rule.warningAnchor or rule.debuffAnchor) == phase then
-                QueueEncounterWarningCheck(rule, payload)
+    if config.targetAlertStealthEnabledV2 == true
+        and iconAlert and type(iconAlert.ShowEntry) == "function" then
+        local state = ExwindTools and ExwindTools.State or nil
+        if type(state) == "table" and state.ShadowmeldAvailable == true and state.ShadowmeldCD ~= true then
+            window.stealthOwner = window.owner .. ":stealth"
+            if iconAlert:ShowEntry({
+                owner = window.stealthOwner,
+                icon = 132089,
+                text = " ",
+                duration = rule.duration,
+                endTime = endTime,
+                hideCooldown = true,
+                hideCountdownNumbers = true,
+            }) ~= nil then
+                shown = shown + 1
             end
         end
     end
-end
 
-function Runtime:RegisterBossRule(def)
-    if type(def) ~= "table" then
-        return nil
-    end
-    local encounterID = tonumber(def.encounterID)
-    local eventID = tonumber(def.eventID)
-    if not eventID then
-        return nil
-    end
-    local bucket = GetRuleBucket(encounterID, eventID, true)
-    local rule = {
-        key = tostring(def.key or
-            ("boss:" .. tostring(encounterID or "any") .. ":" .. tostring(eventID) .. ":" .. tostring(#bucket + 1))),
-        enabled = def.enabled ~= false,
-        encounterID = encounterID,
-        eventID = eventID,
-        mode = NormalizeMode(def.mode),
-        debuffAnchor = NormalizeAnchor(def.debuffAnchor),
-        debuffWindow = NormalizeWindow(def.debuffWindow),
-        debuffWindowBefore = NormalizeSeconds(def.debuffWindowBefore, 0, 10.0),
-        debuffWindowAfter = def.debuffWindowAfter ~= nil and
-            NormalizeSeconds(def.debuffWindowAfter, def.debuffWindow, 10.0) or nil,
-        debuffDelay = def.debuffDelay ~= nil and NormalizeSeconds(def.debuffDelay, 0.10, 10.0) or nil,
-        warningAnchor = NormalizeWarningAnchor(def.warningAnchor or def.debuffAnchor),
-        warningWindow = def.warningWindow ~= nil and NormalizeWindow(def.warningWindow) or nil,
-        warningWindowBefore = def.warningWindowBefore ~= nil and NormalizeSeconds(def.warningWindowBefore, 0, 10.0) or
-            nil,
-        warningWindowAfter = def.warningWindowAfter ~= nil and
-            NormalizeSeconds(def.warningWindowAfter, def.warningWindow, 10.0) or nil,
-        warningDelay = def.warningDelay ~= nil and NormalizeSeconds(def.warningDelay, 0.75, 10.0) or nil,
-        displayDuration = NormalizeSeconds(def.displayDuration, nil, 60.0),
-        ringEnabled = def.ringEnabled == true,
-        iconEnabled = def.iconEnabled == true,
-        tankEnabled = def.tankEnabled == true,
-        textEnabled = def.textEnabled ~= false,
-        stealthEnabled = def.stealthEnabled == true,
-        placeholderText = tostring(def.placeholderText or ""),
-        soundKey = tostring(def.soundKey or ""),
-    }
-
-    for i = 1, #bucket do
-        if type(bucket[i]) == "table" and bucket[i].key == rule.key then
-            bucket[i] = rule
-            return rule.key
+    if config.targetAlertTextEnabledV2 == true then
+        local medium = ExBoss.UI and ExBoss.UI.FlashTextMedium or nil
+        if medium and type(medium.Show) == "function" then
+            medium:Show({ text = spellName, duration = rule.duration, noAnimation = true })
+            shown = shown + 1
         end
     end
-    bucket[#bucket + 1] = rule
-    return rule.key
+
+    local voiceConfig = BuildVoiceConfig(config)
+    local voice = ExBoss.Voice and ExBoss.Voice.Engine or nil
+    if voiceConfig and voice and type(voice.TryPlayStandaloneSound) == "function" then
+        local played = voice:TryPlayStandaloneSound(voiceConfig, window.owner .. ":voice", { triggerIndex = 0 })
+        if played then shown = shown + 1 end
+    end
+
+    return shown
 end
 
-function Runtime:RegisterTrashRule(def)
-    if type(def) ~= "table" then
-        return nil
+local function HandleWarning(warningInfo, now, onlyWindowKeys)
+    -- 官方文档将 severity 标为公开字段；此处不读取其他 payload 内容。
+    local severity = type(warningInfo) == "table" and tonumber(warningInfo.severity) or nil
+    if severity == nil then
+        return 0, 0
     end
-    local mapID = tonumber(def.mapID)
-    local npcID = tonumber(def.npcID)
-    local spellID = tonumber(def.spellID)
-    if not spellID then
-        return nil
-    end
-    local bucket = GetTrashRuleBucket(mapID, npcID, spellID, true)
-    local rule = {
-        key = tostring(def.key or
-            ("trash:" .. tostring(mapID or "any") .. ":" .. tostring(npcID or "any") .. ":" .. tostring(spellID) .. ":" .. tostring(#bucket + 1))),
-        enabled = def.enabled ~= false,
-        mapID = mapID,
-        npcID = npcID,
-        spellID = spellID,
-        mode = NormalizeMode(def.mode),
-        debuffAnchor = NormalizeAnchor(def.debuffAnchor),
-        debuffWindow = NormalizeWindow(def.debuffWindow),
-        debuffWindowBefore = NormalizeSeconds(def.debuffWindowBefore, 0, 10.0),
-        debuffWindowAfter = def.debuffWindowAfter ~= nil and
-            NormalizeSeconds(def.debuffWindowAfter, def.debuffWindow, 10.0) or nil,
-        debuffDelay = def.debuffDelay ~= nil and NormalizeSeconds(def.debuffDelay, 0.10, 10.0) or nil,
-        warningAnchor = NormalizeWarningAnchor(def.warningAnchor or def.debuffAnchor),
-        warningWindow = def.warningWindow ~= nil and NormalizeWindow(def.warningWindow) or nil,
-        warningWindowBefore = def.warningWindowBefore ~= nil and NormalizeSeconds(def.warningWindowBefore, 0, 10.0) or
-            nil,
-        warningWindowAfter = def.warningWindowAfter ~= nil and
-            NormalizeSeconds(def.warningWindowAfter, def.warningWindow, 10.0) or nil,
-        warningDelay = def.warningDelay ~= nil and NormalizeSeconds(def.warningDelay, 0.75, 10.0) or nil,
-        displayDuration = NormalizeSeconds(def.displayDuration, nil, 60.0),
-        ringEnabled = def.ringEnabled == true,
-        iconEnabled = def.iconEnabled == true,
-        tankEnabled = def.tankEnabled == true,
-        textEnabled = def.textEnabled ~= false,
-        stealthEnabled = def.stealthEnabled == true,
-        placeholderText = tostring(def.placeholderText or ""),
-        soundKey = tostring(def.soundKey or ""),
-    }
-    for i = 1, #bucket do
-        if type(bucket[i]) == "table" and bucket[i].key == rule.key then
-            bucket[i] = rule
-            return rule.key
+
+    PruneExpiredWindows(now)
+
+    local matched = 0
+    local shown = 0
+    for key, window in pairs(Runtime._windows) do
+        local allowed = onlyWindowKeys == nil or onlyWindowKeys[key] == true
+        local rule = type(window) == "table" and window.rule or nil
+        -- 实战与命令测试都重新读取当前角色/职责的 Boss 页面开关；测试不能
+        -- 强制打开图标或绕过用户选择。
+        local guiConfig = type(rule) == "table" and GetBossGUIConfig(rule.eventID) or nil
+        local enabledByBossGUI = type(guiConfig) == "table"
+        if allowed and type(rule) == "table"
+            and enabledByBossGUI
+            and now >= (tonumber(window.startAt) or math.huge)
+            and now <= (tonumber(window.endAt) or -math.huge)
+            and severity == rule.severity then
+            matched = matched + 1
+            -- 同一窗口内每次原生 warning 都会以收到的这一刻重置显示 duration。
+            shown = shown + ShowWindow(window, now, guiConfig)
         end
     end
-    bucket[#bucket + 1] = rule
-    return rule.key
+    return matched, shown
 end
 
-function Runtime:UnregisterBossRule(ruleKey)
-    local wanted = tostring(ruleKey or "")
-    if wanted == "" then
-        return false
+-- Scheduler 在每次 Boss timer 更新后调用本函数。即使 timer 随后被回收，
+-- 已建立的窗口仍保留至 event 结束后的 windowAfter。
+function Runtime:ObserveBossTimer(timer, currentEncounterID, observedAt)
+    if not IsBossTimer(timer) then
+        return 0
     end
-    for encounterID, byEvent in pairs(self._bossRules) do
-        if type(byEvent) == "table" then
-            for eventID, bucket in pairs(byEvent) do
-                if type(bucket) == "table" then
-                    for i = #bucket, 1, -1 do
-                        if type(bucket[i]) == "table" and bucket[i].key == wanted then
-                            table.remove(bucket, i)
-                            if #bucket == 0 then
-                                byEvent[eventID] = nil
-                            end
-                            if next(byEvent) == nil then
-                                self._bossRules[encounterID] = nil
-                            end
-                            return true
-                        end
-                    end
-                end
-            end
+
+    local now = tonumber(observedAt) or Now()
+    local timerID = tonumber(timer.id)
+    local eventID = GetTimerEventID(timer)
+    local castTime = tonumber(timer.castTime)
+    local encounterID = tonumber(currentEncounterID) or tonumber(timer.encounterID)
+    if not timerID or not eventID or not castTime then
+        return 0
+    end
+    -- 声明表不保存 enabled；是否建立窗口完全由当前 Boss 页面角色/职责开关决定。
+    if not IsEnabledByBossGUI(eventID) then
+        return 0
+    end
+
+    local createdOrUpdated = 0
+    for index, raw in ipairs(GetDeclarations()) do
+        local rule = ResolveDeclaration(raw, index)
+        if rule and rule.eventID == eventID
+            and (rule.encounterID == nil or rule.encounterID == encounterID) then
+            local key = BuildWindowKey(encounterID, eventID, timerID, rule)
+            local window = Runtime._windows[key] or {}
+            window.rule = rule
+            window.startAt = castTime - rule.windowBefore
+            window.endAt = castTime + rule.windowAfter
+            window.owner = OWNER_PREFIX .. ":" .. key
+            Runtime._windows[key] = window
+            createdOrUpdated = createdOrUpdated + 1
         end
     end
-    return false
+
+    PruneExpiredWindows(now)
+    return createdOrUpdated
 end
 
-function Runtime:ClearBossRules()
-    self._bossRules = {}
-end
-
-function Runtime:ClearTrashRules()
-    self._trashRules = {}
-end
-
-function Runtime:RegisterBossDebuffWindowRule(eventID, def)
-    def = type(def) == "table" and def or {}
-    return self:RegisterBossRule({
-        key = def.key,
-        enabled = def.enabled,
-        encounterID = def.encounterID,
-        eventID = tonumber(eventID),
-        mode = def.mode or "B",
-        debuffAnchor = def.anchor or def.debuffAnchor or "cast_start",
-        debuffWindowBefore = def.windowBefore,
-        debuffWindowAfter = def.windowAfter,
-        debuffDelay = def.delay,
-        displayDuration = def.displayDuration,
-        ringEnabled = def.ringEnabled,
-        iconEnabled = def.iconEnabled,
-        tankEnabled = def.tankEnabled,
-        placeholderText = def.placeholderText,
-        soundKey = def.soundKey,
-    })
-end
-
-function Runtime:RegisterTrashDebuffWindowRule(arg1, arg2, arg3, arg4)
-    local mapID, npcID, spellID, def
-    if arg3 == nil and type(arg2) == "table" then
-        mapID = nil
-        npcID = nil
-        spellID = tonumber(arg1)
-        def = arg2
-    else
-        mapID = tonumber(arg1)
-        npcID = tonumber(arg2)
-        spellID = tonumber(arg3)
-        def = type(arg4) == "table" and arg4 or {}
+function Runtime:ReconcileFromScheduler(observedAt)
+    local scheduler = ExBoss.Timeline and ExBoss.Timeline.Scheduler or nil
+    if not (scheduler and type(scheduler.GetActiveTimers) == "function") then
+        return 0
     end
-    return self:RegisterTrashRule({
-        key = def.key,
-        enabled = def.enabled,
-        mapID = mapID,
-        npcID = npcID,
-        spellID = spellID,
-        mode = def.mode or "B",
-        debuffAnchor = def.anchor or def.debuffAnchor or "cast_start",
-        debuffWindowBefore = def.windowBefore,
-        debuffWindowAfter = def.windowAfter,
-        debuffDelay = def.delay,
-        displayDuration = def.displayDuration,
-        ringEnabled = def.ringEnabled,
-        iconEnabled = def.iconEnabled,
-        tankEnabled = def.tankEnabled,
-        placeholderText = def.placeholderText,
-        soundKey = def.soundKey,
-    })
-end
 
-function Runtime:RegisterBossEncounterWarningRule(eventID, def)
-    def = type(def) == "table" and def or {}
-    return self:RegisterBossRule({
-        key = def.key,
-        enabled = def.enabled,
-        encounterID = def.encounterID,
-        eventID = tonumber(eventID),
-        mode = def.mode or "C",
-        warningAnchor = def.anchor or def.warningAnchor or "cast_start",
-        warningWindowBefore = def.windowBefore,
-        warningWindowAfter = def.windowAfter,
-        warningDelay = def.delay,
-        displayDuration = def.displayDuration,
-        ringEnabled = def.ringEnabled,
-        iconEnabled = def.iconEnabled,
-        tankEnabled = def.tankEnabled,
-        textEnabled = def.textEnabled,
-        stealthEnabled = def.stealthEnabled,
-        placeholderText = def.placeholderText,
-        soundKey = def.soundKey,
-    })
-end
-
-function Runtime:RegisterTrashEncounterWarningRule(arg1, arg2, arg3, arg4)
-    local mapID, npcID, spellID, def
-    if arg3 == nil and type(arg2) == "table" then
-        mapID = nil
-        npcID = nil
-        spellID = tonumber(arg1)
-        def = arg2
-    else
-        mapID = tonumber(arg1)
-        npcID = tonumber(arg2)
-        spellID = tonumber(arg3)
-        def = type(arg4) == "table" and arg4 or {}
-    end
-    return self:RegisterTrashRule({
-        key = def.key,
-        enabled = def.enabled,
-        mapID = mapID,
-        npcID = npcID,
-        spellID = spellID,
-        mode = def.mode or "C",
-        warningAnchor = def.anchor or def.warningAnchor or "cast_start",
-        warningWindowBefore = def.windowBefore,
-        warningWindowAfter = def.windowAfter,
-        warningDelay = def.delay,
-        displayDuration = def.displayDuration,
-        ringEnabled = def.ringEnabled,
-        iconEnabled = def.iconEnabled,
-        tankEnabled = def.tankEnabled,
-        textEnabled = def.textEnabled,
-        stealthEnabled = def.stealthEnabled,
-        placeholderText = def.placeholderText,
-        soundKey = def.soundKey,
-    })
-end
-
-function Runtime:ShouldObserveBossCast(timer)
-    if type(timer) ~= "table" or timer.disabled == true then
-        return false
-    end
-    local eventID = tonumber(timer.eventID)
-    if not eventID then
-        return false
-    end
-    local bucket = GetRuleBucket(tonumber(timer.encounterID), eventID, false)
-    if type(bucket) == "table" and #bucket > 0 then
-        return true
-    end
-    local anyBucket = GetRuleBucket(nil, eventID, false)
-    return type(anyBucket) == "table" and #anyBucket > 0
-end
-
-local function GetActiveBossRuleRoot()
-    local _, instanceType = GetInstanceInfo()
-    if instanceType == "party" then
-        -- TargetAlert 当前仅承载 M+ Boss 规则；配置 Runtime 已按场景拆分，
-        -- 不能读取旧的 ExBoss.Runtime 别名。
-        local api = _G.EXBossData
-        local runtime = type(api) == "table" and type(api.GetRuntime) == "function" and api.GetRuntime("mplus") or nil
-        if type(runtime) ~= "table" then
-            runtime = ExBoss and ExBoss.RuntimeMplus or nil
-        end
-        return type(runtime) == "table" and type(runtime.events) == "table" and runtime.events or {}
-    end
-    return {}
-end
-
-function Runtime:RefreshActiveRegistrations()
-    ClearRuntimeState()
-    self:ClearBossRules()
-    self:ClearTrashRules()
-    local root = GetActiveBossRuleRoot()
+    local now = tonumber(observedAt) or Now()
+    local encounterID = type(scheduler.GetCurrentEncounterID) == "function"
+        and scheduler:GetCurrentEncounterID() or nil
+    local timers = scheduler:GetActiveTimers()
     local count = 0
-    if type(root) == "table" then
-        for rawEventID, row in pairs(root) do
-            local eventID = tonumber(rawEventID)
-            if eventID and type(row) == "table" and row.targetAlertStartEnabled == true then
-                self:RegisterBossRule({
-                    key = "boss:start:" .. tostring(eventID),
-                    eventID = eventID,
-                    mode = "A",
-                    enabled = true,
-                    tankEnabled = false,
-                    ringEnabled = row.targetAlertRingEnabled == true,
-                    iconEnabled = row.targetAlertIconEnabled == true,
-                    textEnabled = row.targetAlertTextEnabledV2 == true,
-                    stealthEnabled = row.targetAlertStealthEnabledV2 == true,
-                    soundKey = row.targetAlertVoiceEnabled ~= false and tostring(row.targetAlertStartLSM or "") or "",
-                    voiceConfig = BuildBossTargetAlertVoiceConfig(row),
-                })
-                count = count + 1
-            end
-        end
-    end
-
-    do
-        local row241 = type(root) == "table" and root[241] or nil
-        self:RegisterBossDebuffWindowRule(241, {
-            key = "boss:b:241",
-            anchor = "cast_end",
-            windowBefore = 0.10,
-            windowAfter = 0.60,
-            displayDuration = 6,
-            tankEnabled = false,
-            ringEnabled = type(row241) == "table" and row241.targetAlertRingEnabled == true,
-            iconEnabled = type(row241) == "table" and row241.targetAlertIconEnabled == true,
-            textEnabled = type(row241) == "table" and row241.targetAlertTextEnabledV2 == true,
-            stealthEnabled = type(row241) == "table" and row241.targetAlertStealthEnabledV2 == true,
-            soundKey = type(row241) == "table" and row241.targetAlertVoiceEnabled ~= false and tostring(row241.targetAlertStartLSM or "") or "",
-            voiceConfig = BuildBossTargetAlertVoiceConfig(row241),
-        })
-        count = count + 1
-    end
-
-    do
-        local row275 = type(root) == "table" and root[275] or nil
-        if type(row275) == "table" and row275.targetAlertStartEnabled == true then
-            self:RegisterBossDebuffWindowRule(275, {
-                key = "boss:b:275",
-                anchor = "cast_end",
-                windowBefore = 0.10,
-                windowAfter = 0.30,
-                displayDuration = 4.00,
-                tankEnabled = false,
-                ringEnabled = row275.targetAlertRingEnabled == true,
-                iconEnabled = row275.targetAlertIconEnabled == true,
-                textEnabled = row275.targetAlertTextEnabledV2 == true,
-                stealthEnabled = row275.targetAlertStealthEnabledV2 == true,
-                soundKey = row275.targetAlertVoiceEnabled ~= false and tostring(row275.targetAlertStartLSM or "") or "",
-                voiceConfig = BuildBossTargetAlertVoiceConfig(row275),
-            })
-            count = count + 1
-        end
-    end
-
-    do
-        local row153 = type(root) == "table" and root[153] or nil
-        if type(row153) == "table" and row153.targetAlertStartEnabled == true then
-            self:RegisterBossEncounterWarningRule(153, {
-                key = "boss:c:153",
-                anchor = "cast_start",
-                windowBefore = 0.10,
-                windowAfter = 3.00,
-                tankEnabled = false,
-                ringEnabled = row153.targetAlertRingEnabled == true,
-                iconEnabled = row153.targetAlertIconEnabled == true,
-                textEnabled = row153.targetAlertTextEnabledV2 == true,
-                stealthEnabled = row153.targetAlertStealthEnabledV2 == true,
-                soundKey = row153.targetAlertVoiceEnabled ~= false and tostring(row153.targetAlertStartLSM or "") or "",
-                voiceConfig = BuildBossTargetAlertVoiceConfig(row153),
-            })
-            count = count + 1
-        end
-    end
-
-    do
-        local row157 = type(root) == "table" and root[157] or nil
-        if type(row157) == "table" and row157.targetAlertStartEnabled == true then
-            self:RegisterBossEncounterWarningRule(157, {
-                key = "boss:c:157",
-                anchor = "cast_start",
-                windowBefore = 0.10,
-                windowAfter = 5.00,
-                displayDuration = 4.50,
-                tankEnabled = false,
-                ringEnabled = row157.targetAlertRingEnabled == true,
-                iconEnabled = row157.targetAlertIconEnabled == true,
-                textEnabled = row157.targetAlertTextEnabledV2 == true,
-                stealthEnabled = row157.targetAlertStealthEnabledV2 == true,
-                soundKey = row157.targetAlertVoiceEnabled ~= false and tostring(row157.targetAlertStartLSM or "") or "",
-                voiceConfig = BuildBossTargetAlertVoiceConfig(row157),
-            })
-            count = count + 1
-        end
-    end
-
-    do
-        local row166 = type(root) == "table" and root[166] or nil
-        if type(row166) == "table" and row166.targetAlertStartEnabled == true then
-            self:RegisterBossEncounterWarningRule(166, {
-                key = "boss:c:166",
-                anchor = "scheduler_finish",
-                windowBefore = 0.10,
-                windowAfter = 4.00,
-                displayDuration = 6.60,
-                tankEnabled = false,
-                ringEnabled = row166.targetAlertRingEnabled == true,
-                iconEnabled = row166.targetAlertIconEnabled == true,
-                textEnabled = row166.targetAlertTextEnabledV2 == true,
-                stealthEnabled = row166.targetAlertStealthEnabledV2 == true,
-                soundKey = row166.targetAlertVoiceEnabled ~= false and tostring(row166.targetAlertStartLSM or "") or "",
-                voiceConfig = BuildBossTargetAlertVoiceConfig(row166),
-            })
-            count = count + 1
-        end
-    end
-
-    local trashStore = ExBoss and ExBoss.TrashCD and ExBoss.TrashCD.Store or nil
-    local spellKeys = trashStore and type(trashStore.ListRuntimeSpellEntryKeys) == "function"
-        and trashStore.ListRuntimeSpellEntryKeys() or {}
-    if type(spellKeys) == "table" then
-        for _, rawKey in ipairs(spellKeys) do
-            local mapID, npcID, spellID = tostring(rawKey or ""):match("^(%d+):(%d+):(%d+)$")
-            mapID = tonumber(mapID)
-            npcID = tonumber(npcID)
-            spellID = tonumber(spellID)
-            if mapID and npcID and spellID and trashStore and type(trashStore.GetRuntimeSpellEntry) == "function" then
-                local cfg = trashStore.GetRuntimeSpellEntry(mapID, npcID, spellID)
-                if type(cfg) == "table" and cfg.targetAlertStartEnabled == true and cfg.enabled == true then
-                    self:RegisterTrashRule({
-                        key = "trash:start:" .. tostring(mapID) .. ":" .. tostring(npcID) .. ":" .. tostring(spellID),
-                        mapID = mapID,
-                        npcID = npcID,
-                        spellID = spellID,
-                        mode = "A",
-                        enabled = true,
-                        tankEnabled = cfg.targetAlertTankEnabled == true,
-                        ringEnabled = cfg.targetAlertRingEnabled == true,
-                        iconEnabled = cfg.targetAlertIconEnabled == true,
-                        textEnabled = cfg.targetAlertTextEnabledV2 == true,
-                        stealthEnabled = cfg.targetAlertStealthEnabledV2 == true,
-                        soundKey = tostring(cfg.targetAlertStartLSM or ""),
-                    })
-                    count = count + 1
-                end
-            end
+    if type(timers) == "table" then
+        for _, timer in pairs(timers) do
+            count = count + self:ObserveBossTimer(timer, encounterID, now)
         end
     end
     return count
 end
 
+function Runtime:OnEncounterWarning(warningInfo)
+    local now = Now()
+    -- 事件可能发生在 Scheduler 下一次 0.05s tick 之前；先用当前活跃 timer 同步。
+    self:ReconcileFromScheduler(now)
+    return HandleWarning(warningInfo, now)
+end
+
+function Runtime:ClearRuntimeState()
+    for _, window in pairs(self._windows) do
+        StopWindowDisplay(window)
+    end
+    self._windows = {}
+end
+
+local function FindTestDeclarations(eventID)
+    local rows = {}
+    for index, raw in ipairs(GetDeclarations()) do
+        local rule = ResolveDeclaration(raw, index)
+        if rule and rule.eventID == eventID then
+            rows[#rows + 1] = rule
+        end
+    end
+    return rows
+end
+
+function Runtime:RunTest(eventID, severity)
+    eventID = tonumber(eventID)
+    if not eventID then
+        local first = ResolveDeclaration(GetDeclarations()[1], 1)
+        eventID = first and first.eventID or nil
+        severity = severity ~= nil and tonumber(severity) or (first and first.severity)
+    else
+        severity = tonumber(severity)
+    end
+
+    if not eventID then
+        Say("用法：/exewtest [eventID] [severity]；未填参数会测试声明表的第一条规则。")
+        return false
+    end
+
+    local rules = FindTestDeclarations(eventID)
+    if #rules == 0 then
+        Say("测试未执行：声明表没有 eventID=" .. tostring(eventID) .. " 的规则。")
+        return false
+    end
+    if severity == nil then
+        severity = rules[1].severity
+    end
+    if severity == nil then
+        Say("测试未执行：规则没有有效 severity。")
+        return false
+    end
+
+    local now = Now()
+    local testWindowKeys = {}
+    for _, rule in ipairs(rules) do
+        local key = "test:" .. BuildWindowKey(nil, eventID, "command", rule)
+        self._windows[key] = {
+            rule = rule,
+            startAt = now - 1,
+            endAt = now + math.max(1, rule.windowAfter),
+            owner = OWNER_PREFIX .. ":" .. key,
+        }
+        testWindowKeys[key] = true
+    end
+
+    -- 测试只注入 severity，不伪造 Blizzard 原生事件；显示种类完整服从
+    -- Boss 页面原有「被点名提示」勾选。
+    local matched, shown = HandleWarning({ severity = severity }, now, testWindowKeys)
+    for key in pairs(testWindowKeys) do
+        self._windows[key] = nil
+    end
+
+    if matched == 0 then
+        Say("测试没有命中：eventID=" .. tostring(eventID) .. "，注入 severity=" .. tostring(severity)
+            .. "；请检查声明的 severity。")
+        return false
+    end
+    if shown == 0 then
+        Say("测试命中声明，但没有建立显示；请检查 Boss 页被点名提示及其显示/语音勾选。")
+        return false
+    end
+
+    Say("测试已触发 " .. tostring(shown) .. " 个显示动作（eventID=" .. tostring(eventID)
+        .. "，severity=" .. tostring(severity) .. "）。")
+    return true
+end
+
+function Runtime:RunTestCommand(input)
+    local eventID, severity = tostring(input or ""):match("^%s*(%d*)%s*(%d*)%s*$")
+    if eventID == nil then
+        Say("用法：/exewtest [eventID] [severity]")
+        return false
+    end
+    return self:RunTest(eventID ~= "" and eventID or nil, severity ~= "" and severity or nil)
+end
+
 if ExwindTools and type(ExwindTools.RegisterEvent) == "function" then
-    ExwindTools:RegisterEvent(BOSS_CAST_START_EVENT, OWNER .. ".Start", function(_, payload)
-        HandleBossCastPayload(payload, "cast_start")
+    ExwindTools:RegisterEvent("ENCOUNTER_WARNING", OWNER_PREFIX .. ".Warning", function(_, warningInfo)
+        Runtime:OnEncounterWarning(warningInfo)
     end)
-    ExwindTools:RegisterEvent(BOSS_CAST_STOP_EVENT, OWNER .. ".Stop", function(_, payload)
-        HandleBossCastPayload(payload, "cast_end")
+    ExwindTools:RegisterEvent("ENCOUNTER_START", OWNER_PREFIX .. ".Start", function()
+        Runtime:ClearRuntimeState()
     end)
-    ExwindTools:RegisterEvent(TRASH_CAST_START_EVENT, OWNER .. ".TrashStart", function(_, payload)
-        HandleTrashCastPayload(payload, "cast_start", true)
+    ExwindTools:RegisterEvent("ENCOUNTER_END", OWNER_PREFIX .. ".End", function()
+        Runtime:ClearRuntimeState()
     end)
-    ExwindTools:RegisterEvent(TRASH_VOICE_START_EVENT, OWNER .. ".TrashVoiceStart", function(_, payload)
-        HandleTrashCastPayload(payload, "cast_start", true)
-    end)
-    ExwindTools:RegisterEvent(TRASH_CAST_STOP_EVENT, OWNER .. ".TrashStop", function(_, payload)
-        HandleTrashCastPayload(payload, "cast_end")
-    end)
-    ExwindTools:RegisterEvent(FIXED_AI_EVENT_FINISHED_EVENT, OWNER .. ".FixedAIFinished", function(_, payload)
-        HandleBossSchedulerFinishPayload(payload)
-    end)
-    ExwindTools:RegisterEvent("ENCOUNTER_END", OWNER .. ".EncounterEnd", function()
-        ClearRuntimeState()
-    end)
-    ExwindTools:RegisterEvent("PLAYER_ENTERING_WORLD", OWNER .. ".PEW", function()
-        ClearRuntimeState()
-        Runtime:RefreshActiveRegistrations()
-    end)
-    ExwindTools:RegisterEvent("PLAYER_STEALTH_CHANGED", OWNER .. ".StealthChanged", function()
-        if not (IsStealthed and IsStealthed()) then return end
-        ClearRuntimeState()
-        local Ring = ExBoss and ExBoss.UI and ExBoss.UI.RingProgress
-        if Ring and type(Ring.StopByOwner) == "function" then
-            Ring:StopByOwner({ source = "targetalert" })
-        end
-        local Icon = ExBoss and ExBoss.UI and ExBoss.UI.IconAlert
-        if Icon and type(Icon.StopByOwner) == "function" then
-            Icon:StopByOwner({ source = "targetalert" })
-        end
-    end)
-    ExwindTools:RegisterEvent("ENCOUNTER_WARNING", OWNER .. ".EncounterWarning", function(_, encounterWarningInfo)
-        Runtime._encounterWarningRevision = (tonumber(Runtime._encounterWarningRevision) or 0) + 1
-        Runtime._encounterWarningLastAt = GetTime and GetTime() or 0
-        for pendingID, current in pairs(Runtime._pending or {}) do
-            if type(current) == "table"
-                and current.kind == "C"
-                and current.generation == (tonumber(Runtime._generation) or 0) then
-                local matched, matchAt = EvaluatePendingEncounterWarningMatch(current)
-                if matched then
-                    Runtime._pending[pendingID] = nil
-                    TryFireRule(current.rule, current.payload, "C", matchAt)
-                end
-            end
-        end
+    ExwindTools:RegisterEvent("PLAYER_ENTERING_WORLD", OWNER_PREFIX .. ".PlayerEnteringWorld", function()
+        Runtime:ClearRuntimeState()
     end)
 end
 
-if ExwindTools and type(ExwindTools.WatchState) == "function" then
-    ExwindTools:WatchState("RoleKey", OWNER .. ".RoleChanged", function()
-        Runtime:RefreshActiveRegistrations()
-    end)
-    ExwindTools:WatchState("PlayerDebuffRevision", OWNER .. ".PendingDebuffCheck", function(newValue)
-        local state = ExwindTools and ExwindTools.State or nil
-        for pendingID, current in pairs(Runtime._pending or {}) do
-            if type(current) == "table"
-                and current.kind == "B"
-                and current.generation == (tonumber(Runtime._generation) or 0) then
-                local matched, matchAt = EvaluatePendingDebuffMatch(current, state)
-                if matched then
-                    Runtime._pending[pendingID] = nil
-                    TryFireRule(current.rule, current.payload, "B", matchAt)
-                end
-            end
-        end
-    end)
-end
-
-if type(Runtime.RefreshActiveRegistrations) == "function" then
-    Runtime:RefreshActiveRegistrations()
+SLASH_EXBOSSEWTEST1 = "/exewtest"
+SlashCmdList["EXBOSSEWTEST"] = function(input)
+    Runtime:RunTestCommand(input)
 end

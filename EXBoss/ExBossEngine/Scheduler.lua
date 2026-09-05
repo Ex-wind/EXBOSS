@@ -547,15 +547,6 @@ local function IsCastProgressBarGloballyEnabled()
     return type(db) ~= "table" or db.enabled ~= false
 end
 
-local function DoesTargetAlertWantObservedBossCast(timer)
-    local runtime = ExBoss and ExBoss.TargetAlert or nil
-    if runtime and type(runtime.ShouldObserveBossCast) == "function" then
-        local ok, result = pcall(runtime.ShouldObserveBossCast, runtime, timer)
-        return ok and result == true
-    end
-    return false
-end
-
 local function EnrichProgressPlan(plan, timer)
     if type(plan) ~= "table" or type(timer) ~= "table" then
         return plan
@@ -817,10 +808,9 @@ function Scheduler:ShowBossProgressFromObservedStart(timer, castKind, unit, _uni
         BossProgressDebugPrint("show skipped: invalid-or-disabled timer")
         return false
     end
-    local targetAlertWanted = DoesTargetAlertWantObservedBossCast(timer)
     local ringEnabled = timer.ringEnabled == true and IsRingProgressGloballyEnabled()
     local castProgressBarEnabled = timer.castProgressBarEnabled == true and IsCastProgressBarGloballyEnabled()
-    if ringEnabled ~= true and castProgressBarEnabled ~= true and targetAlertWanted ~= true then
+    if ringEnabled ~= true and castProgressBarEnabled ~= true then
         BossProgressDebugPrint(string.format(
             "show skipped event=%s unit=%s: all displays disabled",
             tostring(timer.eventID), tostring(NormalizeUnitToken(unit) or unit)
@@ -829,7 +819,7 @@ function Scheduler:ShowBossProgressFromObservedStart(timer, castKind, unit, _uni
     end
 
     local plan, castCheckEnabled = BuildBossProgressPlanForObservedStart(timer, castKind)
-    if (type(plan) ~= "table" or #plan == 0) and targetAlertWanted ~= true then
+    if type(plan) ~= "table" or #plan == 0 then
         BossProgressDebugPrint(string.format(
             "show skipped event=%s unit=%s kind=%s: no progress plan",
             tostring(timer.eventID), tostring(NormalizeUnitToken(unit) or unit), tostring(castKind)
@@ -875,7 +865,7 @@ function Scheduler:ShowBossProgressFromObservedStart(timer, castKind, unit, _uni
         })
     end
     DispatchBossObservedCastEvent(BOSS_OBSERVED_CAST_START_EVENT, runtime)
-    if shown ~= true and targetAlertWanted ~= true and runtime and runtime.id then
+    if shown ~= true and runtime and runtime.id then
         self._bossObservedRuntimes[runtime.id] = nil
     end
     BossProgressDebugPrint(string.format(
@@ -884,17 +874,15 @@ function Scheduler:ShowBossProgressFromObservedStart(timer, castKind, unit, _uni
         tostring(NormalizeCastBarID(castBarID)), type(plan) == "table" and #plan or 0,
         tostring(ringEnabled), tostring(castProgressBarEnabled), tostring(castCheckEnabled == true), tostring(shown)
     ))
-    return shown == true or targetAlertWanted == true
+    return shown == true
 end
 
 function Scheduler:_ShouldUseBossCastObserve(timer)
     return type(timer) == "table"
         and timer.disabled ~= true
         and timer.source ~= "trash"
-        and (
-            (timer.useRingProgress == true and (timer.ringEnabled == true or timer.castProgressBarEnabled == true))
-            or DoesTargetAlertWantObservedBossCast(timer)
-        )
+        and timer.useRingProgress == true
+        and (timer.ringEnabled == true or timer.castProgressBarEnabled == true)
 end
 
 local function BuildBossCastObserveSnapshot(timer)
@@ -5185,6 +5173,13 @@ function Scheduler:_OnUpdate(elapsed)
         local action = nil
         if timer.timelineManaged then
             action = self:_UpdateTimelineManagedTimer(timer, now)
+        end
+
+        -- ENCOUNTER_WARNING 声明式提示以 Boss event 的预计结束时刻为窗口中心。
+        -- 即使本 tick 随后回收 timer，Runtime 已保存的 windowAfter 仍可继续匹配。
+        local encounterWarningAlert = ExBoss and ExBoss.TargetAlert or nil
+        if encounterWarningAlert and type(encounterWarningAlert.ObserveBossTimer) == "function" then
+            encounterWarningAlert:ObserveBossTimer(timer, self._encounterID, now)
         end
 
         if action ~= "remove" then
