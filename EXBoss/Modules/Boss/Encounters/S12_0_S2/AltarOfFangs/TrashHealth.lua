@@ -1,7 +1,6 @@
 ---@diagnostic disable: undefined-global
 -- 毒牙祭坛专用生产者。身份与战斗条件仅消费小怪 State，不自行推理 NPC。
 local NPC_IDS = {
-    [261550] = true, -- 临时测试：测试结束后只删除这一行。
     [263112] = true,
 }
 local INSTANCE_ID = 2993
