@@ -114,8 +114,9 @@ local INTERACTION_SCHEMA = {
     ["core.spellName"] = { guiKey = "font_spell", movable = true, textRole = "label", tooltip = L["单位名称"],
         position = { x = "font_spell.x", y = "font_spell.y" },
         anchor = { point = "LEFT", relativeElement = "core.bar", relativePoint = "LEFT" } },
-    ["elements.healthValue"] = { guiKey = "font_timer", movable = true, tooltip = L["血量百分比"],
-        position = { x = "font_timer.x", y = "font_timer.y" } },
+    ["core.time"] = { guiKey = "font_timer", movable = true, textRole = "time", tooltip = L["血量百分比"],
+        position = { x = "font_timer.x", y = "font_timer.y" },
+        anchor = { point = "RIGHT", relativeElement = "core.bar", relativePoint = "RIGHT" } },
 }
 local function Layout()
     local layout = DB().layout
@@ -144,25 +145,15 @@ local function BuildPresentation(record, sample)
         fillColor = { r = r, g = g, b = b, a = db.timerGroup.barColorA }
     end
     local interaction = EXUI:BuildStandardPreviewInteraction("TimerBar", db, INTERACTION_SCHEMA)
-    -- 扩展文字由 RegionElements 自己提供命中框；普通 TimerBar slots 只处理本体文字。
-    interaction.slots["elements.healthValue"] = nil
-    local healthInteraction = INTERACTION_SCHEMA["elements.healthValue"]
     return {
-        style = { timerBar = db.timerGroup, text = { label = db.font_spell } },
+        style = { timerBar = db.timerGroup, text = { label = db.font_spell, time = db.font_timer } },
         label = record.name, icon = { value = 136016 },
+        -- 预览使用普通文字；运行时按护盾条路径直写现成 timeText，避开普通时间参数判断。
+        time = { text = sample and record.text or "", shown = db.font_timer.enabled == true },
         -- 运行血量在 ApplyNativeHealthFill 中直传主 StatusBar，绝不把 Secret
         -- 交给普通 Collection 的数字 clamp，也不进入 Duration 专用条的重置路径。
         progress = { value = sample and record.percent or 0, minimum = 0, maximum = 100 },
         fillColor = fillColor,
-        regionElements = { {
-            id = "healthValue", kind = "text", stylePath = "font_timer", style = db.font_timer,
-            anchor = { point = "RIGHT", relativeElement = "core.bar", relativePoint = "RIGHT" },
-            bounds = { width = math.max(1, db.font_timer.autoWidth and db.font_timer.size * 4 or db.font_timer.fixedWidth), height = db.font_timer.size + 4 },
-            content = { text = record.text, secretText = sample ~= true },
-            shown = db.font_timer.enabled == true,
-            interaction = { elementID = "elements.healthValue", guiTarget = healthInteraction.guiKey,
-                movable = true, position = healthInteraction.position, tooltip = healthInteraction.tooltip },
-        } },
         interaction = interaction,
     }
 end
@@ -193,6 +184,13 @@ local function RelayoutRuntime()
     runtimeCollection:SetItems(items, Layout())
 end
 local nextOrder = 0
+local function ApplyNativeHealthText(record)
+    -- 复用护盾条的时间文字槽，层级和拖动均由标准 TimerBar 管理。
+    local text = record.item.widget.timeText
+    text:ClearDurationBinding()
+    text:SetSecretText(record.text)
+    text:SetShown(DB().font_timer.enabled == true)
+end
 local function ApplyNativeHealthFill(record)
     local bar = record.item.widget.bar
     -- 与 ExUnitFrame.Player.UpdateHealthSection 相同的原生血量显示路径。
@@ -223,14 +221,11 @@ function Mod:UpdateHealth(id, unit, name)
     record.color = UnitHealthPercent(unit, true, healthCurve)
     if isNew then
         collection:ApplyItem(record.item, BuildPresentation(record, false))
-        -- 标准 Region 生命周期仍由 Collection 拥有，这里缓存已创建的文字对象。
-        record.healthText = record.item.regions.entriesByID.healthValue.widget
+        ApplyNativeHealthText(record)
     else
         -- 初建已由 SetSecretText 建立 Secret 文字状态；高频只写原生 FontString，
         -- 不再次调用会执行 RefreshTextLayout 的 TextWidget:SetSecretText。
-        record.healthText.text:SetText(record.text)
-        -- 保持已物化 presentation 的数据新鲜，后续外观重套不会恢复旧百分比。
-        record.item.presentation.regionElements[1].content.text = record.text
+        record.item.widget.timeText.text:SetText(record.text)
         if nameChanged then
             record.item.widget:SetLabel(name)
             record.item.presentation.label = name
@@ -325,7 +320,10 @@ local function Reapply(collection, source, sample)
         end
     end, { reapplyLayout = false })
     if not sample then
-        for _, record in pairs(source) do ApplyNativeHealthFill(record) end
+        for _, record in pairs(source) do
+            ApplyNativeHealthText(record)
+            ApplyNativeHealthFill(record)
+        end
         if refreshDebug then refreshDebug.layouts = refreshDebug.layouts + 1 end
     end
     collection:ReapplyCurrentLayout(Layout())
