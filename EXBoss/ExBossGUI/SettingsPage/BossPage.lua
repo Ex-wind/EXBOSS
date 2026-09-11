@@ -29,7 +29,6 @@ local C = {
     SPELL_LIST_VISIBLE_ROWS = 2,
     SPELL_SETTINGS_GRID_COLS = 200,
     PREALERT_FIXED_SECS = 5,
-    TIMELINE_SOURCE_SCRIPT = Enum and Enum.EncounterTimelineEventSource and Enum.EncounterTimelineEventSource.Script or 1,
     SPELL_TEXT_KEYS = {
         "centralText",
         "preAlertText",
@@ -169,10 +168,6 @@ local selectedBossIndex
 local selectedEventID
 local selectedBossCommonSettings
 local STATE = {
-    testTimelineLoopActive = false,
-    testTimelineScriptEventIDs = {},
-    testTimelineLoopHandles = {},
-    testTimelineCleanupHandles = {},
     asyncHandler = nil,
     -- Render 和同帧的外部 RefreshSpellUI 都可能排入 After(0)。只允许当前
     -- 页面实例的回调继续，避免切 Tab 后旧回调在重开页面上重复重建卡片。
@@ -205,8 +200,6 @@ local STATE = {
     spellEditorRevision = 0,
     spellEditorContext = nil,
 }
-ExBoss.TestTimelineScriptMeta = ExBoss.TestTimelineScriptMeta or {}
-ExBoss.TestTimelineForceFixedTime = ExBoss.TestTimelineForceFixedTime or {}
 Page._spellTextRawState = Page._spellTextRawState or {}
 local SETTINGS = {}
 
@@ -1304,47 +1297,6 @@ local function GetRawEncounterEventRow(eventID)
     return nil
 end
 
-local function BuildRawTestSkill(skill)
-    if type(skill) ~= "table" then
-        return nil
-    end
-    local raw = GetRawEncounterEventRow(skill.eventID)
-    local out = {}
-    for k, v in pairs(skill) do
-        out[k] = v
-    end
-    if type(raw) == "table" then
-        local rawName = tostring(raw.name or raw.eventName or "")
-        if rawName ~= "" then
-            local localizedName = rawName
-            if ExBoss and ExBoss.Locale and type(ExBoss.Locale.TranslateBossDynamicText) == "function" then
-                localizedName = tostring(ExBoss.Locale.TranslateBossDynamicText(rawName) or "")
-            end
-            out.name = localizedName
-            out.displayName = localizedName
-        end
-        local rawSpell = tonumber(raw.evenSpellID) or tonumber(raw.spellID)
-        if rawSpell and rawSpell > 0 then
-            out.spellIdentifier = rawSpell
-            out.evenSpellID = tonumber(raw.evenSpellID) or rawSpell
-            out.spellID = tonumber(raw.spellID) or rawSpell
-        end
-        if raw.iconFileID ~= nil then
-            out.iconFileID = raw.iconFileID
-        end
-        out.voiceLabel = raw.voiceLabel
-        local localizedPreAlert = raw.preAlertText
-        local localizedScreen = raw.centralText
-        if ExBoss and ExBoss.Locale and type(ExBoss.Locale.TranslateBossDynamicText) == "function" then
-            localizedPreAlert = tostring(ExBoss.Locale.TranslateBossDynamicText(raw.preAlertText) or "")
-            localizedScreen = tostring(ExBoss.Locale.TranslateBossDynamicText(raw.centralText) or "")
-        end
-        out.preAlertText = localizedPreAlert
-        out.screenText = localizedScreen
-    end
-    return out
-end
-
 local function BuildSeasonList()
     return { "12.1大秘境", "12.1团本", "12.0大秘境", "其他" }
 end
@@ -1933,338 +1885,6 @@ local function PlayTargetAlertStartPreview(mdb)
     end
     Engine:TryPlayStandaloneSound(triggerCfg, "bosspage_target_alert_preview", { triggerIndex = 0 })
 end
-
-local function AddTestTimelineHandle(handle)
-    if type(handle) == "table" and type(handle.Cancel) == "function" then
-        STATE.testTimelineLoopHandles[#STATE.testTimelineLoopHandles + 1] = handle
-    end
-end
-
-local function CancelTestTimelineHandles()
-    for i = 1, #STATE.testTimelineLoopHandles do
-        local h = STATE.testTimelineLoopHandles[i]
-        if type(h) == "table" and type(h.Cancel) == "function" then
-            pcall(h.Cancel, h)
-        end
-    end
-    wipe(STATE.testTimelineLoopHandles)
-end
-
-local function AddTestTimelineCleanupHandle(handle)
-    if type(handle) == "table" and type(handle.Cancel) == "function" then
-        STATE.testTimelineCleanupHandles[#STATE.testTimelineCleanupHandles + 1] = handle
-    end
-end
-
-local function CancelTestTimelineCleanupHandles()
-    for i = 1, #STATE.testTimelineCleanupHandles do
-        local h = STATE.testTimelineCleanupHandles[i]
-        if type(h) == "table" and type(h.Cancel) == "function" then
-            pcall(h.Cancel, h)
-        end
-    end
-    wipe(STATE.testTimelineCleanupHandles)
-end
-
-local function RemoveOneTestTimelineScriptEvent(eventID)
-    local eid = tonumber(eventID)
-    if not (eid and eid > 0 and C_EncounterTimeline) then
-        return
-    end
-    if ExBoss and ExBoss.TestTimelineScriptMeta then
-        ExBoss.TestTimelineScriptMeta[eid] = nil
-    end
-    if C_EncounterTimeline.FinishScriptEvent then
-        pcall(C_EncounterTimeline.FinishScriptEvent, eid)
-    end
-    if C_EncounterTimeline.CancelScriptEvent then
-        pcall(C_EncounterTimeline.CancelScriptEvent, eid)
-    end
-end
-
-local function ForceCancelTestTimelineScriptEvents()
-    if C_EncounterTimeline then
-        if C_EncounterTimeline.CancelAllScriptEvents then
-            pcall(C_EncounterTimeline.CancelAllScriptEvents)
-        end
-
-        if C_EncounterTimeline.GetEventList and C_EncounterTimeline.GetEventInfo and C_EncounterTimeline.CancelScriptEvent then
-            local okEvents, events = pcall(C_EncounterTimeline.GetEventList)
-            if okEvents and type(events) == "table" then
-                for i = 1, #events do
-                    local eventID = tonumber(events[i])
-                    if eventID and eventID > 0 then
-                        local okInfo, info = pcall(C_EncounterTimeline.GetEventInfo, eventID)
-                        if okInfo and type(info) == "table" and tonumber(info.source) == C.TIMELINE_SOURCE_SCRIPT then
-                            RemoveOneTestTimelineScriptEvent(eventID)
-                        end
-                    end
-                end
-            end
-        end
-
-        if C_EncounterTimeline.CancelScriptEvent or C_EncounterTimeline.FinishScriptEvent then
-            for i = 1, #STATE.testTimelineScriptEventIDs do
-                local eventID = tonumber(STATE.testTimelineScriptEventIDs[i])
-                if eventID and eventID > 0 then
-                    RemoveOneTestTimelineScriptEvent(eventID)
-                end
-            end
-        end
-    end
-end
-
-local function CancelTestTimelineScriptEvents()
-    ForceCancelTestTimelineScriptEvents()
-    wipe(STATE.testTimelineScriptEventIDs)
-    if ExBoss and ExBoss.TestTimelineScriptMeta then
-        wipe(ExBoss.TestTimelineScriptMeta)
-    end
-end
-
--- [DISABLED] ClearEncounterWarningsUI 已注释掉。
--- 原因：同 Scheduler.lua 中同名函数。在 tainted 执行上下文里调用会触发
--- Blizzard EncounterWarnings OnHide → ScaleTextToFit 对秘密宽度做算术运算，
--- 产生 taint 报错。暴雪警告框有自己的生命周期，EXBoss 无需主动清除。
--- 如需恢复：取消下方注释，并同步恢复 ClearEncounterWarningsUI() 调用处。
---
--- local function ClearEncounterWarningsUI()
---     local frames = {
---         _G.CriticalEncounterWarnings,
---         _G.MediumEncounterWarnings,
---         _G.MinorEncounterWarnings,
---     }
---     for i = 1, #frames do
---         local frame = frames[i]
---         if type(frame) == "table" then
---             if type(frame.ClearWarning) == "function" then
---                 pcall(frame.ClearWarning, frame)
---             elseif type(frame.HideWarning) == "function" then
---                 pcall(frame.HideWarning, frame)
---             end
---         end
---     end
---     local tooltip = _G.GameTooltip
---     if tooltip and type(tooltip.Hide) == "function" then
---         pcall(tooltip.Hide, tooltip)
---     end
--- end
-
-local function BuildTestTimelinePreAlertText(skill)
-    local rawSkill = BuildRawTestSkill(skill)
-    if type(rawSkill) ~= "table" then
-        return nil
-    end
-    local txt = NormalizeOptionText(rawSkill.preAlertText)
-    if txt == "" then
-        return nil
-    end
-    local name = NormalizeOptionText(rawSkill.displayName or rawSkill.name or "")
-    if name ~= "" then
-        txt = txt:gsub("{name}", name)
-    else
-        txt = txt:gsub("{name}", "")
-    end
-    return NormalizeOptionText(txt)
-end
-
-local function ScheduleTestTimelineCleanupPasses()
-    CancelTestTimelineCleanupHandles()
-    local delays = { 0.05, 0.20, 0.50, 1.00 }
-    for i = 1, #delays do
-        local delay = delays[i]
-        local h = C_Timer.NewTimer(delay, function()
-            ForceCancelTestTimelineScriptEvents()
-        end)
-        AddTestTimelineCleanupHandle(h)
-    end
-end
-
-local function StopTestTimelineLoop(skipDelayedCleanup)
-    STATE.testTimelineLoopActive = false
-    if ExBoss and ExBoss.TestTimelineForceFixedTime then
-        wipe(ExBoss.TestTimelineForceFixedTime)
-    end
-    CancelTestTimelineHandles()
-    CancelTestTimelineCleanupHandles()
-    CancelTestTimelineScriptEvents()
-    -- ClearEncounterWarningsUI() -- [DISABLED] 见函数定义处注释
-    if not skipDelayedCleanup then
-        ScheduleTestTimelineCleanupPasses()
-    end
-end
-
-local function NormalizeLoopDuration(v, fallback)
-    local n = tonumber(v)
-    if not n then
-        n = tonumber(fallback) or 1
-    end
-    if n < 0.2 then n = 0.2 end
-    if n > 600 then n = 600 end
-    return n
-end
-
-local function ResolveScriptEventPriority(skill)
-    local p = tonumber(skill and skill.barPriority)
-    if p and p >= 3 then
-        return 2
-    end
-    return 1
-end
-
-local function AddLoopScriptEvent(skill, duration)
-    if not STATE.testTimelineLoopActive then return end
-    if not (C_EncounterTimeline and C_EncounterTimeline.AddScriptEvent) then return end
-    skill = BuildRawTestSkill(skill)
-    if type(skill) ~= "table" then return end
-
-    local spellID = tonumber(skill.spellIdentifier) or tonumber(skill.evenSpellID) or tonumber(skill.spellID)
-    if not spellID or spellID <= 0 then return end
-
-    local info = nil
-    if C_Spell and C_Spell.GetSpellInfo then
-        info = C_Spell.GetSpellInfo(spellID)
-    end
-
-    local req = {
-        spellID = spellID,
-        iconFileID = tonumber(skill.iconFileID) or (info and tonumber(info.iconID)) or 136243,
-        duration = NormalizeLoopDuration(duration, 1),
-        maxQueueDuration = 0,
-        overrideName = tostring(skill.displayName or skill.name or (info and info.name) or
-            (L["技能 "] .. tostring(spellID))),
-        severity = ResolveScriptEventPriority(skill),
-        paused = false,
-    }
-
-    local icons = tonumber(skill.icons)
-    if icons and icons > 0 and icons <= 1023 then
-        req.icons = icons
-    end
-
-    local ok, eventID = pcall(C_EncounterTimeline.AddScriptEvent, req)
-    eventID = tonumber(eventID)
-    if ok and eventID and eventID > 0 then
-        STATE.testTimelineScriptEventIDs[#STATE.testTimelineScriptEventIDs + 1] = eventID
-        if ExBoss and ExBoss.TestTimelineScriptMeta then
-            ExBoss.TestTimelineScriptMeta[eventID] = {
-                preAlertText = BuildTestTimelinePreAlertText(skill),
-                eventID = tonumber(skill.eventID),
-                spellIdentifier = spellID,
-            }
-        end
-        if #STATE.testTimelineScriptEventIDs > 2000 then
-            table.remove(STATE.testTimelineScriptEventIDs, 1)
-        end
-    end
-end
-
-local function StartSkillLoopScriptEvents(skill)
-    skill = BuildRawTestSkill(skill)
-    if type(skill) ~= "table" then return end
-
-    local firstDelay = NormalizeLoopDuration(skill.first, 5)
-    AddLoopScriptEvent(skill, firstDelay)
-
-    local function StartFixedIntervalLoop(period)
-        period = NormalizeLoopDuration(period, firstDelay)
-        local firstHandle = C_Timer.NewTimer(firstDelay, function()
-            if not STATE.testTimelineLoopActive then return end
-            AddLoopScriptEvent(skill, period)
-            local ticker = C_Timer.NewTicker(period, function()
-                if not STATE.testTimelineLoopActive then return end
-                AddLoopScriptEvent(skill, period)
-            end)
-            AddTestTimelineHandle(ticker)
-        end)
-        AddTestTimelineHandle(firstHandle)
-    end
-
-    local ivNum = tonumber(skill.interval)
-    if ivNum and ivNum > 0 then
-        StartFixedIntervalLoop(ivNum)
-        return
-    end
-
-    if type(skill.interval) == "table" and #skill.interval > 0 then
-        local seq = {}
-        for i = 1, #skill.interval do
-            local v = tonumber(skill.interval[i])
-            if v and v > 0 then
-                seq[#seq + 1] = NormalizeLoopDuration(v, firstDelay)
-            end
-        end
-        if #seq > 0 then
-            local idx = 1
-            local function ScheduleNext(waitSecs)
-                local timer = C_Timer.NewTimer(waitSecs, function()
-                    if not STATE.testTimelineLoopActive then return end
-                    local dur = seq[idx] or seq[1]
-                    AddLoopScriptEvent(skill, dur)
-                    idx = idx + 1
-                    if idx > #seq then
-                        idx = 1
-                    end
-                    ScheduleNext(dur)
-                end)
-                AddTestTimelineHandle(timer)
-            end
-            ScheduleNext(firstDelay)
-            return
-        end
-    end
-
-    -- 无 interval 数据时，按 first 间隔循环。
-    StartFixedIntervalLoop(firstDelay)
-end
-
-local function StartTestTimelineLoop(encounterID)
-    StopTestTimelineLoop(true)
-    if not (C_EncounterTimeline and C_EncounterTimeline.AddScriptEvent) then
-        return false
-    end
-
-    local bossDef = ExBoss and ExBoss.Timeline and ExBoss.Timeline._bosses and
-        ExBoss.Timeline._bosses[tonumber(encounterID)]
-    local skills = bossDef and bossDef.skills
-    if type(skills) ~= "table" or #skills == 0 then
-        return false
-    end
-
-    ExBoss.TestTimelineForceFixedTime = ExBoss.TestTimelineForceFixedTime or {}
-    ExBoss.TestTimelineForceFixedTime.active = true
-    ExBoss.TestTimelineForceFixedTime.encounterID = tonumber(encounterID)
-
-    STATE.testTimelineLoopActive = true
-    local started = 0
-    for _, skill in ipairs(skills) do
-        local rawSkill = BuildRawTestSkill(skill)
-        local sid = type(rawSkill) == "table" and
-            (tonumber(rawSkill.spellIdentifier) or tonumber(rawSkill.evenSpellID) or tonumber(rawSkill.spellID)) or nil
-        if sid and sid > 0 then
-            StartSkillLoopScriptEvents(rawSkill)
-            started = started + 1
-        end
-    end
-
-    if started <= 0 then
-        StopTestTimelineLoop()
-        return false
-    end
-
-    return true
-end
-
-local testTimelineEventFrame = CreateFrame("Frame")
-testTimelineEventFrame:RegisterEvent("ENCOUNTER_END")
-testTimelineEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-testTimelineEventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-testTimelineEventFrame:SetScript("OnEvent", function(_, event)
-    if not STATE.testTimelineLoopActive then
-        return
-    end
-    StopTestTimelineLoop()
-end)
 
 local function GetEventID(event)
     if type(event) ~= "table" then return nil end
@@ -3481,7 +3101,11 @@ local function EnsureUI(leftFrame, contentFrame)
             self:SetBackdropBorderColor(0.1, 0.8, 1, 1)
         end)
         b:SetScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.95)
+            if self._previewActive == true then
+                self:SetBackdropBorderColor(1, 0.35, 0.15, 0.95)
+            else
+                self:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.95)
+            end
         end)
         return b
     end
@@ -3489,49 +3113,28 @@ local function EnsureUI(leftFrame, contentFrame)
     if UI.titleControlHost and not UI.modeTestStartBtn then
         UI.modeTestStartBtn = CreateTopTestButton(L["测开"])
         UI.modeTestStartBtn:SetParent(UI.titleControlHost)
-    end
-    if UI.titleControlHost and not UI.modeTestEndBtn then
-        UI.modeTestEndBtn = CreateTopTestButton(L["测关"])
-        UI.modeTestEndBtn:SetParent(UI.titleControlHost)
+        UI.modeTestStartBtn:SetPoint("RIGHT", UI.modeLabelText, "LEFT", -12, 0)
     end
 
-    if UI.modeDropdown and UI.modeTestStartBtn and UI.modeTestEndBtn then
-        UI.modeTestEndBtn:SetPoint("RIGHT", UI.modeLabelText, "LEFT", -12, 0)
-        UI.modeTestStartBtn:SetPoint("RIGHT", UI.modeTestEndBtn, "LEFT", -6, 0)
+    function Page:RefreshTemporaryBossPreviewButton()
+        if not (UI.modeTestStartBtn and UI.modeTestStartBtn.text) then return end
+        local preview = ExBoss and ExBoss.TemporaryBossPreview
+        local running = preview and type(preview.IsRunning) == "function" and preview:IsRunning()
+        UI.modeTestStartBtn._previewActive = running == true
+        UI.modeTestStartBtn.text:SetText(running and L["测关"] or L["测开"])
+        UI.modeTestStartBtn:SetBackdropBorderColor(running and 1 or 0.35, running and 0.35 or 0.35,
+            running and 0.15 or 0.35, 0.95)
     end
 
     UI.modeTestStartBtn:SetScript("OnClick", function()
-        local boss = GetCurrentBoss()
-        local encounterID = boss and tonumber(boss.encounterID)
-        if not encounterID then
-            return
+        local preview = ExBoss and ExBoss.TemporaryBossPreview
+        if not (preview and type(preview.Toggle) == "function") then return end
+        CommitSpellTextFormState()
+        local ok, reason = preview:Toggle(GetCurrentBoss())
+        Page:RefreshTemporaryBossPreviewButton()
+        if ok == false and reason ~= "stopped" and reason then
+            print("|cffff6600[EXBoss]|r " .. tostring(reason))
         end
-        local encounterName = tostring((boss and (boss.bossName or boss.name)) or L["测试首领"])
-        local difficultyID = tonumber(ExwindTools and ExwindTools.State and ExwindTools.State.DifficultyID) or 8
-        local groupSize = (IsInRaid and IsInRaid()) and 20 or 5
-        ExBoss.TestTimelineForceFixedTime = ExBoss.TestTimelineForceFixedTime or {}
-        ExBoss.TestTimelineForceFixedTime.active = true
-        ExBoss.TestTimelineForceFixedTime.encounterID = encounterID
-        if ExwindTools and ExwindTools.SendEvent then
-            ExwindTools:SendEvent("ENCOUNTER_START", encounterID, encounterName, difficultyID, groupSize)
-        else
-        end
-
-        StartTestTimelineLoop(encounterID)
-    end)
-
-    UI.modeTestEndBtn:SetScript("OnClick", function()
-        local boss = GetCurrentBoss()
-        local encounterID = boss and tonumber(boss.encounterID) or 0
-        local encounterName = tostring((boss and (boss.bossName or boss.name)) or L["测试首领"])
-        local difficultyID = tonumber(ExwindTools and ExwindTools.State and ExwindTools.State.DifficultyID) or 8
-        local groupSize = (IsInRaid and IsInRaid()) and 20 or 5
-        if ExwindTools and ExwindTools.SendEvent then
-            ExwindTools:SendEvent("ENCOUNTER_END", encounterID, encounterName, difficultyID, groupSize, 1)
-        else
-        end
-
-        StopTestTimelineLoop()
     end)
 
     UI.spellSettingsFrame = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")
@@ -5113,6 +4716,7 @@ function Page:Render(leftFrame, contentFrame)
     RefreshBossList(true)
     UpdateSummary()
     RefreshModeButton()
+    Page:RefreshTemporaryBossPreviewButton()
 
     C_Timer.After(0, function()
         if not Page._visible
