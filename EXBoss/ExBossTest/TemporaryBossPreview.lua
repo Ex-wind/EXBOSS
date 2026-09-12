@@ -11,14 +11,15 @@ ExBoss.TemporaryBossPreview = ExBoss.TemporaryBossPreview or {}
 local Preview = ExBoss.TemporaryBossPreview
 
 local OWNER = "ExBoss.TemporaryBossPreview"
-local DURATIONS = { 5, 10 }
-local NEXT_EVENT_DELAY = 0.75
+local EVENT_SPACING = 5
+local CAST_CLEANUP_DELAY = 0.50
 
 Preview._running = Preview._running == true
 Preview._generation = tonumber(Preview._generation) or 0
 Preview._sequence = tonumber(Preview._sequence) or 0
 Preview._handles = Preview._handles or {}
 Preview._events = Preview._events or {}
+Preview._activeTimers = Preview._activeTimers or {}
 
 local function NotifyStateChanged()
     local page = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.BossPage
@@ -191,28 +192,8 @@ local function GetVoiceDelay(timer, trigger, now)
     return math.max(0, fireAt - now)
 end
 
-function Preview:_RunNext(generation)
-    StopBars(self._activeTimer)
-    self._activeTimer = nil
-
-    local timer
-    for _ = 1, #self._events do
-        self._eventIndex = (self._eventIndex % #self._events) + 1
-        local event = self._events[self._eventIndex]
-        local duration = DURATIONS[(self._displayIndex % #DURATIONS) + 1]
-        timer = BuildTimer(event, self._encounterID, duration)
-        if timer then
-            self._displayIndex = self._displayIndex + 1
-            break
-        end
-    end
-
-    if not timer then
-        self:Stop("no-enabled-events")
-        return false
-    end
-
-    self._activeTimer = timer
+function Preview:_ArmTimer(event, timer, generation)
+    self._activeTimers[timer.id] = timer
     ShowBars(timer)
     local now = GetTime()
     local dispatcher = ExBoss and ExBoss.Timeline and ExBoss.Timeline.Dispatcher
@@ -252,8 +233,17 @@ function Preview:_RunNext(generation)
         if dispatcher and type(dispatcher.OnCast) == "function" then
             pcall(dispatcher.OnCast, dispatcher, timer)
         end
-        Schedule(NEXT_EVENT_DELAY, generation, function()
-            self:_RunNext(generation)
+
+        -- 当前技能完成后，立即把同一技能的下一轮补到队尾。
+        -- 例如五个技能始终保持 5/10/15/20/25 秒的滚动间距。
+        local nextTimer = BuildTimer(event, self._encounterID, self._cycleDuration)
+        if nextTimer then
+            self:_ArmTimer(event, nextTimer, generation)
+        end
+
+        Schedule(CAST_CLEANUP_DELAY, generation, function()
+            StopBars(timer)
+            self._activeTimers[timer.id] = nil
         end)
     end)
     return true
@@ -280,12 +270,24 @@ function Preview:Start(boss)
     self._running = true
     self._encounterID = encounterID
     self._events = events
-    self._eventIndex = 0
-    self._displayIndex = 0
-    NotifyStateChanged()
 
-    if self:_RunNext(self._generation) ~= true then
+    local prepared = {}
+    for _, event in ipairs(events) do
+        local delay = (#prepared + 1) * EVENT_SPACING
+        local timer = BuildTimer(event, encounterID, delay)
+        if timer then
+            prepared[#prepared + 1] = { event = event, timer = timer }
+        end
+    end
+    if #prepared == 0 then
+        self:Stop("no-enabled-events")
         return false, "当前配置没有启用的测试技能"
+    end
+
+    self._cycleDuration = #prepared * EVENT_SPACING
+    NotifyStateChanged()
+    for _, item in ipairs(prepared) do
+        self:_ArmTimer(item.event, item.timer, self._generation)
     end
     return true
 end
@@ -295,11 +297,10 @@ function Preview:Stop(reason)
     self._generation = self._generation + 1
     self._running = false
     CancelHandles()
-    StopBars(self._activeTimer)
-    self._activeTimer = nil
+    for _, timer in pairs(self._activeTimers) do StopBars(timer) end
+    wipe(self._activeTimers)
     self._events = {}
-    self._eventIndex = 0
-    self._displayIndex = 0
+    self._cycleDuration = nil
     self._encounterID = nil
     self._stopReason = reason
     if wasRunning then NotifyStateChanged() end
