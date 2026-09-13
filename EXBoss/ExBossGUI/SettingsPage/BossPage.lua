@@ -3110,31 +3110,50 @@ local function EnsureUI(leftFrame, contentFrame)
         return b
     end
 
+    if UI.titleControlHost and not UI.modeTestStopBtn then
+        UI.modeTestStopBtn = CreateTopTestButton(L["测关"])
+        UI.modeTestStopBtn:SetParent(UI.titleControlHost)
+        UI.modeTestStopBtn:SetPoint("RIGHT", UI.modeLabelText, "LEFT", -12, 0)
+    end
+
     if UI.titleControlHost and not UI.modeTestStartBtn then
         UI.modeTestStartBtn = CreateTopTestButton(L["测开"])
         UI.modeTestStartBtn:SetParent(UI.titleControlHost)
-        UI.modeTestStartBtn:SetPoint("RIGHT", UI.modeLabelText, "LEFT", -12, 0)
+        UI.modeTestStartBtn:SetPoint("RIGHT", UI.modeTestStopBtn, "LEFT", -6, 0)
     end
 
     function Page:RefreshTemporaryBossPreviewButton()
-        if not (UI.modeTestStartBtn and UI.modeTestStartBtn.text) then return end
+        if not (UI.modeTestStartBtn and UI.modeTestStartBtn.text and
+                UI.modeTestStopBtn and UI.modeTestStopBtn.text) then return end
         local preview = ExBoss and ExBoss.TemporaryBossPreview
         local running = preview and type(preview.IsRunning) == "function" and preview:IsRunning()
-        UI.modeTestStartBtn._previewActive = running == true
-        UI.modeTestStartBtn.text:SetText(running and L["测关"] or L["测开"])
-        UI.modeTestStartBtn:SetBackdropBorderColor(running and 1 or 0.35, running and 0.35 or 0.35,
+        UI.modeTestStartBtn._previewActive = false
+        UI.modeTestStopBtn._previewActive = running == true
+        UI.modeTestStartBtn.text:SetText(L["测开"])
+        UI.modeTestStopBtn.text:SetText(L["测关"])
+        UI.modeTestStartBtn:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.95)
+        UI.modeTestStopBtn:SetBackdropBorderColor(running and 1 or 0.35, running and 0.35 or 0.35,
             running and 0.15 or 0.35, 0.95)
     end
 
     UI.modeTestStartBtn:SetScript("OnClick", function()
         local preview = ExBoss and ExBoss.TemporaryBossPreview
-        if not (preview and type(preview.Toggle) == "function") then return end
+        if not (preview and type(preview.Start) == "function") then return end
+        if type(preview.IsRunning) == "function" and preview:IsRunning() then return end
         CommitSpellTextFormState()
-        local ok, reason = preview:Toggle(GetCurrentBoss())
+        local ok, reason = preview:Start(GetCurrentBoss())
         Page:RefreshTemporaryBossPreviewButton()
-        if ok == false and reason ~= "stopped" and reason then
+        if ok == false and reason then
             print("|cffff6600[EXBoss]|r " .. tostring(reason))
         end
+    end)
+
+    UI.modeTestStopBtn:SetScript("OnClick", function()
+        local preview = ExBoss and ExBoss.TemporaryBossPreview
+        if preview and type(preview.Stop) == "function" then
+            preview:Stop("button")
+        end
+        Page:RefreshTemporaryBossPreviewButton()
     end)
 
     UI.spellSettingsFrame = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")

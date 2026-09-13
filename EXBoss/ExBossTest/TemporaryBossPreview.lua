@@ -307,14 +307,6 @@ function Preview:Stop(reason)
     return wasRunning
 end
 
-function Preview:Toggle(boss)
-    if self:IsRunning() then
-        self:Stop("button")
-        return false, "stopped"
-    end
-    return self:Start(boss)
-end
-
 if ExwindTools and type(ExwindTools.RegisterEvent) == "function" then
     ExwindTools:RegisterEvent("ENCOUNTER_START", OWNER, function()
         Preview:Stop("real-encounter")
