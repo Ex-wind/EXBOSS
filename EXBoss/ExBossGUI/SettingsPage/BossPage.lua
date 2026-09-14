@@ -166,6 +166,7 @@ local selectedSeason
 local selectedMapID
 local selectedBossIndex
 local selectedEventID
+local selectedExtraKey
 local selectedBossCommonSettings
 local STATE = {
     asyncHandler = nil,
@@ -447,6 +448,7 @@ end
 -- 此函数只清理 Boss 页表单的内存状态，绝不改动任何持久配置。
 -- 新上下文必须完成 BuildSpellEditorDraftFromSelectedSpell 后才能再次写入。
 local function InvalidateSpellEditorContext()
+    if Page.Extras then Page.Extras:Hide() end
     CancelPendingSpellTextPersist()
     STATE.spellEditorRevision = STATE.spellEditorRevision + 1
     STATE.spellEditorContext = nil
@@ -1912,6 +1914,14 @@ local function EventExistsOnCurrentBoss(eventID)
 end
 
 local function EnsureSelectedEvent()
+    if selectedExtraKey then
+        local registry = ExBoss.BossEncounters
+        if registry and registry:GetExtra(GetCurrentEncounterID(), selectedExtraKey) then
+            selectedEventID = nil
+            return
+        end
+        selectedExtraKey = nil
+    end
     if selectedBossCommonSettings then
         return
     end
@@ -2950,6 +2960,7 @@ local function EnsureUI(leftFrame, contentFrame)
                 CommitSpellTextFormState()
                 InvalidateSpellEditorContext()
                 selectedSeason = val
+                selectedExtraKey = nil
                 selectedMapID = nil
                 selectedBossIndex = nil
                 selectedEventID = nil
@@ -3339,7 +3350,8 @@ local function RefreshActiveSpellCardVisuals()
     for i = 1, #CARD_CACHE.activeSpellCards do
         local card = CARD_CACHE.activeSpellCards[i]
         if card then
-            card._selected = (selected and tonumber(card._eventID) == selected) and true or false
+            card._selected = (card._extraKey and card._extraKey == selectedExtraKey)
+                or (not selectedExtraKey and selected and tonumber(card._eventID) == selected) or false
             if card._applyVisual then
                 card:_applyVisual()
             end
@@ -3887,6 +3899,8 @@ local function RefreshSpellSettingsPanel(expectedRevision)
         return
     end
 
+    if Page.Extras then Page.Extras:Hide() end
+
     if selectedBossCommonSettings then
         STATE.currentSpellSlotKey = nil
         local common = Page.DungeonCommon
@@ -3920,6 +3934,41 @@ local function RefreshSpellSettingsPanel(expectedRevision)
     SetRightSettingsPresentation(false)
     EnsureSelectedEvent()
     local encounterID = GetCurrentEncounterID()
+    if selectedExtraKey and Page.Extras then
+        local extraKey = selectedExtraKey
+        local extra = ExBoss.BossEncounters:GetExtra(encounterID, extraKey)
+        local slot = GetCurrentSpellSlotKey()
+        local scene = GetSlotCategory(slot)
+        local revision = STATE.spellEditorRevision
+        STATE.spellSettingsGridBound = false
+        STATE.currentSpellSlotKey = nil
+        UI.spellSettingsGridScroll:SetVerticalScroll(0)
+        UI.spellDetailHeader:Show()
+        UI.spellDetailPlaceholder:Hide()
+        UI.spellDetailIcon:SetTexture(extra.icon or 134400)
+        UI.spellDetailIcon:Show()
+        UI.spellDetailTitle:SetText(extra.label)
+        UI.spellDetailMeta:SetText("")
+        UI.spellDetailCast:SetText("")
+        UI.spellDetailBody:SetText(extra.description or "")
+        if UI.titleControlHost then UI.titleControlHost:Hide() end
+        RefreshSpellDetailHeaderLayout()
+        local rendered = Page.Extras:Render(UI.spellSettingsGridChild, scene, slot, encounterID, extraKey, function()
+            return revision == STATE.spellEditorRevision and selectedExtraKey == extraKey
+                and GetCurrentEncounterID() == encounterID and GetCurrentSpellSlotKey() == slot
+        end)
+        UI.spellSettingsEmptyText:SetShown(not rendered)
+        if rendered then
+            RegisterSpellSettingsGridAsActive(Page.Extras.MODULE_KEY)
+        else
+            ClearSpellSettingsGridActiveRegistration()
+            local Grid = _G.ExwindGrid
+            if Grid then Grid:ReleaseContainerWidgets(UI.spellSettingsGridChild) end
+            UI.spellSettingsEmptyText:SetText(L["配置不可用"])
+        end
+        return
+    end
+    if UI.titleControlHost then UI.titleControlHost:Show() end
     local eventID = tonumber(selectedEventID)
     local event = FindEventByID(eventID)
     if not encounterID or not eventID or not event then
@@ -4077,6 +4126,7 @@ RefreshSpellCards = function()
         local card = AcquireSpellCard()
         card:SetParent(UI.spellScrollChild)
 
+        local extra = event._extra
         local eventID = GetEventID(event)
         local spellID = GetEventSpellIdentifier(event)
         local spellCached = IsSpellDataReady(spellID)
@@ -4086,6 +4136,7 @@ RefreshSpellCards = function()
 
         local spellName, icon = GetSpellNameAndIcon(spellID)
         local displayName = spellName or (event and event.name) or (L["未知技能 "] .. tostring(index))
+        if extra then displayName, icon = extra.label, extra.icon end
         local override = eventID and GetRuntimeSpellConfig(eventID, GetCurrentSpellSlotKey()) or nil
         local spellEnabled = not (override and override.enabled == false)
 
@@ -4106,11 +4157,14 @@ RefreshSpellCards = function()
         card:SetSize(cardW, C.SPELL_CARD.height)
         card.eventData = event
         card._eventID = eventID
+        card._extraKey = extra and extra.key or nil
         card._spellID = spellID
-        card._selected = (eventID and tonumber(selectedEventID) == eventID) and true or false
+        card._selected = (extra and selectedExtraKey == extra.key)
+            or (not selectedExtraKey and eventID and tonumber(selectedEventID) == eventID) or false
         card._hovered = false
 
         local alertKind, alertSource = ResolvePrimaryAlertIconSourceByBorder(eventID, borderR, borderG, borderB)
+        if extra then alertKind, alertSource = nil, nil end
         if alertKind == "atlas" and card.alertIcon and card.alertIcon.SetAtlas then
             card.alertIcon:SetAtlas(alertSource)
             card.alertIcon:Show()
@@ -4182,11 +4236,12 @@ RefreshSpellCards = function()
             end
         end
         card:SetScript("OnClick", function(self)
-            if not self._eventID then return end
+            if not self._eventID and not self._extraKey then return end
             CancelPendingSpellTextPersist()
             CommitSpellTextFormState()
             InvalidateSpellEditorContext()
             selectedEventID = tonumber(self._eventID)
+            selectedExtraKey = self._extraKey
             selectedBossCommonSettings = nil
             RefreshActiveSpellCardVisuals()
             ScheduleRefreshSpellSettingsPanel()
@@ -4242,6 +4297,10 @@ RefreshSpellCards = function()
     local entries = {}
     for i = 1, #events do
         entries[#entries + 1] = events[i]
+    end
+    local registry = ExBoss.BossEncounters
+    for _, extra in ipairs(registry and registry:GetExtras(encounterID) or {}) do
+        entries[#entries + 1] = { _extra = extra }
     end
     PrimeSpellCache(events)
     local async = GetAsyncHandler()
@@ -4391,6 +4450,7 @@ RefreshBossList = function(resetScroll)
             CommitSpellTextFormState()
             InvalidateSpellEditorContext()
             selectedBossIndex = self.index
+            selectedExtraKey = nil
             selectedEventID = nil
             selectedBossCommonSettings = nil
             SaveSelection()
@@ -4439,6 +4499,7 @@ RefreshBossList = function(resetScroll)
             CommitSpellTextFormState()
             InvalidateSpellEditorContext()
             selectedBossIndex = nil
+            selectedExtraKey = nil
             selectedEventID = nil
             selectedBossCommonSettings = true
             RefreshActiveBossCardVisuals()
@@ -4630,6 +4691,7 @@ RefreshMapTabs = function(resetScroll)
             CommitSpellTextFormState()
             InvalidateSpellEditorContext()
             selectedMapID = self.mapID
+            selectedExtraKey = nil
             selectedBossIndex = nil
             selectedEventID = nil
             selectedBossCommonSettings = nil

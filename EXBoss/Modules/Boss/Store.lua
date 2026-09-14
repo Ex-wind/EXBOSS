@@ -539,6 +539,48 @@ function BossConfig:IsSceneEnabled(scene)
     return category == "mplus" and EXBOSS12S2.ui.general.bossAlertsEnabledMplus ~= false
         or category == "raid" and general.disableEXBossInRaid ~= true
 end
+
+-- Extra declarations own their initial scalar values. Runtime (Factory/Author/User)
+-- overrides them without materializing defaults in a user's saved configuration.
+function BossConfig:GetExtraConfig(scene, encounterID, extraKey)
+    local registry = ExBoss.BossEncounters
+    local extra = registry and registry:GetExtra(encounterID, extraKey)
+    if not extra then return nil end
+    local api = API()
+    local values = api and api.GetCurrentRuntimePath(scene, { "encounterExtras", tonumber(encounterID), extraKey })
+    local out = {}
+    for key, default in pairs(extra.defaults or {}) do
+        local value
+        if type(values) == "table" then value = values[key] end
+        if type(value) ~= type(default) then value = default end
+        out[key] = value
+    end
+    return out
+end
+
+function BossConfig:SetExtraValue(scene, slot, encounterID, extraKey, key, value, expectedContext)
+    local api = API()
+    local current = api and api.GetCurrentConfiguration(scene)
+    if not (current and expectedContext and current.category == expectedContext.category
+        and current.userID == expectedContext.userID and current.authorID == expectedContext.authorID
+        and self:GetRuntimeConfig(scene, slot)) then
+        return false, "extra settings context changed"
+    end
+    local extra = ExBoss.BossEncounters:GetExtra(encounterID, extraKey)
+    local default = extra and extra.defaults and extra.defaults[key]
+    if default == nil or type(default) ~= type(value)
+        or (type(value) ~= "boolean" and type(value) ~= "number" and type(value) ~= "string") then
+        return false, "invalid extra setting"
+    end
+    local ok, reason = api.SetCurrentUserPath(scene, { "encounterExtras", tonumber(encounterID), extraKey, key }, value)
+    if ok and type(extra.onChanged) == "function" then
+        -- Leave the Grid write/notify stack before the business owner stops displays.
+        C_Timer.After(0, function()
+            extra.onChanged(self:GetExtraConfig(scene, encounterID, extraKey))
+        end)
+    end
+    return ok, reason
+end
 function BossConfig:IsCurrentSceneEnabled()
     local _, instanceType = GetInstanceInfo()
     if instanceType == "party" then return self:IsSceneEnabled("mplus"), "mplus" end
