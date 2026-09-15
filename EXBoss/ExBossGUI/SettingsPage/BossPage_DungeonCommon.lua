@@ -16,7 +16,7 @@ Common.MODULE_KEY = "ExBoss.BossConfig.DungeonOptions"
 
 local UI = Common._ui or {}
 Common._ui = UI
-local LAYOUT = {}
+local EMPTY_CONFIG = {}
 
 -- 方案 A 的视觉令牌。这里只影响 Frame/Texture/FontString 的表现，AuraSound
 -- 的 action ID、字段结构、SavedVariables 与运行时调用链均保持原样。
@@ -2738,17 +2738,29 @@ end
 
 -- 当前“副本通用设置”先专注光环音效；通用开关与首领额外设置会在之后独立
 -- 页面承载，不能再占用这张规则表的横向空间。
-function Common:BuildPageLayout(dungeonKey)
+function Common:BuildPageGUI(dungeonKey, slotKey)
     return {
-        { key = "aura_sound_category_floor", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 4, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "地板" },
-        { key = "aura_sound_category_error", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 70, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "错误" },
-        { key = "aura_sound_category_tank", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 136, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "坦克" },
-        { key = "aura_sound_category_filter", type = "custom", renderer = "exboss_dungeon_aura_sound_category_filter_cards", x = 4, y = 32, w = 192, h = 18, dungeonKey = dungeonKey },
-        { key = "aura_sound_toolbar", type = "custom", renderer = "exboss_dungeon_aura_sound_toolbar", x = 4, y = 50, w = 192, h = 8, dungeonKey = dungeonKey },
-        { key = "aura_sound_table_header", type = "custom", renderer = "exboss_dungeon_aura_sound_header", x = 4, y = 58, w = 192, h = 5, dungeonKey = dungeonKey },
-        { key = "dungeon_aura_sound_virtual_list", type = "custom", renderer = "exboss_dungeon_aura_sound_virtual_list", x = 4, y = 63, w = 192, h = 88, dungeonKey = dungeonKey },
+        version = 1,
+        title = L["副本通用设置"],
+        description = L["按分类筛选并维护当前副本的光环声音规则。"],
+        cards = {
+            { id = "categories", title = L["光环声音分类"], content = { kind = "grid", items = {
+                { key = "aura_sound_category_floor", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 1, y = 1, w = 64, h = 28, dungeonKey = dungeonKey, categoryKey = "地板" },
+                { key = "aura_sound_category_error", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 67, y = 1, w = 64, h = 28, dungeonKey = dungeonKey, categoryKey = "错误" },
+                { key = "aura_sound_category_tank", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 133, y = 1, w = 64, h = 28, dungeonKey = dungeonKey, categoryKey = "坦克" },
+                { key = "aura_sound_category_filter", type = "custom", renderer = "exboss_dungeon_aura_sound_category_filter_cards", x = 1, y = 31, w = 196, h = 18, dungeonKey = dungeonKey },
+            } } },
+            { id = "rules", title = L["筛选结果"], content = { kind = "grid", items = {
+                { key = "aura_sound_toolbar", type = "custom", renderer = "exboss_dungeon_aura_sound_toolbar", x = 1, y = 1, w = 196, h = 8, dungeonKey = dungeonKey },
+                { key = "aura_sound_table_header", type = "custom", renderer = "exboss_dungeon_aura_sound_header", x = 1, y = 9, w = 196, h = 5, dungeonKey = dungeonKey },
+                { key = "dungeon_aura_sound_virtual_list", type = "custom", renderer = "exboss_dungeon_aura_sound_virtual_list", x = 1, y = 14, w = 196, h = 88, dungeonKey = dungeonKey, slotKey = slotKey },
+            } } },
+        },
     }
 end
+
+local PAGE_BINDING = { moduleKey = Common.MODULE_KEY, getConfig = function() return EMPTY_CONFIG end }
+EXUI:RegisterSettingsPage(Common.MODULE_KEY, Common:BuildPageGUI("", ""), { addon = "EXBoss" })
 
 function Common:HasContent()
     local dungeonKey = Page:GetCurrentDungeonCommonOptions()
@@ -2772,6 +2784,7 @@ function Common:Render(host)
     if UI._renderedHost == host
         and UI._renderedDungeonKey == tostring(dungeonKey)
         and UI._renderedWidth == hostWidth
+        and UI.cardSession and not UI.cardSession.released
         and UI.root:IsShown() then
         return true
     end
@@ -2791,27 +2804,28 @@ function Common:Render(host)
     Common.EnsureAuraSoundToolbarRenderer()
     Common.EnsureAuraSoundCategoryCardRenderer()
     Common.EnsureAuraSoundCategoryFilterRenderer()
-    LAYOUT = Common:BuildPageLayout(dungeonKey)
-    for i = 1, #LAYOUT do
-        if LAYOUT[i].renderer == "exboss_dungeon_aura_sound_virtual_list" then
-            LAYOUT[i].slotKey = slotKey
-        end
-    end
     UI.slotKey = slotKey
     UI.dungeonKey = dungeonKey
-    ExwindTools:RegisterModuleLayout(Common.MODULE_KEY, LAYOUT)
-    if Grid.SetContainerCols then Grid:SetContainerCols(UI.gridHost, 200) end
-    if Grid.SetContainerPadding then Grid:SetContainerPadding(UI.gridHost, { left = 0, right = 10, top = 0, bottom = 0 }) end
+    local declaration = EXUI:GetSettingsPage(Common.MODULE_KEY)
+    local dynamic = Common:BuildPageGUI(dungeonKey, slotKey)
+    for index, card in ipairs(dynamic.cards) do declaration.cards[index].content = card.content end
     if ExwindTools.UI then
         ExwindTools.UI.ActivePageFrame = UI.gridHost
         ExwindTools.UI.CurrentModule = Common.MODULE_KEY
     end
-    Grid:Render(UI.gridHost, LAYOUT, {}, Common.MODULE_KEY)
-    -- Grid 只会更新自身高度；必须同步到 ScrollFrame 的 scroll child，才能让
-    -- 滚动、裁剪与鼠标命中覆盖完整内容区域。
-    local contentHeight = math.max(1, UI.gridHost:GetHeight() or 1)
-    UI.root:SetHeight(contentHeight)
-    host:SetHeight(contentHeight)
+    if UI.cardSession then UI.cardSession:Release() end
+    UI.cardSession = Grid:MountCards(UI.gridHost, declaration, {
+        pageId = Common.MODULE_KEY,
+        regionId = "main",
+        moduleKey = Common.MODULE_KEY,
+        defaultBinding = PAGE_BINDING,
+        onContentHeightChanged = function(height)
+            local contentHeight = math.max(1, tonumber(height) or 1)
+            UI.root:SetHeight(contentHeight)
+            host:SetHeight(contentHeight)
+        end,
+    })
+    EXUI.ActiveCardSession = UI.cardSession
     UI._renderedHost = host
     UI._renderedDungeonKey = tostring(dungeonKey)
     UI._renderedWidth = hostWidth
@@ -2830,21 +2844,14 @@ function Common:Hide()
     if UI.encounterVoiceEditor then UI.encounterVoiceEditor:Hide() end
     -- 与 Boss 页面共用右侧区域，但不共用 Grid 容器。离开通用页时同时释放
     -- 本页的独立 Grid，避免 BUFF 行控件停留在随后渲染的 Boss 页面上。
-    local Grid = _G.ExwindGrid
-    if Grid and Grid.ReleaseContainerWidgets and UI.gridHost then
-        Grid:ReleaseContainerWidgets(UI.gridHost)
-    end
+    if EXUI.ActiveCardSession == UI.cardSession then EXUI.ActiveCardSession = nil end
+    if UI.cardSession then UI.cardSession:Release(); UI.cardSession = nil end
     -- 离开页面后不保留上一副本的行绑定；下次 Mount 重新建立轻量上下文。
     UI.auraSoundVirtualContext = nil
     UI.auraSoundCategoryCardHosts = nil
     UI.auraSoundCategoryFilterControl = nil
     UI.auraSoundToolbar = nil
     UI.auraSoundCategoryOtherKeys = nil
-    -- RegisterModuleLayout 持有 LAYOUT；清除 renderer 可能补入的当前值，保证
-    -- 它永远只携带 layout 标量。
-    for i = 1, #LAYOUT do
-        LAYOUT[i].currentValue = nil
-    end
     UI.host = nil
     UI.slotKey = nil
     UI.dungeonKey = nil

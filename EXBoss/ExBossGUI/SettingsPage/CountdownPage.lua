@@ -65,21 +65,22 @@ local COMMON_OPTS = {
     },
 }
 
-local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["屏幕倒计时"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 64, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 77, w = 200, h = 25, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 105, w = 200, h = 50, label = L["图标外观"] },
-    { key = "font_text", type = "fontgroup", x = 1, y = 158, w = 200, h = 50, label = L["提示文字"], labelSize = 20 },
-    { key = "font_time", type = "fontgroup", x = 1, y = 211, w = 200, h = 50, label = L["倒计时数字"], labelSize = 20 },
+-- 页面只保留卡片声明；原测试按钮、配置路径与组合控件合同不变。
+local CARD_GUI = {
+    version = 1,
+    title = L["屏幕倒计时"],
+    description = L["屏幕中央倒计时的功能、锚点、图标与文字。"],
+    cards = {
+        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+        { id = "icon", title = L["图标外观"], content = { kind = "composite", component = "icongroup", key = "icon" } },
+        { id = "text", title = L["提示文字"], content = { kind = "composite", component = "fontgroup", key = "font_text" } },
+        { id = "time", title = L["倒计时数字"], content = { kind = "composite", component = "fontgroup", key = "font_time" } },
+    },
 }
-
-ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
-
-local function RebindCountdownModuleCommon(grid, container, db)
-    local state = grid and grid.ContainerStates and grid.ContainerStates[container]
-    local common = state and state.widgets and state.widgets.moduleCommon
-    if common and type(common.RebindDB) == "function" then common:RebindDB(db) end
+local function RebindCountdownModuleCommon(context)
+    local common = context.grid:GetSessionWidget(context.cardSession, "moduleCommon", "general")
+    if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
 end
 
 local function RenderStandardPreview(dock)
@@ -97,7 +98,7 @@ end
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    layout = LAYOUT,
+    gui = CARD_GUI,
     preview = {
         height = 160,
         render = RenderStandardPreview,
@@ -117,7 +118,7 @@ local StandardPage = EXUI:CreateStandardModulePage({
         }
     end,
     afterGridLayout = function(context)
-        RebindCountdownModuleCommon(context.grid, context.scrollChild, context.config)
+        RebindCountdownModuleCommon(context)
     end,
 })
 

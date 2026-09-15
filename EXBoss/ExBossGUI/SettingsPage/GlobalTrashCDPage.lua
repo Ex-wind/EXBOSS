@@ -16,9 +16,6 @@ local Page                        = ExBoss.UI.Panel.GlobalTrashCDPage
 -- 仅用于 Grid 的页面事件；TrashCD 设置的唯一持久 owner 是 Store 的
 -- Factory -> Author -> User 链路，不能再把页面草稿放进 ModuleDB。
 local EDITOR_KEY                  = "ExBoss.TrashCD.Settings.Editor"
-local BASE_GRID_COLS              = 200
-local TARGET_CELL_PX              = 18
-local LAYOUT_CACHE                = {}
 local standardPreview             = nil
 local ToggleScreenNameplatePreview
 local StopScreenNameplatePreview
@@ -97,61 +94,21 @@ local NAMEPLATE_ICON_STRATA_ITEMS = {
 -- =============================================================
 -- 布局
 -- =============================================================
-local LAYOUT                      = {
-    { key = "header_main", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["小怪内置CD姓名版图标"], labelSize = 22 },
-    {
-        key = "nameplateIcon",
-        type = "icongroup",
-        x = 1,
-        y = 11,
-        w = 200,
-        h = 50,
-        label = L["图标位置与外观"],
-        opts = { enableOffset = true, hideIconID = true }
+local CARD_GUI = {
+    version = 1,
+    title = L["小怪内置CD姓名版图标"],
+    description = L["姓名版图标、显示规则、屏幕预览与倒数文字。"],
+    cards = {
+        { id = "icon", title = L["图标位置与外观"], content = { kind = "composite", component = "icongroup", key = "nameplateIcon", opts = { enableOffset = true, hideIconID = true } } },
+        { id = "behavior", title = L["姓名版显示规则"], content = { kind = "grid", items = {
+            { key = "nameplateIconSpacing", subKey = "spacing", parentKey = "nameplateIcon", type = "slider", x = 1, y = 1, w = 96, h = 5, min = 0, max = 50, step = 1, label = L["图标间距"], labelPos = "top" },
+            { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 1, w = 96, h = 5, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" },
+            { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 11, w = 96, h = 5, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" },
+            { key = "hideNameplateIconAboveSeconds", type = "input", x = 103, y = 11, w = 96, h = 5, label = L["隐藏剩余超过 X 秒的图标（0=关闭）"], labelPos = "top" },
+            { key = "screenNameplatePreview", type = "button", x = 1, y = 20, w = 200, h = 5, label = L["屏幕敌方姓名版预览 开/关"], func = function() ToggleScreenNameplatePreview() end },
+        } } },
+        { id = "text", title = L["倒数时间文本"], content = { kind = "composite", component = "fontgroup", key = "nameplateIconText" } },
     },
-
-    -- IconGroup never implemented enableSpacing.  Keep this as a real field
-    -- under nameplateIcon, with its own lifecycle below, so the value reaches
-    -- the same runtime and panel positioning formula.
-    {
-        key = "nameplateIconSpacing",
-        subKey = "spacing",
-        parentKey = "nameplateIcon",
-        type = "slider",
-        x = 1,
-        y = 65,
-        w = 96,
-        h = 5, -- 调整 y：63 → 65
-        min = 0,
-        max = 50,
-        step = 1,
-        label = L["图标间距"],
-        labelPos = "top"
-    },
-    { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 65, w = 96, h = 5, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" }, -- 调整 y：63 → 65
-    { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 75, w = 96, h = 5, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" }, -- 调整 y：69 → 75
-    {
-        key = "hideNameplateIconAboveSeconds",
-        type = "input",
-        x = 103,
-        y = 75,
-        w = 96,
-        h = 5, -- 调整 y：69 → 75
-        label = L["隐藏剩余超过 X 秒的图标（0=关闭）"],
-        labelPos = "top"
-    },
-    {
-        key = "screenNameplatePreview",
-        type = "button",
-        x = 1,
-        y = 84,
-        w = 200,
-        h = 5, -- 调整 y：75 → 84
-        label = L["屏幕敌方姓名版预览 开/关"],
-        func = function() ToggleScreenNameplatePreview() end
-    },
-
-    { key = "nameplateIconText", type = "fontgroup", x = 1, y = 91, w = 200, h = 50, label = L["倒数时间文本"] }, -- 调整 y：82 → 91
 }
 
 -- =============================================================
@@ -246,10 +203,7 @@ StopScreenNameplatePreview = function()
 end
 
 local function RefreshVisibleControls()
-    local Grid = _G.ExwindGrid
-    if Grid and Page._scrollChild and type(Grid.RefreshContainerControlsFromDB) == "function" then
-        Grid:RefreshContainerControlsFromDB(Page._scrollChild)
-    end
+    if Page._cardSession then Page._cardSession:RefreshValues() end
 end
 
 local function FocusPreviewGUI(guiTarget)
@@ -347,10 +301,11 @@ end
 
 local function InstallPageLiveSliders(draft)
     local Grid = _G.ExwindGrid
-    if not (Grid and type(Grid.Widgets) == "table") then return end
-    InstallLiveSliders(Grid.Widgets.nameplateIcon, "nameplateIcon", draft)
-    InstallLiveSliders(Grid.Widgets.nameplateIconText, "nameplateIconText", draft)
-    local spacing = Grid.Widgets.nameplateIconSpacing
+    local session = Page._cardSession
+    if not (Grid and session) then return end
+    InstallLiveSliders(Grid:GetSessionWidget(session, "nameplateIcon", "icon"), "nameplateIcon", draft)
+    InstallLiveSliders(Grid:GetSessionWidget(session, "nameplateIconText", "text"), "nameplateIconText", draft)
+    local spacing = Grid:GetSessionWidget(session, "nameplateIconSpacing", "behavior")
     if spacing and type(spacing.SetLifecycleCallbacks) == "function" then
         spacing._onValueChanged = nil
         spacing:SetLifecycleCallbacks({
@@ -403,52 +358,14 @@ local function CommitActiveDraft()
     CommitLeaves(gridDB, {})
 end
 
-local function ResolveGridCols(contentWidth)
-    local w = tonumber(contentWidth) or 0
-    if w < 100 then return BASE_GRID_COLS end
-    local cols = math.floor(((w - 20) / TARGET_CELL_PX) + 0.5)
-    if cols < BASE_GRID_COLS then cols = BASE_GRID_COLS end
-    if cols > BASE_GRID_COLS then cols = BASE_GRID_COLS end
-    return cols
-end
-
-local function ScaleLayout(items, toCols)
-    if toCols == BASE_GRID_COLS then return LAYOUT end
-    local cached = LAYOUT_CACHE[toCols]
-    if cached then return cached end
-    local scale = toCols / BASE_GRID_COLS
-    local function ScaleItems(src)
-        local out = {}
-        for _, item in ipairs(src) do
-            local row = {}
-            for k, v in pairs(item) do
-                if k ~= "children" then row[k] = v end
-            end
-            if type(item.x) == "number" and type(item.w) == "number" then
-                local nx = math.floor(((item.x - 1) * scale) + 1 + 0.5)
-                local nw = math.max(1, math.floor(item.w * scale + 0.5))
-                if nx < 1 then nx = 1 end
-                if nx > toCols then nx = toCols end
-                if nx + nw - 1 > toCols then nw = math.max(1, toCols - nx + 1) end
-                row.x = nx
-                row.w = nw
-            end
-            if type(item.children) == "table" then
-                row.children = ScaleItems(item.children)
-            end
-            out[#out + 1] = row
-        end
-        return out
-    end
-    cached = ScaleItems(items)
-    LAYOUT_CACHE[toCols] = cached
-    return cached
-end
-
 -- =============================================================
 -- Grid commit → 写入当前 User DIFF + 刷新显示
 -- =============================================================
-ExwindTools:RegisterModuleLayout(EDITOR_KEY, LAYOUT)
+local PAGE_BINDING = { moduleKey = EDITOR_KEY, getConfig = function()
+    if type(Page._editorDraft) ~= "table" then error("GlobalTrashCD editor draft is unavailable", 2) end
+    return Page._editorDraft
+end }
+EXUI:RegisterSettingsPage(EDITOR_KEY, CARD_GUI, { addon = "EXBoss" })
 
 local function RefreshActiveSurfaces(_, phase)
     if Page._editorActive ~= true or type(Page._editorDraft) ~= "table" then return end
@@ -510,6 +427,8 @@ function Page:Render(contentFrame)
             Page._editorRevision = (Page._editorRevision or 0) + 1
             Page._editorActive = false
             Page._editorDraft = nil
+            if EXUI.ActiveCardSession == Page._cardSession then EXUI.ActiveCardSession = nil end
+            if Page._cardSession then Page._cardSession:Release(); Page._cardSession = nil end
             if ExwindTools.UI and ExwindTools.UI.ActivePageFrame == Page._scrollChild then
                 ExwindTools.UI.ActivePageFrame = nil
                 ExwindTools.UI.CurrentModule = nil
@@ -556,13 +475,20 @@ function Page:Render(contentFrame)
             ExwindTools.UI.ActivePageFrame = sc
             ExwindTools.UI.CurrentModule   = EDITOR_KEY
         end
-        RefreshPanelPreview()
-        local cols = ResolveGridCols(sc:GetWidth())
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(sc, cols)
-        end
-        Grid:Render(sc, ScaleLayout(LAYOUT, cols), gridDB, EDITOR_KEY)
+        if Page._cardSession then Page._cardSession:Release() end
+        Page._cardSession = Grid:MountCards(sc, EXUI:GetSettingsPage(EDITOR_KEY), {
+            pageId = EDITOR_KEY,
+            regionId = "main",
+            moduleKey = EDITOR_KEY,
+            defaultBinding = PAGE_BINDING,
+            scrollFrame = sf,
+            onContentHeightChanged = function(height)
+                if sc then sc:SetHeight(math.max(1, tonumber(height) or 1)) end
+            end,
+        })
+        EXUI.ActiveCardSession = Page._cardSession
         InstallPageLiveSliders(gridDB)
+        RefreshPanelPreview()
     end)
 end
 
@@ -571,14 +497,12 @@ function Page:Hide()
     Page._editorRevision = (Page._editorRevision or 0) + 1
     Page._editorActive = false
     Page._editorDraft = nil
+    if EXUI.ActiveCardSession == Page._cardSession then EXUI.ActiveCardSession = nil end
+    if Page._cardSession then Page._cardSession:Release(); Page._cardSession = nil end
     StopScreenNameplatePreview()
     if ExwindTools.UI and ExwindTools.UI.ActivePageFrame == Page._scrollChild then
         ExwindTools.UI.ActivePageFrame = nil
         ExwindTools.UI.CurrentModule = nil
-    end
-    local Grid = _G.ExwindGrid
-    if Grid and Grid.ReleaseContainerWidgets and Page._scrollChild then
-        Grid:ReleaseContainerWidgets(Page._scrollChild)
     end
     if Page._scrollFrame then Page._scrollFrame:Hide() end
 end

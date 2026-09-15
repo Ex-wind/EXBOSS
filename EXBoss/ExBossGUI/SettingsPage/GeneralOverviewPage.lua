@@ -10,12 +10,6 @@ ExBoss.UI.Panel.GeneralOverviewPage = ExBoss.UI.Panel.GeneralOverviewPage or {}
 local Page = ExBoss.UI.Panel.GeneralOverviewPage
 
 local MODULE_KEY = "ExBoss.GeneralOverview"
-local BASE_GRID_COLS = 200
-local MIN_GRID_COLS = 200
-local MAX_GRID_COLS = 200
-local TARGET_CELL_PX = 18
-local LAYOUT_CACHE = {}
-local ACTIVE_CONTENT_FRAME
 
 local CHANNEL_OPTIONS = {
     { "Master",   "Master" },
@@ -109,30 +103,38 @@ local function IsEncounterWarningSoundsEnabled()
     return value ~= "2"
 end
 
-local LAYOUT = {
-    { key = "header_8111", type = "header", x = 1, y = 4, w = 200, h = 6, label = L["通用设置"], labelSize = 20 },
-    { key = "barDisplayMode", type = "dropdown", x = 1, y = 17, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
-    { key = "bunBarSources", type = "multiselect", x = 68, y = 17, w = 63, h = 6, label = L["束状条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
-    { key = "timerBarSources", type = "multiselect", x = 135, y = 17, w = 63, h = 6, label = L["计时条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
-    { key = "disableBlizzardEncounterTimeline", type = "checkbox", x = 1, y = 23, w = 76, h = 6, label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
-    { key = "disableEXBossInRaid", type = "checkbox", x = 1, y = 30, w = 76, h = 6, label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
-    { key = "disableAuraSoundRegistration", type = "checkbox", x = 1, y = 36, w = 90, h = 6, label = L["关闭光环语音注册（重载后生效）"], parentKey = "voice.global" },
-    { key = "hideTankBossAlertsForDps", type = "checkbox", x = 1, y = 43, w = 76, h = 6, label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
-    { key = "hideTankBossAlertsForHeal", type = "checkbox", x = 1, y = 50, w = 76, h = 6, label = L["治疗职责下不提示坦克技能"], parentKey = "ui.general" },
-    { key = "showSpellOccurrenceCount", type = "checkbox", x = 1, y = 57, w = 73, h = 6, label = L["法术名称显示次数"], parentKey = "ui.general" },
-    { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 64, w = 86, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
-    { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 1, y = 71, w = 127, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
-    { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 78, w = 44, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
-    { key = "header_5292", type = "header", x = 1, y = 89, w = 197, h = 10, label = L["音频输出选项"], labelSize = 20 },
-    { key = "channel", type = "dropdown", x = 1, y = 102, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
-    { key = "volume", type = "slider", x = 55, y = 102, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
-    { key = "label_5567", type = "label", x = 1, y = 114, w = 95, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
-    { key = "header_auto_gossip", type = "header", x = 1, y = 121, w = 197, h = 10, label = L["自动对话"], labelSize = 20 },
-    { key = "autoGossipEnabled", type = "checkbox", x = 1, y = 127, w = 76, h = 6, label = L["启用自动对话"], parentKey = "autoGossip", subKey = "enabled" },
-    { key = "autoGossipAcademyBuff", type = "checkbox", x = 1, y = 134, w = 102, h = 6, label = L["[大秘境] 自动对话学院(AA)BUFF"], parentKey = "autoGossip", subKey = "academyBuff" },
-    { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 140, w = 102, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
-    { key = "autoGossipPosRescue", type = "checkbox", x = 1, y = 146, w = 102, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
-    { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 152, w = 102, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
+local CARD_GUI = {
+    version = 1,
+    title = L["通用设置"],
+    description = L["时间轴显示、音频输出和自动对话。"],
+    cards = {
+        { id = "general", title = L["通用设置"], content = { kind = "grid", items = {
+            { key = "barDisplayMode", type = "dropdown", x = 1, y = 1, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
+            { key = "bunBarSources", type = "multiselect", x = 68, y = 1, w = 63, h = 6, label = L["束状条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
+            { key = "timerBarSources", type = "multiselect", x = 135, y = 1, w = 63, h = 6, label = L["计时条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
+            { key = "disableBlizzardEncounterTimeline", type = "checkbox", x = 1, y = 8, w = 76, h = 6, label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
+            { key = "disableEXBossInRaid", type = "checkbox", x = 1, y = 15, w = 76, h = 6, label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
+            { key = "disableAuraSoundRegistration", type = "checkbox", x = 1, y = 22, w = 90, h = 6, label = L["关闭光环语音注册（重载后生效）"], parentKey = "voice.global" },
+            { key = "hideTankBossAlertsForDps", type = "checkbox", x = 1, y = 29, w = 76, h = 6, label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
+            { key = "hideTankBossAlertsForHeal", type = "checkbox", x = 1, y = 36, w = 76, h = 6, label = L["治疗职责下不提示坦克技能"], parentKey = "ui.general" },
+            { key = "showSpellOccurrenceCount", type = "checkbox", x = 1, y = 43, w = 73, h = 6, label = L["法术名称显示次数"], parentKey = "ui.general" },
+            { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 50, w = 86, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
+            { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 1, y = 57, w = 127, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
+            { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 64, w = 80, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
+        } } },
+        { id = "audio", title = L["音频输出选项"], content = { kind = "grid", items = {
+            { key = "channel", type = "dropdown", x = 1, y = 1, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
+            { key = "volume", type = "slider", x = 55, y = 1, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
+            { key = "label_5567", type = "label", x = 1, y = 13, w = 190, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
+        } } },
+        { id = "auto_gossip", title = L["自动对话"], content = { kind = "grid", items = {
+            { key = "autoGossipEnabled", type = "checkbox", x = 1, y = 1, w = 76, h = 6, label = L["启用自动对话"], parentKey = "autoGossip", subKey = "enabled" },
+            { key = "autoGossipAcademyBuff", type = "checkbox", x = 1, y = 8, w = 102, h = 6, label = L["[大秘境] 自动对话学院(AA)BUFF"], parentKey = "autoGossip", subKey = "academyBuff" },
+            { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 15, w = 102, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
+            { key = "autoGossipPosRescue", type = "checkbox", x = 1, y = 22, w = 102, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
+            { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 29, w = 102, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
+        } } },
+    },
 }
 
 local function NormalizeBarDisplayMode(mode)
@@ -327,61 +329,8 @@ local function ApplyBossSceneToggleChange()
     end
 end
 
-local function ResolveGridCols(contentWidth)
-    local w = tonumber(contentWidth) or 0
-    if w < 100 then
-        return BASE_GRID_COLS
-    end
-    local cols = math.floor(((w - 20) / TARGET_CELL_PX) + 0.5)
-    if cols < MIN_GRID_COLS then cols = MIN_GRID_COLS end
-    if cols > MAX_GRID_COLS then cols = MAX_GRID_COLS end
-    return cols
-end
-
-local function ScaleLayout(items, toCols)
-    if toCols == BASE_GRID_COLS then
-        return LAYOUT
-    end
-    local cached = LAYOUT_CACHE[toCols]
-    if cached then
-        return cached
-    end
-
-    local scale = toCols / BASE_GRID_COLS
-    local function ScaleItems(src)
-        local out = {}
-        for _, item in ipairs(src) do
-            local row = {}
-            for k, v in pairs(item) do
-                if k ~= "children" then
-                    row[k] = v
-                end
-            end
-            if type(item.x) == "number" and type(item.w) == "number" then
-                local nx = math.floor(((item.x - 1) * scale) + 1 + 0.5)
-                local nw = math.max(1, math.floor(item.w * scale + 0.5))
-                if nx < 1 then nx = 1 end
-                if nx > toCols then nx = toCols end
-                if nx + nw - 1 > toCols then
-                    nw = math.max(1, toCols - nx + 1)
-                end
-                row.x = nx
-                row.w = nw
-            end
-            if type(item.children) == "table" then
-                row.children = ScaleItems(item.children)
-            end
-            out[#out + 1] = row
-        end
-        return out
-    end
-
-    cached = ScaleItems(items)
-    LAYOUT_CACHE[toCols] = cached
-    return cached
-end
-
-ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
+local PAGE_BINDING = { moduleKey = MODULE_KEY, getConfig = EnsureRootDB }
+EXUI:RegisterSettingsPage(MODULE_KEY, CARD_GUI, { addon = "EXBoss" })
 
 local function RefreshActiveSurfaces(changedPath)
     local rootDB = EnsureRootDB()
@@ -416,9 +365,7 @@ function Page:Render(contentFrame)
         return
     end
 
-    ACTIVE_CONTENT_FRAME = contentFrame
-
-    local rootDB = EnsureRootDB()
+    EnsureRootDB()
 
     if not Page._scrollFrame then
         local sf = CreateFrame("ScrollFrame", "ExBoss_GeneralOverviewScroll", contentFrame, "ScrollFrameTemplate")
@@ -457,10 +404,23 @@ function Page:Render(contentFrame)
             ExwindTools.UI.ActivePageFrame = sc
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        local cols = ResolveGridCols(sc:GetWidth())
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(sc, cols)
-        end
-        Grid:Render(sc, ScaleLayout(LAYOUT, cols), rootDB, MODULE_KEY)
+        if Page._cardSession then Page._cardSession:Release() end
+        Page._cardSession = Grid:MountCards(sc, EXUI:GetSettingsPage(MODULE_KEY), {
+            pageId = MODULE_KEY,
+            regionId = "main",
+            moduleKey = MODULE_KEY,
+            defaultBinding = PAGE_BINDING,
+            scrollFrame = sf,
+            onContentHeightChanged = function(height)
+                if sc then sc:SetHeight(math.max(1, tonumber(height) or 1)) end
+            end,
+        })
+        EXUI.ActiveCardSession = Page._cardSession
     end)
+end
+
+function Page:Hide()
+    if EXUI.ActiveCardSession == Page._cardSession then EXUI.ActiveCardSession = nil end
+    if Page._cardSession then Page._cardSession:Release(); Page._cardSession = nil end
+    if Page._scrollFrame then Page._scrollFrame:Hide() end
 end

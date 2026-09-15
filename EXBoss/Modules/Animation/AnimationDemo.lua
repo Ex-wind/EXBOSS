@@ -6,6 +6,7 @@ local ARROW_SIZE = 40
 local ARROW_TRAVEL = PANEL_SIZE - ARROW_SIZE
 local ARROW_DURATION = 1
 local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, key) return key end })
+local EXUI = _G.ExwindTools and _G.ExwindTools.UI
 
 local PANEL_TEXTURE_PATH = "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\RubyPanel.png"
 
@@ -107,11 +108,11 @@ local function PlayFire(direction)
 end
 
 local function CreateDemoButton(parent, label, x, y, onClick)
-	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+	local button = EXUI and EXUI:CreateButton(parent, 50, 22, label, onClick)
+		or CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
 	button:SetSize(50, 22)
-	button:SetText(label)
+	if not EXUI then button:SetText(label); button:SetScript("OnClick", onClick) end
 	button:SetPoint("BOTTOM", parent, "BOTTOM", x, y)
-	button:SetScript("OnClick", onClick)
 	return button
 end
 
@@ -125,13 +126,24 @@ local function CreateDemoFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	frame:SetBackdrop({
-		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-		edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-		tile = true,
-		tileSize = 32,
-		edgeSize = 32,
-		insets = { left = 11, right = 12, top = 12, bottom = 11 },
+		bgFile = "Interface\\Buttons\\WHITE8X8",
+		edgeFile = "Interface\\Buttons\\WHITE8X8",
+		tile = false,
+		edgeSize = 1,
+		insets = { left = 1, right = 1, top = 1, bottom = 1 },
 	})
+	frame:SetBackdropColor(0.04, 0.05, 0.08, 0.96)
+	frame:SetBackdropBorderColor(0.30, 0.34, 0.42, 1)
+	local panelTheme = _G.ExwindTools and _G.ExwindTools.PanelTheme
+	if panelTheme and panelTheme.ApplyWindowChrome then
+		panelTheme.ApplyWindowChrome(frame, {
+			radius = 10,
+			background = { 0.04, 0.05, 0.08, 0.96 },
+			border = { 0.30, 0.34, 0.42, 1 },
+			suppressNative = true,
+			restoreOnHide = false,
+		})
+	end
 	frame:SetScript("OnHide", function()
 		if arrowAnimGroup then
 			arrowAnimGroup:Stop()
@@ -143,11 +155,10 @@ local function CreateDemoFrame()
 		end
 	end)
 
-	local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-	closeButton:SetPoint("TOPRIGHT", -4, -4)
-	closeButton:SetScript("OnClick", function()
-		frame:Hide()
-	end)
+	local closeButton = EXUI and EXUI:CreateButton(frame, 28, 24, "×", function() frame:Hide() end)
+		or CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+	closeButton:SetPoint("TOPRIGHT", -8, -8)
+	if not EXUI then closeButton:SetScript("OnClick", function() frame:Hide() end) end
 
 	animArea = CreateFrame("Frame", nil, frame)
 	animArea:SetSize(PANEL_SIZE, PANEL_SIZE)

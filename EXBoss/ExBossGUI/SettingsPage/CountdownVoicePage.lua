@@ -17,7 +17,6 @@ local Runtime = ExBoss and ExBoss.Voice and ExBoss.Voice.Countdown
 if not Runtime then return end
 
 local MODULE_KEY = "ExBoss.CountdownVoiceSettings"
-local GRID_COLS = 200
 local MAX_COUNTDOWN_DIGIT = tonumber(Runtime.GetMaxCountdownDigit and Runtime:GetMaxCountdownDigit()) or 5
 
 local SOURCE_ITEMS = {
@@ -25,28 +24,10 @@ local SOURCE_ITEMS = {
     { L["LSM音效"], "lsm" },
 }
 
-local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["语音设置"], labelSize = 24 },
-    { key = "header_pull", type = "header", x = 1, y = 11, w = 200, h = 5, label = L["开怪倒数"], labelSize = 20 },
-    { key = "pullCountdownEnabled",      type = "checkbox", x = 4, y = 20, w = 70, h = 5, label = L["启用开怪倒数"] },
-    { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 4, y = 27, w = 70, h = 5, label = L["为开怪倒数播放语音"] },
-    { key = "header_digits", type = "header", x = 1, y = 37, w = 200, h = 5, label = L["数字语音"], labelSize = 20 },
-}
-
 local root
 local scrollFrame
 local scrollChild
-
-local function DeepCopy(v)
-    if type(v) ~= "table" then
-        return v
-    end
-    local out = {}
-    for k, x in pairs(v) do
-        out[k] = DeepCopy(x)
-    end
-    return out
-end
+local cardSession
 
 local function ApplyDefaults(dst, defaults)
     if type(dst) ~= "table" or type(defaults) ~= "table" then
@@ -64,9 +45,9 @@ local function ApplyDefaults(dst, defaults)
     end
 end
 
-local function BuildLayout()
-    local rows = DeepCopy(LAYOUT)
-    local baseY = 47
+local function BuildDigitItems()
+    local rows = {}
+    local baseY = 1
     for i = 1, MAX_COUNTDOWN_DIGIT do
         rows[#rows + 1] = {
             key = "digitEnabled" .. tostring(i),
@@ -156,8 +137,13 @@ local function SyncPageDBToRuntimeDB()
 end
 
 local function GetEditorWidgets()
-    local state = Grid.ContainerStates and Grid.ContainerStates[scrollChild] or nil
-    return state and state.widgets or {}
+    local widgets = {}
+    if not cardSession then return widgets end
+    for i = 1, MAX_COUNTDOWN_DIGIT do
+        local key = "digitLSM" .. tostring(i)
+        widgets[key] = Grid:GetSessionWidget(cardSession, key, "digits")
+    end
+    return widgets
 end
 
 local function SetWidgetShown(widget, shown)
@@ -196,9 +182,21 @@ local function RefreshDynamicWidgets()
     end
 end
 
-local function RegisterLayout()
-    ExwindTools:RegisterModuleLayout(MODULE_KEY, BuildLayout())
-end
+local CARD_GUI = {
+    version = 1,
+    title = L["语音设置"],
+    description = L["开怪倒数与逐位数字语音来源。"],
+    cards = {
+        { id = "pull", title = L["开怪倒数"], content = { kind = "grid", items = {
+            { key = "pullCountdownEnabled", type = "checkbox", x = 4, y = 1, w = 70, h = 5, label = L["启用开怪倒数"] },
+            { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 4, y = 8, w = 70, h = 5, label = L["为开怪倒数播放语音"] },
+        } } },
+        { id = "digits", title = L["数字语音"], content = { kind = "grid", items = BuildDigitItems() } },
+    },
+}
+
+local PAGE_BINDING = { moduleKey = MODULE_KEY, getConfig = GetPageDB }
+EXUI:RegisterSettingsPage(MODULE_KEY, CARD_GUI, { addon = "EXBoss" })
 
 function Page:Render(contentFrame)
     if not contentFrame then
@@ -206,7 +204,6 @@ function Page:Render(contentFrame)
     end
 
     CopyRuntimeDBToPageDB()
-    RegisterLayout()
 
     if not scrollFrame then
         scrollFrame = CreateFrame("ScrollFrame", "ExBoss_CountdownVoiceSettingsScroll", contentFrame, "ScrollFrameTemplate")
@@ -245,15 +242,25 @@ function Page:Render(contentFrame)
             ExwindTools.UI.ActivePageFrame = scrollChild
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(scrollChild, GRID_COLS)
-        end
-        Grid:Render(scrollChild, BuildLayout(), GetPageDB(), MODULE_KEY)
+        if cardSession then cardSession:Release() end
+        cardSession = Grid:MountCards(scrollChild, EXUI:GetSettingsPage(MODULE_KEY), {
+            pageId = MODULE_KEY,
+            regionId = "main",
+            moduleKey = MODULE_KEY,
+            defaultBinding = PAGE_BINDING,
+            scrollFrame = scrollFrame,
+            onContentHeightChanged = function(height)
+                if scrollChild then scrollChild:SetHeight(math.max(1, tonumber(height) or 1)) end
+            end,
+        })
+        EXUI.ActiveCardSession = cardSession
         RefreshDynamicWidgets()
     end)
 end
 
 function Page:Hide()
+    if EXUI.ActiveCardSession == cardSession then EXUI.ActiveCardSession = nil end
+    if cardSession then cardSession:Release(); cardSession = nil end
     if scrollFrame then
         scrollFrame:Hide()
     end

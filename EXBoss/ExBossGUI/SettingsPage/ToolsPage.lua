@@ -18,6 +18,22 @@ local searchBox = nil
 local searchText = ""
 local sidebarDivider = nil
 
+local function ShowEXBossStaticPopup(which, textArg1, textArg2, data)
+    local popup = StaticPopup_Show(which, textArg1, textArg2, data)
+    local panelTheme = _G.ExwindTools and _G.ExwindTools.PanelTheme
+    if popup and panelTheme and panelTheme.ApplyWindowChrome then
+        panelTheme.ApplyWindowChrome(popup, {
+            radius = 10,
+            suppressNative = true,
+            restoreOnHide = true,
+        })
+    end
+    if popup and EXUI and EXUI.ApplyPopupChildControls then
+        EXUI:ApplyPopupChildControls(popup, { restoreOnHide = true })
+    end
+    return popup
+end
+
 -- 确认弹窗（只注册一次）
 if not StaticPopupDialogs["EXBOSS_RESET_TOOL_CONFIRM"] then
     StaticPopupDialogs["EXBOSS_RESET_TOOL_CONFIRM"] = {
@@ -252,7 +268,7 @@ function Page:Render(leftFrame, contentFrame)
             local moduleKey = item.moduleKey
             local hasFn = ExBoss.ResetModuleConfig and ExBoss.ResetModuleConfig[moduleKey]
             if hasFn then
-                StaticPopup_Show("EXBOSS_RESET_TOOL_CONFIRM", item.titleKey, nil, moduleKey)
+                ShowEXBossStaticPopup("EXBOSS_RESET_TOOL_CONFIRM", item.titleKey, nil, moduleKey)
             end
         end)
     end

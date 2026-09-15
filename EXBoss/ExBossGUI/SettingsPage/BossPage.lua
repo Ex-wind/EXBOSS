@@ -279,11 +279,8 @@ local function GetSpellSettingsWidgets()
     if not Grid then
         return nil
     end
-    local state = UI.spellSettingsGridChild and Grid.ContainerStates and Grid.ContainerStates[UI.spellSettingsGridChild]
-    if type(state) == "table" and type(state.widgets) == "table" then
-        return state.widgets
-    end
-    return Grid.Widgets
+    local aggregate = UI.spellSettingsCardSession and Grid:BuildSessionWidgetIndex(UI.spellSettingsCardSession)
+    return aggregate and aggregate.widgets or nil
 end
 
 local function RegisterSpellSettingsGridAsActive(moduleKey)
@@ -291,6 +288,7 @@ local function RegisterSpellSettingsGridAsActive(moduleKey)
         return
     end
     ExwindTools.UI.ActivePageFrame = UI.spellSettingsGridChild
+    ExwindTools.UI.ActiveCardSession = UI.spellSettingsCardSession
     if type(moduleKey) == "string" and moduleKey ~= "" then
         ExwindTools.UI.CurrentModule = moduleKey
     end
@@ -303,6 +301,9 @@ local function ClearSpellSettingsGridActiveRegistration()
     if ExwindTools.UI.ActivePageFrame == UI.spellSettingsGridChild then
         ExwindTools.UI.ActivePageFrame = nil
         ExwindTools.UI.CurrentModule = nil
+    end
+    if ExwindTools.UI.ActiveCardSession == UI.spellSettingsCardSession then
+        ExwindTools.UI.ActiveCardSession = nil
     end
 end
 
@@ -639,7 +640,18 @@ local BOSS_TEST_TARGET_ALERT_TOOLTIP = "可设置「被点名提示」!"
 local function ShouldShowBossTargetAlertTestIcon(eventID)
     return BOSS_TEST_TARGET_ALERT_EVENT_IDS[tonumber(eventID)] == true
 end
+
+local function ReleaseSpellSettingsCardSession()
+    ClearSpellSettingsGridActiveRegistration()
+    if UI.spellSettingsCardSession then
+        UI.spellSettingsCardSession:Release()
+        UI.spellSettingsCardSession = nil
+    end
+    STATE.spellSettingsGridBound = false
+end
 local SETTINGS_LAYOUT = {}
+local SETTINGS_GUI
+local SETTINGS_GUI_REGISTERED = false
 local _spellDescMeasureFS
 
 
@@ -2212,8 +2224,7 @@ local function ApplyBossRightPanelLayout()
 end
 
 -- 局部试用：03 悬浮阴影 / 04 石墨。只绘制容器，不接管设置控件。
--- 当前客户端截图校色：输入 #1C1C20 实测 #18181C，本页底色/卡面/边框各补偿 +4。
--- 视觉目标仍为网页 #1C1C20 / #232327 / #333338；不修改全局主题或游戏Gamma。
+-- 用户指定：页面背景 #1C1C20，卡片填充 #2C2C32，边框 #333338；不做亮度补偿。
 local function RegisterElevatedSettingsCard()
     local Grid = _G.ExwindGrid
     if Grid:GetCustomRenderer("EXBoss.ElevatedSettingsCard") then return end
@@ -2245,9 +2256,9 @@ local function RegisterElevatedSettingsCard()
                         texture:SetSnapToPixelGrid(false)
                         texture:SetTexelSnappingBias(0)
                         if spec.fill then
-                            texture:SetVertexColor(39 / 255, 39 / 255, 43 / 255, 1)
+                            texture:SetVertexColor(44 / 255, 44 / 255, 50 / 255, 1)
                         elseif spec.border then
-                            texture:SetVertexColor(55 / 255, 55 / 255, 60 / 255, 1)
+                            texture:SetVertexColor(51 / 255, 51 / 255, 56 / 255, 1)
                         else
                             texture:SetVertexColor(0, 0, 0, spec.alpha)
                         end
@@ -2276,7 +2287,7 @@ local function RegisterElevatedSettingsCard()
                 texture:SetSize(math.max(.01, xs[col + 1] - xs[col]), math.max(.01, ys[row + 1] - ys[row]))
                 if layer.fill then
                     -- 卡片独立于页面底色；细边款也保留较亮的石墨填充。
-                    texture:SetVertexColor(39 / 255, 39 / 255, 43 / 255, 1)
+                    texture:SetVertexColor(44 / 255, 44 / 255, 50 / 255, 1)
                 end
                 texture:SetShown(layer.fill == true or (not outlined and not layer.border))
             end
@@ -2286,7 +2297,7 @@ local function RegisterElevatedSettingsCard()
             skin.outlineEdges = {}
             for index = 1, 4 do
                 local edge = frame:CreateTexture(nil, "BORDER", nil, 0)
-                edge:SetColorTexture(55 / 255, 55 / 255, 60 / 255, 1)
+                edge:SetColorTexture(51 / 255, 51 / 255, 56 / 255, 1)
                 edge:SetSnapToPixelGrid(true)
                 edge:SetTexelSnappingBias(0)
                 skin.outlineEdges[index] = edge
@@ -2325,7 +2336,7 @@ local function RegisterElevatedSettingsCard()
                 texture:SetTexture(media .. "Corner1pxAtlas.tga", "CLAMP", "CLAMP", "LINEAR")
                 texture:SetSnapToPixelGrid(true)
                 texture:SetTexelSnappingBias(0)
-                texture:SetVertexColor(55 / 255, 55 / 255, 60 / 255, 1)
+                texture:SetVertexColor(51 / 255, 51 / 255, 56 / 255, 1)
                 skin.outlineCorners[corner] = texture
             end
             local flipX = corner == 2 or corner == 3
@@ -2462,7 +2473,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "timerBarRenameEnabled", type = "checkbox", x = 4, y = 37, w = 26, h = 5, label = L["|cffffd637计时条改名|r"] },
         { key = "timerBarRenameText", type = "input", x = 34, y = 37, w = 72, h = 5, label = "" },
 
-        { key = "card_display", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 109, y = 8, w = 93, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true,
+        { key = "card_display", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 109, y = 8, w = 92, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true,
             bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.50, g = 0.74, b = 1.00, a = 1.00 } },
         { key = "ringEnabled", type = "checkbox", x = 112, y = 16, w = 28, h = 5, label = L["施法圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 112, y = 23, w = 28, h = 5, label = L["施法读条"] },
@@ -2496,7 +2507,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "tr2TtsText", type = "input", x = 61, y = 79, w = 33, h = 5, label = "" },
         { key = "tr2ValueTest", type = "button", x = 95, y = 79, w = 11, h = 6, label = L["试听"] },
 
-        { key = "card_target_alert", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 109, y = 50, w = 93, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true,
+        { key = "card_target_alert", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 109, y = 50, w = 92, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true,
             bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.40, g = 1.00, b = 0.62, a = 1.00 } },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 112, y = 58, w = 28, h = 5, label = L["启用"] },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 112, y = 66, w = 25, h = 5, label = L["圆环"] },
@@ -2515,7 +2526,44 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
     for _, row in ipairs(rows) do
         SETTINGS_LAYOUT[#SETTINGS_LAYOUT + 1] = row
     end
-    ExwindTools:RegisterModuleLayout(SETTINGS.EDITOR_KEY, SETTINGS_LAYOUT)
+    local groups = {}
+    local current
+    for _, row in ipairs(SETTINGS_LAYOUT) do
+        if row.key:match("^card_") then
+            local id = row.key:gsub("^card_", "")
+            current = {
+                id = id,
+                title = (id == "master" and L["技能开关"]) or row.label,
+                originX = row.x,
+                originY = row.y,
+                items = {},
+            }
+            groups[#groups + 1] = current
+        elseif current then
+            local item = {}
+            for key, value in pairs(row) do item[key] = value end
+            item.x = row.x - current.originX + 1
+            item.y = row.y - current.originY + 1
+            current.items[#current.items + 1] = item
+        end
+    end
+    SETTINGS_GUI = {
+        version = 1,
+        title = L["首领技能设置"],
+        description = L["当前首领技能的文本、施法、语音与被点名提示。"],
+        cards = {},
+    }
+    for _, group in ipairs(groups) do
+        SETTINGS_GUI.cards[#SETTINGS_GUI.cards + 1] = {
+            id = group.id,
+            title = group.title,
+            content = { kind = "grid", items = group.items },
+        }
+    end
+    if not SETTINGS_GUI_REGISTERED then
+        EXUI:RegisterSettingsPage(SETTINGS.EDITOR_KEY, SETTINGS_GUI, { addon = "EXBoss" })
+        SETTINGS_GUI_REGISTERED = true
+    end
 end
 
 local function UpdateSpellDetailHeader(spellName, spellIdentifier, eventID, spellIcon, iconFlags, alertMarkupOverride)
@@ -3181,14 +3229,14 @@ end
 local function EnsureUI(leftFrame, contentFrame)
     if UI.leftRoot and UI.rightRoot then return end
 
-    -- 本页石墨底色按截图偏暗量补偿，视觉目标为网页 #1C1C20。
+    -- 本页背景固定 #1C1C20，与较亮的卡片填充 #2C2C32 分开。
     local function AddGraphiteBackground(parent)
         local background = CreateFrame("Frame", nil, parent, "BackdropTemplate")
         background:SetAllPoints(parent)
         background:SetFrameLevel(0)
         background:EnableMouse(false)
         background:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
-        background:SetBackdropColor(32 / 255, 32 / 255, 36 / 255, 1)
+        background:SetBackdropColor(28 / 255, 28 / 255, 32 / 255, 1)
         return background
     end
 
@@ -3428,8 +3476,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellSettingsFrame:SetBackdropColor(32 / 255, 32 / 255, 36 / 255, 1)
-    UI.spellSettingsFrame:SetBackdropBorderColor(55 / 255, 55 / 255, 60 / 255, 1)
+    UI.spellSettingsFrame:SetBackdropColor(28 / 255, 28 / 255, 32 / 255, 1)
+    UI.spellSettingsFrame:SetBackdropBorderColor(51 / 255, 51 / 255, 56 / 255, 1)
 
     UI.spellDetailHeader = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")
     UI.spellDetailHeader:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
@@ -3443,8 +3491,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellDetailHeader:SetBackdropColor(32 / 255, 32 / 255, 36 / 255, 1)
-    UI.spellDetailHeader:SetBackdropBorderColor(55 / 255, 55 / 255, 60 / 255, 1)
+    UI.spellDetailHeader:SetBackdropColor(28 / 255, 28 / 255, 32 / 255, 1)
+    UI.spellDetailHeader:SetBackdropBorderColor(51 / 255, 51 / 255, 56 / 255, 1)
     UI.spellDetailHeader._exDetailLayoutWidth = 0
     UI.spellDetailHeader._exDetailLayoutPending = false
     UI.spellDetailHeader:SetScript("OnSizeChanged", function(self, width)
@@ -4041,11 +4089,11 @@ end
 
 local function RebindSpellSettingsGrid(mdb)
     local Grid = _G.ExwindGrid
-    local container = UI.spellSettingsGridChild
-    local state = Grid and Grid.ContainerStates and container and Grid.ContainerStates[container]
-    local widgets = state and state.widgets
+    local session = UI.spellSettingsCardSession
+    local aggregate = Grid and session and Grid:BuildSessionWidgetIndex(session)
+    local widgets = aggregate and aggregate.widgets
     if not (STATE.spellSettingsGridBound and type(mdb) == "table" and type(widgets) == "table"
-            and next(widgets) ~= nil and state.config == mdb) then
+            and next(widgets) ~= nil and session.context and session.context.editorDraft == mdb) then
         return false
     end
 
@@ -4166,6 +4214,7 @@ local function RefreshSpellSettingsPanel(expectedRevision)
     if Page.Extras then Page.Extras:Hide() end
 
     if selectedBossCommonSettings then
+        ReleaseSpellSettingsCardSession()
         STATE.currentSpellSlotKey = nil
         local common = Page.DungeonCommon
         if common and common.HasContent and common:HasContent() then
@@ -4199,6 +4248,7 @@ local function RefreshSpellSettingsPanel(expectedRevision)
     EnsureSelectedEvent()
     local encounterID = GetCurrentEncounterID()
     if selectedExtraKey and Page.Extras then
+        ReleaseSpellSettingsCardSession()
         local extraKey = selectedExtraKey
         local extra = ExBoss.BossEncounters:GetExtra(encounterID, extraKey)
         local slot = GetCurrentSpellSlotKey()
@@ -4227,8 +4277,6 @@ local function RefreshSpellSettingsPanel(expectedRevision)
             RegisterSpellSettingsGridAsActive(Page.Extras.MODULE_KEY)
         else
             ClearSpellSettingsGridActiveRegistration()
-            local Grid = _G.ExwindGrid
-            if Grid then Grid:ReleaseContainerWidgets(UI.spellSettingsGridChild) end
             UI.spellSettingsEmptyText:SetText(L["配置不可用"])
         end
         return
@@ -4238,7 +4286,7 @@ local function RefreshSpellSettingsPanel(expectedRevision)
     local event = FindEventByID(eventID)
     if not encounterID or not eventID or not event then
         STATE.currentSpellSlotKey = nil
-        ClearSpellSettingsGridActiveRegistration()
+        ReleaseSpellSettingsCardSession()
         SetSpellDetailHeaderEmpty(L["点击上方法术卡片后，可在此查看法术描述。"])
         UI.spellSettingsEmptyText:SetShown(true)
         UI.spellSettingsGridChild:SetHeight(1)
@@ -4285,15 +4333,25 @@ local function RefreshSpellSettingsPanel(expectedRevision)
             return
         end
         BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spellIcon, GetEventIconFlags(event))
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(UI.spellSettingsGridChild, C.SPELL_SETTINGS_GRID_COLS)
-        end
-        if Grid.SetContainerPadding then
-            Grid:SetContainerPadding(UI.spellSettingsGridChild, { left = 0, right = 10, top = 10, bottom = 0 })
-        end
-        -- Boss 页右下设置区现在作为标准 Grid 页面接入：
-        -- 编辑模式必须显式绑定当前容器和模块，不能再借用别页的 live edit 状态。
-        Grid:Render(UI.spellSettingsGridChild, SETTINGS_LAYOUT, mdb, SETTINGS.EDITOR_KEY)
+        if UI.spellSettingsCardSession then UI.spellSettingsCardSession:Release() end
+        local binding = { moduleKey = SETTINGS.EDITOR_KEY, getConfig = function()
+            if type(STATE.spellEditorDraft) ~= "table" then error("Boss spell editor draft is unavailable", 2) end
+            return STATE.spellEditorDraft
+        end }
+        UI.spellSettingsCardSession = Grid:MountCards(UI.spellSettingsGridChild, SETTINGS_GUI, {
+            pageId = SETTINGS.EDITOR_KEY,
+            regionId = "spell-settings",
+            moduleKey = SETTINGS.EDITOR_KEY,
+            defaultBinding = binding,
+            scrollFrame = UI.spellSettingsGridScroll,
+            editorDraft = mdb,
+            onContentHeightChanged = function(height)
+                if UI.spellSettingsGridChild then
+                    UI.spellSettingsGridChild:SetHeight(math.max(1, tonumber(height) or 1))
+                end
+            end,
+        })
+        RegisterSpellSettingsGridAsActive(SETTINGS.EDITOR_KEY)
         STATE.spellSettingsGridBound = true
         EnsureSpellTextInputPersistHooks()
         RefreshSettingsDynamicWidgets(mdb)
@@ -5089,22 +5147,8 @@ function Page:Hide()
     STATE.spellUIRefreshPending = false
     STATE.spellUIRefreshToken = STATE.spellUIRefreshToken + 1
 
-    local Grid = _G.ExwindGrid
-    if Grid and Grid.IsLiveEditing and Grid.LiveContainer == UI.spellSettingsGridChild then
-        Grid:ToggleLiveEdit(UI.spellSettingsGridChild)
-    end
-    if Grid and Grid.ReleaseContainerWidgets and UI.spellSettingsGridChild then
-        Grid:ReleaseContainerWidgets(UI.spellSettingsGridChild)
-    end
-    if Grid and Grid.ClearContainerPadding and UI.spellSettingsGridChild then
-        Grid:ClearContainerPadding(UI.spellSettingsGridChild)
-    end
-    if Grid and Grid.ClearContainerCols and UI.spellSettingsGridChild then
-        Grid:ClearContainerCols(UI.spellSettingsGridChild)
-    end
-    STATE.spellSettingsGridBound = false
+    ReleaseSpellSettingsCardSession()
     STATE.spellEditorDraft = nil
-    ClearSpellSettingsGridActiveRegistration()
 
     ReleaseMapTabs()
     ReleaseBossCards()

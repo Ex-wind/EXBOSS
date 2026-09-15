@@ -48,19 +48,22 @@ local LAYOUT_OPTS = {
     defaultMaxVisible = 5,
 }
 
-local GRID_LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["图标设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 11, w = 200, h = 22, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchorGroup", type = "anchorgroup", x = 1, y = 33, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "layout", type = "widgetlayout", x = 1, y = 55, w = 200, h = 20, measure = true, label = L["排列设置"], opts = LAYOUT_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 77, w = 200, h = 50, label = L["图标本体"], labelSize = 20 },
-    { key = "font_text", type = "fontgroup", x = 1, y = 129, w = 200, h = 50, label = L["名称子元素"], labelSize = 20 },
-    { key = "font_time", type = "fontgroup", x = 1, y = 181, w = 200, h = 50, label = L["倒数文本"], labelSize = 20 },
-    { key = "font_stacks", type = "fontgroup", x = 1, y = 233, w = 200, h = 50, label = L["层数文本"], labelSize = 20 },
-    { key = "glow", type = "glow_settings", x = 1, y = 285, w = 200, h = 50, measure = true, label = L["发光子元素"] },
+-- 页面只保留卡片声明；每张组合卡复用原控件、配置路径与刷新合同。
+local CARD_GUI = {
+    version = 1,
+    title = L["图标设置"],
+    description = L["通用图标容器的外观、排列与文字子元素。"],
+    cards = {
+        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = ANCHOR_OPTS } },
+        { id = "layout", title = L["排列设置"], content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
+        { id = "icon", title = L["图标本体"], content = { kind = "composite", component = "icongroup", key = "icon" } },
+        { id = "name", title = L["名称子元素"], content = { kind = "composite", component = "fontgroup", key = "font_text" } },
+        { id = "time", title = L["倒数文本"], content = { kind = "composite", component = "fontgroup", key = "font_time" } },
+        { id = "stacks", title = L["层数文本"], content = { kind = "composite", component = "fontgroup", key = "font_stacks" } },
+        { id = "glow", title = L["发光子元素"], content = { kind = "composite", component = "glow_settings", key = "glow" } },
+    },
 }
-
-ExwindTools:RegisterModuleLayout(MODULE_KEY, GRID_LAYOUT)
 
 -- Page 只提供本模块既有布局和标准声明；Dock、Scroll、Watch、延迟 Render 与
 -- OnHide/release 全由 StandardModulePage 统一拥有。
@@ -82,7 +85,7 @@ end
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    layout = GRID_LAYOUT,
+    gui = CARD_GUI,
     preview = {
         height = 160,
         render = RenderStandardPreview,

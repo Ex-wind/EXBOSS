@@ -47,21 +47,22 @@ local COMMON_OPTS = {
     fields = COMMON_FIELDS,
 }
 
-local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["束状条设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 96, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 108, w = 200, h = 22, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 133, w = 200, h = 50, label = L["主图标外观"], opts = {} },
-    { key = "alertIcons", type = "icongroup", x = 1, y = 186, w = 200, h = 50, label = L["业务提示 Atlas"], opts = { enableOffset = true } },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 239, w = 200, h = 50, label = L["法术名称"], labelSize = 20, opts = {} },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 292, w = 200, h = 50, label = L["图标倒数时间"], labelSize = 20, opts = {} },
+local CARD_GUI = {
+    version = 1,
+    title = L["束状条设置"],
+    description = L["束状条的通用行为、锚点、图标与文字。"],
+    cards = {
+        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+        { id = "icon", title = L["主图标外观"], content = { kind = "composite", component = "icongroup", key = "icon", opts = {} } },
+        { id = "alert_icons", title = L["业务提示 Atlas"], content = { kind = "composite", component = "icongroup", key = "alertIcons", opts = { enableOffset = true } } },
+        { id = "name", title = L["法术名称"], content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {} } },
+        { id = "time", title = L["图标倒数时间"], content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {} } },
+    },
 }
 
-ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
-
 local function RebindModuleCommon(context)
-    local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
-    local common = state and state.widgets and state.widgets.moduleCommon
+    local common = context.grid:GetSessionWidget(context.cardSession, "moduleCommon", "general")
     if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
 end
 
@@ -79,7 +80,7 @@ end
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    layout = LAYOUT,
+    gui = CARD_GUI,
     getColumns = 200,
     preview = { height = 1, render = RenderPreview, refresh = RenderPreview, release = ReleasePreview },
     previewDock = {

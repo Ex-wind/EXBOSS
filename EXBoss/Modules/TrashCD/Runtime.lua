@@ -156,20 +156,34 @@ local function EnsureDebugCopyFrame()
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
     frame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 },
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        tile = false, edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
     frame:SetBackdropColor(0, 0, 0, 0.92)
+    frame:SetBackdropBorderColor(0.30, 0.34, 0.42, 1)
+    local panelTheme = _G.ExwindTools and _G.ExwindTools.PanelTheme
+    if panelTheme and panelTheme.ApplyWindowChrome then
+        panelTheme.ApplyWindowChrome(frame, {
+            radius = 10,
+            background = { 0.03, 0.04, 0.07, 0.96 },
+            border = { 0.30, 0.34, 0.42, 1 },
+            suppressNative = true,
+            restoreOnHide = false,
+        })
+    end
     frame:Hide()
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -16)
     title:SetText("ExBoss Trash Debug Copy")
 
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", -6, -6)
+    local EXUI = ET and ET.UI
+    local closeButton = EXUI and EXUI:CreateButton(frame, 28, 24, "×", function() frame:Hide() end)
+        or CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPRIGHT", -8, -8)
+    if not EXUI then closeButton:SetScript("OnClick", function() frame:Hide() end) end
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "ScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", 18, -46)
@@ -179,6 +193,9 @@ local function EnsureDebugCopyFrame()
         local cur = self:GetVerticalScroll()
         self:SetVerticalScroll(math.max(0, math.min(cur - delta * 24, self:GetVerticalScrollRange())))
     end)
+    if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
+        ExBoss.UI.ApplyModernScrollBarSkin(scrollFrame)
+    end
 
     local editBox = CreateFrame("EditBox", nil, scrollFrame)
     editBox:SetMultiLine(true)
@@ -208,6 +225,9 @@ local function EnsureDebugCopyFrame()
         local textHeight = textRegion and textRegion.GetStringHeight and textRegion:GetStringHeight() or 0
         self:SetHeight(math.max(560, textHeight + 24))
     end)
+    if EXUI and EXUI.ApplyQinglanRoundedSurface then
+        EXUI:ApplyQinglanRoundedSurface(editBox, 4, { 0.045, 0.050, 0.065, 0.98 }, { 0.24, 0.27, 0.33, 1 })
+    end
     scrollFrame:SetScrollChild(editBox)
 
     frame.editBox = editBox
