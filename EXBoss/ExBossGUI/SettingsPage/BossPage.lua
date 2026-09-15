@@ -2182,12 +2182,16 @@ RefreshSpellDetailHeaderLayout = function()
     UI.spellDetailMeta:SetPoint("LEFT", UI.spellDetailTitle, "RIGHT", 6, 0)
     UI.spellDetailMeta:SetPoint("RIGHT", UI.spellDetailHeader, "RIGHT", -18 - controlsReserve, 0)
     UI.spellDetailCast:SetWidth(bodyWidth)
-    UI.spellDetailBody:SetWidth(bodyWidth)
-
-    local castH = UI.spellDetailCast:GetStringHeight() or 0
+    local descriptionWidth = math.max(1, bodyWidth - 16)
+    UI.spellDetailBody:SetWidth(descriptionWidth)
     local bodyH = UI.spellDetailBody:GetStringHeight() or 0
-    local desiredHeight = math.max(156, math.ceil(50 + castH + 6 + bodyH + 8))
-    UI.spellDetailHeader:SetHeight(desiredHeight)
+    UI.spellDetailHeader:SetHeight(156)
+    if UI.spellDetailBodyChild then
+        UI.spellDetailBodyChild:SetSize(descriptionWidth, math.max(1, math.ceil(bodyH)))
+        UI.spellDetailBodyScroll:UpdateScrollChildRect()
+        local range = math.max(0, UI.spellDetailBodyScroll:GetVerticalScrollRange())
+        UI.spellDetailBodyScroll:SetVerticalScroll(math.min(UI.spellDetailBodyScroll:GetVerticalScroll(), range))
+    end
 end
 
 local function GetSpellListViewportHeight()
@@ -2200,7 +2204,10 @@ local function ApplyBossRightPanelLayout()
     if not (UI.rightRoot and UI.spellSettingsFrame) then return end
     -- 列表区是固定的两行法术卡；描述卡和下方设置区只能从这个边界之后开始。
     UI.spellSettingsFrame:ClearAllPoints()
-    UI.spellSettingsFrame:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
+    UI.spellDetailHeader:ClearAllPoints()
+    UI.spellDetailHeader:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
+    UI.spellDetailHeader:SetPoint("TOPRIGHT", UI.rightRoot, "TOPRIGHT", -8, -(GetSpellListViewportHeight() + 10))
+    UI.spellSettingsFrame:SetPoint("TOPLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 0, -8)
     UI.spellSettingsFrame:SetPoint("BOTTOMRIGHT", UI.rightRoot, "BOTTOMRIGHT", -8, 8)
 end
 
@@ -2309,6 +2316,7 @@ local function UpdateSpellDetailHeader(spellName, spellIdentifier, eventID, spel
     ))
     UI.spellDetailCast:SetText(castLine or "")
     UI.spellDetailBody:SetText((bodyText and bodyText ~= "") and bodyText or L["暂无描述。"])
+    UI.spellDetailBodyScroll:SetVerticalScroll(0)
     RefreshSpellDetailHeaderLayout()
 end
 
@@ -2325,6 +2333,7 @@ local function SetSpellDetailHeaderEmpty(message)
     UI.spellDetailMeta:SetText("")
     UI.spellDetailCast:SetText("")
     UI.spellDetailBody:SetText("")
+    UI.spellDetailBodyScroll:SetVerticalScroll(0)
     UI.spellDetailHeader:SetHeight(156)
 end
 
@@ -2357,7 +2366,7 @@ local function SetRightSettingsPresentation(isDungeonCommon)
         UI.spellScrollFrame:Show()
         if UI.titleControlHost then UI.titleControlHost:Show() end
         UI.spellSettingsGridScroll:ClearAllPoints()
-        UI.spellSettingsGridScroll:SetPoint("TOPLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 0, -2)
+        UI.spellSettingsGridScroll:SetPoint("TOPLEFT", UI.spellSettingsFrame, "TOPLEFT", 8, -8)
         UI.spellSettingsGridScroll:SetPoint("BOTTOMRIGHT", UI.spellSettingsFrame, "BOTTOMRIGHT", -8, 6)
     end
 end
@@ -3181,9 +3190,9 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellSettingsFrame:SetBackdropColor(0.03, 0.04, 0.06, 0.92)
     UI.spellSettingsFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
 
-    UI.spellDetailHeader = CreateFrame("Frame", nil, UI.spellSettingsFrame, "BackdropTemplate")
-    UI.spellDetailHeader:SetPoint("TOPLEFT", UI.spellSettingsFrame, "TOPLEFT", 8, -8)
-    UI.spellDetailHeader:SetPoint("TOPRIGHT", UI.spellSettingsFrame, "TOPRIGHT", -8, -8)
+    UI.spellDetailHeader = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")
+    UI.spellDetailHeader:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
+    UI.spellDetailHeader:SetPoint("TOPRIGHT", UI.rightRoot, "TOPRIGHT", -8, -(GetSpellListViewportHeight() + 10))
     UI.spellDetailHeader:SetHeight(156)
     UI.spellDetailHeader:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -3257,9 +3266,23 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailCast:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
     UI.spellDetailCast:SetTextColor(0.92, 0.92, 0.95)
 
-    UI.spellDetailBody = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontHighlight")
-    UI.spellDetailBody:SetPoint("TOPLEFT", UI.spellDetailCast, "BOTTOMLEFT", 0, -8)
-    UI.spellDetailBody:SetPoint("RIGHT", UI.spellDetailHeader, "RIGHT", -18, 0)
+    -- 正文独立滚动；标题、射程/施法时间和测试控件始终固定在信息卡上。
+    UI.spellDetailBodyScroll = CreateFrame("ScrollFrame", nil, UI.spellDetailHeader, "ScrollFrameTemplate")
+    if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
+        ExBoss.UI.ApplyModernScrollBarSkin(UI.spellDetailBodyScroll)
+    end
+    UI.spellDetailBodyScroll:SetPoint("TOPLEFT", UI.spellDetailCast, "BOTTOMLEFT", 0, -8)
+    UI.spellDetailBodyScroll:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "BOTTOMRIGHT", -34, 12)
+    UI.spellDetailBodyScroll:EnableMouseWheel(true)
+    UI.spellDetailBodyScroll:SetScript("OnMouseWheel", function(self, delta)
+        local range = math.max(0, self:GetVerticalScrollRange())
+        self:SetVerticalScroll(math.max(0, math.min(range, self:GetVerticalScroll() - delta * 24)))
+    end)
+    UI.spellDetailBodyChild = CreateFrame("Frame", nil, UI.spellDetailBodyScroll)
+    UI.spellDetailBodyChild:SetSize(1, 1)
+    UI.spellDetailBodyScroll:SetScrollChild(UI.spellDetailBodyChild)
+    UI.spellDetailBody = EXUI:CreateVisualFontString(UI.spellDetailBodyChild, EXFONTFRAME, "GameFontHighlight")
+    UI.spellDetailBody:SetPoint("TOPLEFT", 0, 0)
     UI.spellDetailBody:SetJustifyH("LEFT")
     UI.spellDetailBody:SetJustifyV("TOP")
     UI.spellDetailBody:SetWordWrap(true)
@@ -3277,7 +3300,7 @@ local function EnsureUI(leftFrame, contentFrame)
     if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
         ExBoss.UI.ApplyModernScrollBarSkin(UI.spellSettingsGridScroll)
     end
-    UI.spellSettingsGridScroll:SetPoint("TOPLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 0, -2)
+    UI.spellSettingsGridScroll:SetPoint("TOPLEFT", UI.spellSettingsFrame, "TOPLEFT", 8, -8)
     UI.spellSettingsGridScroll:SetPoint("BOTTOMRIGHT", UI.spellSettingsFrame, "BOTTOMRIGHT", -8, 6)
 
     UI.spellSettingsGridChild = CreateFrame("Frame", nil, UI.spellSettingsGridScroll)
@@ -3297,7 +3320,7 @@ local function EnsureUI(leftFrame, contentFrame)
         ExBoss.UI.ApplyModernScrollBarSkin(UI.spellScrollFrame)
     end
     UI.spellScrollFrame:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -8)
-    UI.spellScrollFrame:SetPoint("BOTTOMRIGHT", UI.spellSettingsFrame, "TOPRIGHT", -8, 6)
+    UI.spellScrollFrame:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "TOPRIGHT", -8, 6)
 
     UI.spellScrollChild = CreateFrame("Frame", nil, UI.spellScrollFrame)
     UI.spellScrollChild:SetSize(760, 1)
@@ -3951,6 +3974,7 @@ local function RefreshSpellSettingsPanel(expectedRevision)
         UI.spellDetailMeta:SetText("")
         UI.spellDetailCast:SetText("")
         UI.spellDetailBody:SetText(extra.description or "")
+        UI.spellDetailBodyScroll:SetVerticalScroll(0)
         if UI.titleControlHost then UI.titleControlHost:Hide() end
         RefreshSpellDetailHeaderLayout()
         local rendered = Page.Extras:Render(UI.spellSettingsGridChild, scene, slot, encounterID, extraKey, function()

@@ -519,6 +519,30 @@ function BossConfig:SetMplusDungeonAuraSoundActionFields(slot, dungeonKey, actio
     if ok then RefreshAuraSound() end
     return ok, reason
 end
+function BossConfig:SetMplusDungeonAuraSoundActionsEnabled(slot, dungeonKey, actionIDs, enabled)
+    local api = API()
+    local userID = Selected(NormalizeSlot(slot) or self:GetRuntimeSlotForScene("mplus"))
+    if type(actionIDs) ~= "table" or #actionIDs == 0 then return false, "no aura sound actions", 0 end
+
+    local desired = enabled == true
+    local changed = 0
+    for i = 1, #actionIDs do
+        local actionID = tostring(actionIDs[i] or "")
+        local row = api.GetMplusDungeonAuraSoundActionView(userID, dungeonKey, actionID)
+        if type(row) == "table" and (row.enabled ~= false) ~= desired then
+            local ok, reason = api.SetMplusDungeonAuraSoundActionFields(userID, dungeonKey, actionID, {
+                enabled = desired,
+            })
+            if not ok then
+                if changed > 0 then RefreshAuraSound() end
+                return false, reason, changed
+            end
+            changed = changed + 1
+        end
+    end
+    if changed > 0 then RefreshAuraSound() end
+    return true, nil, changed
+end
 function BossConfig:CreateMplusDungeonAuraSoundAction(slot, dungeonKey, actionID, action)
     local api = API()
     local userID = Selected(NormalizeSlot(slot) or self:GetRuntimeSlotForScene("mplus"))

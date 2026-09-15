@@ -2029,3 +2029,4 @@ L["这里只管理 Author。User 覆盖始终绑定 Author，不可独立选择�
 L["选择 Author 配置"] = "Seleziona Configurazione Autore"
 L["Author 名称"] = "Nome Autore"
 L["保留的用户覆盖"] = "Sovrascrittura Utente Preservata"
+L["关闭光环语音注册（重载后生效）"] = "Disattiva la registrazione vocale delle aure (effettivo dopo il ricaricamento)"

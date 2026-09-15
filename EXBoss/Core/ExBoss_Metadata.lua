@@ -3,13 +3,21 @@
 -- 请勿手动通过 Git 提交修改此文件中的版本号，除非你是为了测试。
 
 ExBoss_MetaData = {
-    version = "v26.9.13.0942",
+    version = "v26.9.15.1537",
     changelog = {
-        version = "v26.9.11.0736",
-        title = "v26.9.11.0736 更新日志",
-        publishedAt = "2026-09-11 07:36",
+        version = "v26.9.15.1537",
+        title = "v26.9.15.1537 更新日志",
+        publishedAt = "2026-09-15 15:37",
         fontSize = 14,
         content = [[
+@H1@ v26.9.15.1537
+
+@CN@ @H2@ 通用
+@CN@ - 修复%e:3202时间轴偶尔失效问题
+
+@EN@ @H2@ General
+@EN@ - Fixed an issue where the %e:3202 timeline would occasionally stop working.
+
 @H1@ v26.9.11.0736
 
 @CN@ @H2@ 通用
