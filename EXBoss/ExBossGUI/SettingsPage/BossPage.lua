@@ -2211,7 +2211,235 @@ local function ApplyBossRightPanelLayout()
     UI.spellSettingsFrame:SetPoint("BOTTOMRIGHT", UI.rightRoot, "BOTTOMRIGHT", -8, 8)
 end
 
+-- 局部试用：03 悬浮阴影 / 04 石墨。只绘制容器，不接管设置控件。
+-- 当前客户端截图校色：输入 #1C1C20 实测 #18181C，本页底色/卡面/边框各补偿 +4。
+-- 视觉目标仍为网页 #1C1C20 / #232327 / #333338；不修改全局主题或游戏Gamma。
+local function RegisterElevatedSettingsCard()
+    local Grid = _G.ExwindGrid
+    if Grid:GetCustomRenderer("EXBoss.ElevatedSettingsCard") then return end
+    local media = "Interface\\AddOns\\EXBoss\\Textures\\GroupCard\\"
+    local function Draw(frame, ctx)
+        local skin = frame._exBossElevatedCard
+        if not skin then
+            skin = { layers = {} }
+            frame._exBossElevatedCard = skin
+            -- 多层低透明度轮廓形成软阴影，圆角切片不随卡片宽度拉伸。
+            local specs = {
+                { spread = 7, offset = 4, alpha = .045 },
+                { spread = 5, offset = 4, alpha = .07 },
+                { spread = 3, offset = 3, alpha = .11 },
+                { spread = 1, offset = 2, alpha = .17 },
+                { spread = 0, offset = 0, fill = true },
+                { spread = 0, offset = 0, border = true },
+            }
+            local uvX = { 0, 16 / 256, 240 / 256, 1 }
+            local uvY = { 0, 33 / 128, 95 / 128, 1 }
+            for index, spec in ipairs(specs) do
+                spec.pieces = {}
+                skin.layers[index] = spec
+                for row = 1, 3 do
+                    for col = 1, 3 do
+                        local texture = frame:CreateTexture(nil, spec.border and "BORDER" or "BACKGROUND", nil, index - 7)
+                        texture:SetTexture(media .. (spec.border and "BorderR10.tga" or "FillR10.tga"), "CLAMP", "CLAMP", "LINEAR")
+                        texture:SetTexCoord(uvX[col], uvX[col + 1], uvY[row], uvY[row + 1])
+                        texture:SetSnapToPixelGrid(false)
+                        texture:SetTexelSnappingBias(0)
+                        if spec.fill then
+                            texture:SetVertexColor(39 / 255, 39 / 255, 43 / 255, 1)
+                        elseif spec.border then
+                            texture:SetVertexColor(55 / 255, 55 / 255, 60 / 255, 1)
+                        else
+                            texture:SetVertexColor(0, 0, 0, spec.alpha)
+                        end
+                        spec.pieces[#spec.pieces + 1] = { texture = texture, row = row, col = col }
+                    end
+                end
+            end
+            skin.title = EXUI:CreateVisualFontString(frame, EXFONTFRAME, "GameFontNormal")
+            skin.icon = EXUI:CreateVisualTexture(frame, EXBASEFRAME)
+        end
+        frame:SetBackdrop(nil)
+        frame:EnableMouse(false)
+        frame:SetFrameLevel(math.max(0, ctx.container:GetFrameLevel() - 5))
+        local width, height = frame:GetWidth(), frame:GetHeight()
+        local outlined = ctx.element.cardAppearance == "outlined"
+        local cornerScale = outlined and .7 or 1
+        local radius = math.min(10 * cornerScale, 62 * PixelUtil.GetPixelToUIUnitFactor() / frame:GetEffectiveScale())
+        for _, layer in ipairs(skin.layers) do
+            local spread, offset = layer.spread, layer.offset
+            local xs = { -spread - 6 * cornerScale, radius - spread, width + spread - radius, width + spread + 6 * cornerScale }
+            local ys = { offset - spread - 23 * cornerScale, offset + radius - spread, height + spread + offset - radius, height + spread + offset + 23 * cornerScale }
+            for _, piece in ipairs(layer.pieces) do
+                local texture, row, col = piece.texture, piece.row, piece.col
+                texture:ClearAllPoints()
+                texture:SetPoint("TOPLEFT", frame, "TOPLEFT", xs[col], -ys[row])
+                texture:SetSize(math.max(.01, xs[col + 1] - xs[col]), math.max(.01, ys[row + 1] - ys[row]))
+                if layer.fill then
+                    -- 卡片独立于页面底色；细边款也保留较亮的石墨填充。
+                    texture:SetVertexColor(39 / 255, 39 / 255, 43 / 255, 1)
+                end
+                texture:SetShown(layer.fill == true or (not outlined and not layer.border))
+            end
+        end
+        -- 两款直边均使用一个物理像素；悬浮款单独保留背景阴影。
+        if not skin.outlineEdges then
+            skin.outlineEdges = {}
+            for index = 1, 4 do
+                local edge = frame:CreateTexture(nil, "BORDER", nil, 0)
+                edge:SetColorTexture(55 / 255, 55 / 255, 60 / 255, 1)
+                edge:SetSnapToPixelGrid(true)
+                edge:SetTexelSnappingBias(0)
+                skin.outlineEdges[index] = edge
+            end
+        end
+        local scale = frame:GetEffectiveScale()
+        local pixel = PixelUtil.GetPixelToUIUnitFactor() / scale
+        local inset = PixelUtil.GetNearestPixelSize(radius, scale)
+        local right = PixelUtil.GetNearestPixelSize(width, scale)
+        local bottom = PixelUtil.GetNearestPixelSize(height, scale)
+        local positions = {
+            { inset, 0, math.max(pixel, right - 2 * inset), pixel },
+            { inset, -bottom + pixel, math.max(pixel, right - 2 * inset), pixel },
+            { 0, -inset, pixel, math.max(pixel, bottom - 2 * inset) },
+            { right - pixel, -inset, pixel, math.max(pixel, bottom - 2 * inset) },
+        }
+        for index, edge in ipairs(skin.outlineEdges) do
+            local position = positions[index]
+            edge:ClearAllPoints()
+            PixelUtil.SetPoint(edge, "TOPLEFT", frame, "TOPLEFT", position[1], position[2])
+            edge:SetSize(position[3], position[4])
+            edge:Show()
+        end
+        -- 图片式圆角 BEGIN：离线生成的 1px 描边，四角各一张纹理，按物理像素1:1取样。
+        -- 如需恢复逐像素版：注释本 BEGIN/END 区间，解除紧随其后的长注释，再 /reload。
+        local radiusPixels = math.max(1, math.min(62, math.floor(inset / pixel + .5)))
+        local cellX = ((radiusPixels - 1) % 8) * 64 + 1
+        local cellY = math.floor((radiusPixels - 1) / 8) * 64 + 1
+        local u1, u2 = cellX / 512, (cellX + radiusPixels) / 512
+        local v1, v2 = cellY / 512, (cellY + radiusPixels) / 512
+        skin.outlineCorners = skin.outlineCorners or {}
+        for corner = 1, 4 do
+            local texture = skin.outlineCorners[corner]
+            if not texture then
+                texture = frame:CreateTexture(nil, "BORDER", nil, 0)
+                texture:SetTexture(media .. "Corner1pxAtlas.tga", "CLAMP", "CLAMP", "LINEAR")
+                texture:SetSnapToPixelGrid(true)
+                texture:SetTexelSnappingBias(0)
+                texture:SetVertexColor(55 / 255, 55 / 255, 60 / 255, 1)
+                skin.outlineCorners[corner] = texture
+            end
+            local flipX = corner == 2 or corner == 3
+            local flipY = corner == 3 or corner == 4
+            texture:SetTexCoord(flipX and u2 or u1, flipX and u1 or u2,
+                flipY and v2 or v1, flipY and v1 or v2)
+            texture:ClearAllPoints()
+            PixelUtil.SetPoint(texture, "TOPLEFT", frame, "TOPLEFT",
+                flipX and right - inset or 0, flipY and -bottom + inset or 0)
+            texture:SetSize(inset, inset)
+            texture:Show()
+        end
+        -- 图片式圆角 END
+
+        --[=[ 逐像素版备份：当前不执行。恢复方法见上方图片式圆角 BEGIN。
+        -- 用物理像素的圆环覆盖率绘制四角，避免极短 Line 丢失。
+        -- 覆盖率只在像素半径改变时计算；纹理复用，无逐帧刷新。
+        local radiusPixels = math.max(1, math.floor(inset / pixel + .5))
+        if skin.cornerRadiusPixels ~= radiusPixels then
+            skin.cornerRadiusPixels = radiusPixels
+            skin.cornerCoverage = {}
+            local outerSquared = radiusPixels * radiusPixels
+            local innerSquared = (radiusPixels - 1) * (radiusPixels - 1)
+            for y = 0, radiusPixels - 1 do
+                for x = 0, radiusPixels - 1 do
+                    local hits = 0
+                    for sampleY = 0, 3 do
+                        for sampleX = 0, 3 do
+                            local dx = x + (sampleX + .5) / 4 - radiusPixels
+                            local dy = y + (sampleY + .5) / 4 - radiusPixels
+                            local distanceSquared = dx * dx + dy * dy
+                            if distanceSquared <= outerSquared and distanceSquared >= innerSquared then
+                                hits = hits + 1
+                            end
+                        end
+                    end
+                    if hits > 0 then
+                        skin.cornerCoverage[#skin.cornerCoverage + 1] = { x, y, hits / 16 }
+                    end
+                end
+            end
+        end
+        skin.outlineCorners = skin.outlineCorners or {}
+        local index = 0
+        for corner = 1, 4 do
+            for _, coverage in ipairs(skin.cornerCoverage) do
+                index = index + 1
+                local dot = skin.outlineCorners[index]
+                if not dot then
+                    dot = frame:CreateTexture(nil, "BORDER", nil, 0)
+                    dot:SetSnapToPixelGrid(true)
+                    dot:SetTexelSnappingBias(0)
+                    skin.outlineCorners[index] = dot
+                end
+                local x = coverage[1] * pixel
+                local y = coverage[2] * pixel
+                if corner == 2 or corner == 3 then x = right - x - pixel end
+                if corner == 3 or corner == 4 then y = bottom - y - pixel end
+                dot:ClearAllPoints()
+                PixelUtil.SetPoint(dot, "TOPLEFT", frame, "TOPLEFT", x, -y)
+                dot:SetSize(pixel, pixel)
+                dot:SetColorTexture(51 / 255, 51 / 255, 56 / 255, coverage[3])
+                dot:Show()
+            end
+        end
+        for unused = index + 1, #skin.outlineCorners do
+            skin.outlineCorners[unused]:Hide()
+        end
+        ]=]
+        skin.title:SetFont(ExwindTools.MAIN_FONT, ctx.element.titleSize or 17, "")
+        skin.title:SetTextColor(212 / 255, 212 / 255, 216 / 255, 1)
+        skin.title:ClearAllPoints()
+        skin.title:SetPoint("TOPLEFT", frame, "TOPLEFT", 40, -12)
+        skin.title:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
+        skin.title:SetJustifyH("LEFT")
+        skin.title:SetText(ctx.element.label or "")
+        skin.title:Show()
+        skin.icon:ClearAllPoints()
+        skin.icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -12)
+        skin.icon:SetSize(22, 22)
+        skin.icon:SetTexture(ctx.element.titleIcon)
+        skin.icon:SetVertexColor(232 / 255, 232 / 255, 234 / 255, 1)
+        skin.icon:Show()
+        -- 方案01：统一底色，不绘制独立标题栏或标题分隔线。
+        if skin.titleDivider then skin.titleDivider:Hide() end
+        if skin.headerFill then
+            for _, texture in ipairs(skin.headerFill) do texture:Hide() end
+        end
+    end
+    Grid:RegisterCustomRenderer("EXBoss.ElevatedSettingsCard", {
+        update = Draw,
+        release = function(frame)
+            local skin = frame._exBossElevatedCard
+            if not skin then return end
+            for _, layer in ipairs(skin.layers) do
+                for _, piece in ipairs(layer.pieces) do piece.texture:Hide() end
+            end
+            if skin.outlineEdges then
+                for _, edge in ipairs(skin.outlineEdges) do edge:Hide() end
+            end
+            if skin.outlineCorners then
+                for _, dot in ipairs(skin.outlineCorners) do dot:Hide() end
+            end
+            skin.title:Hide()
+            skin.icon:Hide()
+            if skin.titleDivider then skin.titleDivider:Hide() end
+            if skin.headerFill then
+                for _, texture in ipairs(skin.headerFill) do texture:Hide() end
+            end
+        end,
+    })
+end
 local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spellIcon, iconFlags)
+    RegisterElevatedSettingsCard()
     for i = #SETTINGS_LAYOUT, 1, -1 do
         SETTINGS_LAYOUT[i] = nil
     end
@@ -2221,7 +2449,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
             bgColor = { r = 0.030, g = 0.038, b = 0.054, a = 0.98 }, borderColor = { r = 0.26, g = 0.30, b = 0.38, a = 0.82 }, accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 1.00 } },
         { key = "enabled", type = "checkbox", x = 3, y = 1, w = 36, h = 5, label = L["启用"], labelSize = 18 },
 
-        { key = "card_text", type = "card", x = 1, y = 8, w = 107, h = 40, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", titleSize = 17, keepBorderVisible = true,
+        { key = "card_text", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 1, y = 8, w = 107, h = 40, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", titleSize = 17, keepBorderVisible = true,
             bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 1.00 } },
         { key = "eventColorEnabled", type = "checkbox", x = 4, y = 16, w = 26, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 33, y = 16, w = 35, h = 5, label = "", labelPos = "left", items = EVENT_COLOR_ITEMS_FUNC, search = true },
@@ -2234,7 +2462,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "timerBarRenameEnabled", type = "checkbox", x = 4, y = 37, w = 26, h = 5, label = L["|cffffd637计时条改名|r"] },
         { key = "timerBarRenameText", type = "input", x = 34, y = 37, w = 72, h = 5, label = "" },
 
-        { key = "card_display", type = "card", x = 109, y = 8, w = 93, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true,
+        { key = "card_display", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 109, y = 8, w = 93, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true,
             bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.50, g = 0.74, b = 1.00, a = 1.00 } },
         { key = "ringEnabled", type = "checkbox", x = 112, y = 16, w = 28, h = 5, label = L["施法圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 112, y = 23, w = 28, h = 5, label = L["施法读条"] },
@@ -2242,7 +2470,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "castProgressBarRenameEnabled", type = "checkbox", x = 112, y = 37, w = 28, h = 5, label = L["读条改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 143, y = 37, w = 54, h = 5, label = "" },
 
-        { key = "card_voice", type = "card", x = 1, y = 50, w = 107, h = 40, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", titleSize = 17, keepBorderVisible = true,
+        { key = "card_voice", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 1, y = 50, w = 107, h = 40, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", titleSize = 17, keepBorderVisible = true,
             bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.28, g = 0.84, b = 1.00, a = 1.00 } },
         { key = "tr0Enabled", type = "checkbox", x = 4, y = 58, w = 26, h = 5, label = L["|cffffd637中央文本|r"] },
         { key = "tr0Source", type = "dropdown", x = 34, y = 58, w = 27, h = 5, label = "", items = C.TRIGGER_SOURCE_ITEMS, search = true },
@@ -2268,7 +2496,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "tr2TtsText", type = "input", x = 61, y = 79, w = 33, h = 5, label = "" },
         { key = "tr2ValueTest", type = "button", x = 95, y = 79, w = 11, h = 6, label = L["试听"] },
 
-        { key = "card_target_alert", type = "card", x = 109, y = 50, w = 93, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true,
+        { key = "card_target_alert", type = "custom", renderer = "EXBoss.ElevatedSettingsCard", cardAppearance = "outlined", allowOverlap = true, x = 109, y = 50, w = 93, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true,
             bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.40, g = 1.00, b = 0.62, a = 1.00 } },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 112, y = 58, w = 28, h = 5, label = L["启用"] },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 112, y = 66, w = 25, h = 5, label = L["圆环"] },
@@ -2953,8 +3181,20 @@ end
 local function EnsureUI(leftFrame, contentFrame)
     if UI.leftRoot and UI.rightRoot then return end
 
+    -- 本页石墨底色按截图偏暗量补偿，视觉目标为网页 #1C1C20。
+    local function AddGraphiteBackground(parent)
+        local background = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+        background:SetAllPoints(parent)
+        background:SetFrameLevel(0)
+        background:EnableMouse(false)
+        background:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
+        background:SetBackdropColor(32 / 255, 32 / 255, 36 / 255, 1)
+        return background
+    end
+
     UI.leftRoot = CreateFrame("Frame", nil, leftFrame)
     UI.leftRoot:SetAllPoints(leftFrame)
+    UI.leftPageBackground = AddGraphiteBackground(UI.leftRoot)
 
     local EXUI = ExwindTools.UI
     if EXUI and EXUI.CreateDropdown then
@@ -3050,6 +3290,7 @@ local function EnsureUI(leftFrame, contentFrame)
 
     UI.rightRoot = CreateFrame("Frame", nil, contentFrame)
     UI.rightRoot:SetAllPoints(contentFrame)
+    UI.rightPageBackground = AddGraphiteBackground(UI.rightRoot)
 
     EXUI = ExwindTools.UI
     if not UI.titleControlHost then
@@ -3187,8 +3428,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellSettingsFrame:SetBackdropColor(0.03, 0.04, 0.06, 0.92)
-    UI.spellSettingsFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    UI.spellSettingsFrame:SetBackdropColor(32 / 255, 32 / 255, 36 / 255, 1)
+    UI.spellSettingsFrame:SetBackdropBorderColor(55 / 255, 55 / 255, 60 / 255, 1)
 
     UI.spellDetailHeader = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")
     UI.spellDetailHeader:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
@@ -3202,8 +3443,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellDetailHeader:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
-    UI.spellDetailHeader:SetBackdropBorderColor(0.22, 0.22, 0.28, 1)
+    UI.spellDetailHeader:SetBackdropColor(32 / 255, 32 / 255, 36 / 255, 1)
+    UI.spellDetailHeader:SetBackdropBorderColor(55 / 255, 55 / 255, 60 / 255, 1)
     UI.spellDetailHeader._exDetailLayoutWidth = 0
     UI.spellDetailHeader._exDetailLayoutPending = false
     UI.spellDetailHeader:SetScript("OnSizeChanged", function(self, width)
