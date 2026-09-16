@@ -195,10 +195,10 @@ local function ApplyModernScrollBarSkin(scrollFrame)
     if not scrollFrame then
         return
     end
-    -- ScrollFrameTemplate already owns exactly one native MinimalScrollBar.
-    -- Keep this entry point for existing pages, but never create, hide, or
-    -- rebind another scrollbar.
+    -- ScrollFrameTemplate already owns and binds exactly one native
+    -- MinimalScrollBar.  Delegate only its geometry/appearance to Core.
     scrollFrame:EnableMouseWheel(true)
+    EXUI:ApplyModernScrollFrame(scrollFrame)
 end
 
 ExBoss.UI.ApplyModernScrollBarSkin = ApplyModernScrollBarSkin
