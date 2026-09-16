@@ -39,19 +39,17 @@ if type(SHIELD_ANCHOR_OPTS) ~= "table" then
     error("ExtraShieldBarPage requires standard AnchorGroup options", 2)
 end
 
--- ExtraShield 是固定单条 Body；没有第二条可排列，故不凭空显示 layout 卡。
-local CARD_GUI = {
-    version = 1,
-    title = L["额外护盾条设置"],
-    description = L["单体护盾监控条的启用、锚点、条体和文字。"],
-    cards = {
-        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = SHIELD_COMMON_OPTS } },
-        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = SHIELD_ANCHOR_OPTS } },
-        { id = "bar", title = L["计时条外观"], content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
-        { id = "name", title = L["法术名称"], content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
-        { id = "value", title = L["数值文本"], content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
-    },
+local LAYOUT = {
+    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["额外护盾条设置"], labelSize = 25 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 9, w = 200, h = 20, label = L["模块通用设置"], opts = SHIELD_COMMON_OPTS },
+    { key = "anchor", type = "anchorgroup", x = 1, y = 31, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = SHIELD_ANCHOR_OPTS },
+    -- ExtraShield 是固定单条 Body；没有第二条可排列，故不凭空显示 layout 卡。
+    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 54, w = 200, h = 50, label = L["计时条外观"], labelSize = 20 },
+    { key = "font_spell", type = "fontgroup", x = 1, y = 107, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
+    { key = "font_timer", type = "fontgroup", x = 1, y = 160, w = 200, h = 50, label = L["数值文本"], labelSize = 20 },
 }
+
+ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 local function RenderStandardPreview(dock)
     GetExtraShieldBar():ShowPanelPreview(dock)
@@ -73,15 +71,16 @@ local function ReleaseStandardPreview()
     end
 end
 
-local function RebindModuleCommon(context)
-    local group = context.grid:GetSessionWidget(context.cardSession, "moduleCommon", "general")
-    if group and type(group.RebindDB) == "function" then group:RebindDB(context.config) end
+local function RebindModuleCommon(grid, container, db)
+    local state = grid and grid.ContainerStates and grid.ContainerStates[container]
+    local group = state and state.widgets and state.widgets.moduleCommon
+    if group and type(group.RebindDB) == "function" then group:RebindDB(db) end
 end
 
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    gui = CARD_GUI,
+    layout = LAYOUT,
     preview = {
         height = 160,
         render = RenderStandardPreview,
@@ -102,7 +101,7 @@ local StandardPage = EXUI:CreateStandardModulePage({
         }
     end,
     afterGridLayout = function(context)
-        RebindModuleCommon(context)
+        RebindModuleCommon(context.grid, context.scrollChild, context.config)
     end,
 })
 

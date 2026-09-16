@@ -17,12 +17,13 @@ do
 end
 
 local MODULE_KEY = "ExBoss.HomePage"
+local GRID_COLS = 200
 
 local scrollFrame = nil
 local scrollChild = nil
 local missingDepsText = nil
 local RefreshPage = nil
-local cardSession = nil
+local pageLayoutData = nil
 
 local THEME = {
     gold = { 1.00, 0.82, 0.35 },
@@ -200,27 +201,62 @@ local function SyncPageDBFromRuntime()
     return db
 end
 
-local CARD_GUI = {
-    version = 1,
-    title = L["首页"],
-    description = L["EXBoss 的界面语言与当前开发状态。"],
-    cards = {
-        { id = "locale", title = L["界面语言"], content = { kind = "grid", items = {
-            { key = "localeMode", type = "dropdown", x = 4, y = 1, w = 80, h = 6, label = "", items = LOCALE_OPTIONS, search = true },
-            { key = "btn_reload_ui", type = "button", x = 90, y = 1, w = 42, h = 6, label = L["立即重载界面"], func = function() ReloadUI() end, frameLevelOffset = 8 },
-            { key = "desc_locale_status", type = "description", x = 4, y = 11, w = 190, h = 9, label = BuildLocaleStatusText() },
-        } } },
-        { id = "development", title = "ON DEV", content = { kind = "grid", items = {
-            { key = "desc_on_dev", type = "description", x = 4, y = 1, w = 190, h = 6, label = "ON DEV" },
-        } } },
-    },
-}
-
-local PAGE_BINDING = { moduleKey = MODULE_KEY, getConfig = GetPageDB }
-if not EXUI or type(EXUI.RegisterSettingsPage) ~= "function" then
-    error("HomePage requires EXUI settings-card registry", 2)
+local function IsGridEditActive()
+    local Grid = _G.ExwindGrid
+    return Grid and Grid.IsLiveEditing == true and Grid.LiveContainer == scrollChild
 end
-EXUI:RegisterSettingsPage(MODULE_KEY, CARD_GUI, { addon = "EXBoss" })
+
+local function BuildLayout()
+    return {
+        { key = "card_locale", type = "card", x = 3, y = 7, w = 92, h = 30, title = L["界面语言"], desc = "", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
+        { key = "localeMode", type = "dropdown", x = 8, y = 16, w = 38, h = 4, label = "", items = LOCALE_OPTIONS, search = true },
+        { key = "btn_reload_ui", type = "button", x = 50, y = 16, w = 25, h = 4, label = L["立即重载界面"], func = function() ReloadUI() end, frameLevelOffset = 8 },
+        { key = "desc_locale_status", type = "description", x = 8, y = 23, w = 80, h = 9, label = BuildLocaleStatusText() },
+
+        { key = "card_on_dev", type = "card", x = 99, y = 7, w = 92, h = 30, title = "ON DEV", desc = "", accentColor = { r = THEME.gold[1], g = THEME.gold[2], b = THEME.gold[3], a = 1 } },
+        { key = "desc_on_dev", type = "description", x = 105, y = 19, w = 80, h = 6, label = "ON DEV" },
+    }
+end
+
+local function FindLayoutEntry(layout, key)
+    if type(layout) ~= "table" then
+        return nil
+    end
+    for i = 1, #layout do
+        local item = layout[i]
+        if item and item.key == key then
+            return item
+        end
+    end
+    return nil
+end
+
+local function UpdateLayoutData(layout)
+    local db = SyncPageDBFromRuntime()
+    local updates = {
+        desc_locale_status = { label = BuildLocaleStatusText() },
+        localeMode = { items = LOCALE_OPTIONS },
+    }
+
+    db.localeMode = tostring(ExBoss.GetLocaleMode and ExBoss:GetLocaleMode() or db.localeMode or "AUTO")
+
+    for key, fields in pairs(updates) do
+        local item = FindLayoutEntry(layout, key)
+        if item then
+            for field, value in pairs(fields) do
+                item[field] = value
+            end
+        end
+    end
+end
+
+local function GetOrBuildLayout()
+    if type(pageLayoutData) ~= "table" then
+        pageLayoutData = BuildLayout()
+    end
+    UpdateLayoutData(pageLayoutData)
+    return pageLayoutData
+end
 
 local function RenderGrid(contentFrame, resetScroll)
     local Grid = _G.ExwindGrid
@@ -228,6 +264,9 @@ local function RenderGrid(contentFrame, resetScroll)
     if not (Grid and EXUI and ExwindTools) then
         return false
     end
+
+    local layout = GetOrBuildLayout()
+    ExwindTools:RegisterModuleLayout(MODULE_KEY, layout)
 
     if not scrollFrame then
         scrollFrame = CreateFrame("ScrollFrame", nil, contentFrame, "ScrollFrameTemplate")
@@ -271,20 +310,10 @@ local function RenderGrid(contentFrame, resetScroll)
             ExwindTools.UI.ActivePageFrame = scrollChild
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        if cardSession then cardSession:Release() end
-        cardSession = Grid:MountCards(scrollChild, EXUI:GetSettingsPage(MODULE_KEY), {
-            pageId = MODULE_KEY,
-            regionId = "main",
-            moduleKey = MODULE_KEY,
-            defaultBinding = PAGE_BINDING,
-            scrollFrame = scrollFrame,
-            onContentHeightChanged = function(height)
-                if scrollChild then scrollChild:SetHeight(math.max(1, tonumber(height) or 1)) end
-            end,
-        })
-        EXUI.ActiveCardSession = cardSession
-        local status = Grid:GetSessionWidget(cardSession, "desc_locale_status", "locale")
-        if status and type(status.SetText) == "function" then status:SetText(BuildLocaleStatusText()) end
+        if Grid.SetContainerCols then
+            Grid:SetContainerCols(scrollChild, GRID_COLS)
+        end
+        Grid:Render(scrollChild, layout, GetPageDB(), MODULE_KEY)
     end)
 
     return true
@@ -329,8 +358,6 @@ function Page:Render(contentFrame)
 end
 
 function Page:Hide()
-    if EXUI.ActiveCardSession == cardSession then EXUI.ActiveCardSession = nil end
-    if cardSession then cardSession:Release(); cardSession = nil end
     if scrollFrame then
         scrollFrame:Hide()
     end

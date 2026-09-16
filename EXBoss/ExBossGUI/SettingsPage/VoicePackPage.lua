@@ -28,39 +28,19 @@ local THEME                               = {
     cardBg = { 0.03, 0.04, 0.07 },
 }
 
-local function ShowEXBossStaticPopup(which, textArg1, textArg2, data)
-    local popup = StaticPopup_Show(which, textArg1, textArg2, data)
-    local panelTheme = _G.ExwindTools and _G.ExwindTools.PanelTheme
-    if popup and panelTheme and panelTheme.ApplyWindowChrome then
-        panelTheme.ApplyWindowChrome(popup, {
-            radius = 10,
-            suppressNative = true,
-            restoreOnHide = true,
-        })
-    end
-    if popup and EXUI and EXUI.ApplyPopupChildControls then
-        EXUI:ApplyPopupChildControls(popup, { restoreOnHide = true })
-    end
-    return popup
-end
-
 -- ─── 帮助函数 ─────────────────────────────────────────────────
 
 local function Bg(parent, r, g, b, a)
     local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     f:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets   = { left = 1, right = 1, top = 1, bottom = 1 },
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets   = { left = 2, right = 2, top = 2, bottom = 2 },
     })
     f:SetBackdropColor(r or 0.03, g or 0.04, b or 0.07, a or 0.92)
     f:SetBackdropBorderColor(
         THEME.border[1], THEME.border[2], THEME.border[3], 0.95)
-    local panelTheme = _G.ExwindTools and _G.ExwindTools.PanelTheme
-    if panelTheme and panelTheme.ApplySettingsCardStyle then
-        panelTheme.ApplySettingsCardStyle(f, false)
-    end
     return f
 end
 
@@ -84,6 +64,7 @@ end
 
 local function Chip(parent, r, g, b)
     local chip = Bg(parent, r * 0.18, g * 0.18, b * 0.18, 0.88)
+    chip:SetBackdropBorderColor(r * 0.6, g * 0.6, b * 0.6, 0.90)
     local fs = EXUI:CreateVisualFontString(chip, EXFONTFRAME, "GameFontNormalSmall")
     fs:SetPoint("CENTER")
     fs:SetTextColor(r, g, b)
@@ -223,7 +204,7 @@ local function ShowNonEnglishVoicePackConfirm(packName, onChanged)
             preferredIndex = 3,
         }
     end
-    ShowEXBossStaticPopup(dialogKey, nil, nil, {
+    StaticPopup_Show(dialogKey, nil, nil, {
         packName = packName,
         onChanged = onChanged,
     })
@@ -546,11 +527,12 @@ local function FindConfigurationRow(configurationRef)
 end
 
 local MODULE_KEY = "ExBoss.VoicePackPage"
+local GRID_COLS = 200
 local scrollFrame = nil
 local scrollChild = nil
-local cardSession = nil
 local missingDepsText = nil
 local pageSyncLock = false
+local pageLayoutData = nil
 local lastSyncedConfigurationRef = nil
 -- 这里的表只承载当前页面控件值/实体管理器的临时选中项。它绝不能使用
 -- ModuleDB：语音包、职责 Author 选择和 User 实体本身各有自己的 authority，
@@ -582,6 +564,11 @@ local function GetPageDB()
         pageDraft = GetPageDBDefaults()
     end
     return pageDraft
+end
+
+local function IsGridEditActive()
+    local Grid = _G.ExwindGrid
+    return Grid and Grid.IsLiveEditing == true and Grid.LiveContainer == scrollChild
 end
 
 local function ApplyStatusColor(text, ok, isError)
@@ -675,7 +662,7 @@ local function ShowReloadAfterAuthorSwitchConfirm(slotLabel, intent)
             preferredIndex = 3,
         }
     end
-    ShowEXBossStaticPopup(dialogKey, tostring(slotLabel or L["当前槽位"]), nil, intent)
+    StaticPopup_Show(dialogKey, tostring(slotLabel or L["当前槽位"]), nil, intent)
     return true
 end
 
@@ -920,7 +907,7 @@ local function DeleteManagedConfiguration()
                 preferredIndex = 3,
             }
         end
-        ShowEXBossStaticPopup(dialogKey, tostring(db.configurationName or configID), nil, DeleteNow)
+        StaticPopup_Show(dialogKey, tostring(db.configurationName or configID), nil, DeleteNow)
     else
         DeleteNow()
     end
@@ -940,73 +927,131 @@ local function BuildVoicePackInfoBody()
     return table.concat(lines, "\n")
 end
 
-local function ToggleCardEdit(cardId)
-    if not cardSession then return end
-    cardSession:ToggleLiveEdit(cardId)
+local function FindLayoutEntry(items, key)
+    for i = 1, #(items or {}) do
+        local item = items[i]
+        if type(item) == "table" then
+            if item.key == key then
+                return item
+            end
+            if type(item.children) == "table" then
+                local found = FindLayoutEntry(item.children, key)
+                if found then
+                    return found
+                end
+            end
+        end
+    end
+    return nil
 end
 
-local function BuildCardGUI()
+local function BuildConfigurationLayout()
     local info = GetCurrentPackInfo()
     local db = GetPageDB()
     local allConfigurations = BuildAllConfigurationItems()
+    local layout = {
+        { key = "header_main", type = "header", x = 1, y = 3, w = 104, h = 4, label = L["语音 / 配置"], labelSize = 24 },
+        {
+            key = "btn_toggle_grid_edit", type = "button", x = 88, y = 1, w = 11, h = 2,
+            label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"],
+            func = function()
+                local Grid = _G.ExwindGrid
+                if Grid and scrollChild then
+                    Grid:ToggleLiveEdit(scrollChild)
+                    C_Timer.After(0, function() if RefreshPage then RefreshPage(false) end end)
+                end
+            end,
+        },
+
+        -- 左栏：语音包保持现状，后续单独调整。
+        { key = "card_pack_picker", type = "card", x = 3, y = 11, w = 60, h = 40, title = L["语音包"], desc = L["选择当前生效的语音包。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } },
+        { key = "selectedVoicePack", type = "dropdown", x = 5, y = 23, w = 50, h = 4, label = L["当前语音包"], items = BuildPackItemsForGrid(), labelPos = "top", labelWrap = true, labelMaxLines = 2, search = true },
+        { key = "card_pack_details", type = "card", x = 3, y = 57, w = 60, h = 40, title = tostring(info.displayName or ""), desc = tostring(info.subtitle or ""), accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } },
+        { key = "desc_pack_info", type = "description", x = 5, y = 65, w = 50, h = 30, label = BuildVoicePackInfoBody() },
+
+        -- All active configuration choices live together.  User overrides
+        -- remain internal and automatically follow their selected Author.
+        { key = "card_active_configurations", type = "card", x = 69, y = 11, w = 60, h = 116, title = L["当前配置选择"], desc = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"], accentAlign = "left", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
+        { key = "appearanceProfileID", type = "dropdown", x = 71, y = 22, w = 54, h = 4, label = L["外观配置"], items = BuildAppearanceProfileItems(), labelPos = "top", search = true },
+        { key = "author_mplus_tank", type = "dropdown", x = 71, y = 36, w = 54, h = 4, label = L["大秘境坦克 Author"], items = BuildAuthorPresetItems("mplus_tank"), labelPos = "top", search = true },
+        { key = "author_mplus_dps", type = "dropdown", x = 71, y = 48, w = 54, h = 4, label = L["大秘境 DPS Author"], items = BuildAuthorPresetItems("mplus_dps"), labelPos = "top", search = true },
+        { key = "author_mplus_heal", type = "dropdown", x = 71, y = 60, w = 54, h = 4, label = L["大秘境治疗 Author"], items = BuildAuthorPresetItems("mplus_heal"), labelPos = "top", search = true },
+        { key = "author_raid_tank", type = "dropdown", x = 71, y = 76, w = 54, h = 4, label = L["团本坦克 Author"], items = BuildAuthorPresetItems("raid_tank"), labelPos = "top", search = true },
+        { key = "author_raid_dps", type = "dropdown", x = 71, y = 88, w = 54, h = 4, label = L["团本 DPS Author"], items = BuildAuthorPresetItems("raid_dps"), labelPos = "top", search = true },
+        { key = "author_raid_heal", type = "dropdown", x = 71, y = 100, w = 54, h = 4, label = L["团本治疗 Author"], items = BuildAuthorPresetItems("raid_heal"), labelPos = "top", search = true },
+    }
+
+    local manageTop = 11
     local managedConfiguration = FindConfigurationRow(db.selectedConfiguration)
     local builtInDeleteHint = managedConfiguration and managedConfiguration.builtIn == true
         and ApplyStatusColor(L["内置 Author 无法重命名或删除"], false, true) or ""
+    layout[#layout + 1] = { key = "card_configuration_manager", type = "card", x = 135, y = manageTop, w = 60, h = 52, title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } }
+    layout[#layout + 1] = { key = "selectedConfiguration", type = "dropdown", x = 137, y = 23, w = 56, h = 4, label = L["选择 Author 配置"], items = allConfigurations, labelPos = "top", search = true }
+    layout[#layout + 1] = { key = "configurationName", type = "input", x = 137, y = 35, w = 56, h = 4, label = L["Author 名称"], labelPos = "top" }
+    layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", x = 137, y = 45, w = 18, h = 4, label = L["复制配置"], func = CopyManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_rename_configuration", type = "button", x = 156, y = 45, w = 18, h = 4, label = L["重命名"], func = RenameManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", x = 175, y = 45, w = 18, h = 4, label = L["删除"], func = DeleteManagedConfiguration }
+    layout[#layout + 1] = { key = "desc_builtin_delete_hint", type = "description", x = 137, y = 51, w = 56, h = 3, label = builtInDeleteHint }
+    layout[#layout + 1] = { key = "desc_config_status", type = "description", x = 137, y = 57, w = 56, h = 4, label = ApplyStatusColor(pageStatus.configText, pageStatus.configOk, pageStatus.configOk == false) }
+    return layout
+end
+
+local function BuildLayout()
+    return BuildConfigurationLayout()
+end
+
+local function UpdateLayoutData(layout)
+    if type(layout) ~= "table" then
+        return
+    end
+
+    local info = GetCurrentPackInfo()
     local configStatusText, configStatusOk = BuildDefaultConfigStatusText()
     if pageStatus.configText ~= "" then
         configStatusText = pageStatus.configText
         configStatusOk = pageStatus.configOk
     end
-    local packSummary = table.concat({
-        tostring(info.displayName or ""),
-        tostring(info.subtitle or ""),
-        BuildVoicePackInfoBody(),
-    }, "\n")
-    return {
-        version = 1,
-        title = L["语音 / 配置"],
-        description = L["选择语音包、外观配置与各职责 Author。"],
-        cards = {
-            { id = "layout_tools", title = L["布局编辑"], content = { kind = "grid", items = {
-                { key = "btn_edit_pack", type = "button", x = 1, y = 1, w = 46, h = 5, label = L["编辑语音包卡"], func = function() ToggleCardEdit("pack") end },
-                { key = "btn_edit_active", type = "button", x = 51, y = 1, w = 46, h = 5, label = L["编辑当前配置卡"], func = function() ToggleCardEdit("active") end },
-                { key = "btn_edit_manager", type = "button", x = 101, y = 1, w = 46, h = 5, label = L["编辑 Author 卡"], func = function() ToggleCardEdit("manager") end },
-            } } },
-            { id = "pack", title = L["语音包"], content = { kind = "grid", items = {
-                { key = "selectedVoicePack", type = "dropdown", x = 1, y = 1, w = 80, h = 5, label = L["当前语音包"], items = BuildPackItemsForGrid(), labelPos = "top", labelWrap = true, labelMaxLines = 2, search = true },
-                { key = "desc_pack_info", type = "description", x = 1, y = 11, w = 196, h = 30, label = packSummary },
-            } } },
-            { id = "active", title = L["当前配置选择"], content = { kind = "grid", items = {
-                { key = "appearanceProfileID", type = "dropdown", x = 1, y = 1, w = 80, h = 5, label = L["外观配置"], items = BuildAppearanceProfileItems(), labelPos = "top", search = true },
-                { key = "author_mplus_tank", type = "dropdown", x = 1, y = 13, w = 80, h = 5, label = L["大秘境坦克 Author"], items = BuildAuthorPresetItems("mplus_tank"), labelPos = "top", search = true },
-                { key = "author_mplus_dps", type = "dropdown", x = 101, y = 13, w = 80, h = 5, label = L["大秘境 DPS Author"], items = BuildAuthorPresetItems("mplus_dps"), labelPos = "top", search = true },
-                { key = "author_mplus_heal", type = "dropdown", x = 1, y = 25, w = 80, h = 5, label = L["大秘境治疗 Author"], items = BuildAuthorPresetItems("mplus_heal"), labelPos = "top", search = true },
-                { key = "author_raid_tank", type = "dropdown", x = 101, y = 25, w = 80, h = 5, label = L["团本坦克 Author"], items = BuildAuthorPresetItems("raid_tank"), labelPos = "top", search = true },
-                { key = "author_raid_dps", type = "dropdown", x = 1, y = 37, w = 80, h = 5, label = L["团本 DPS Author"], items = BuildAuthorPresetItems("raid_dps"), labelPos = "top", search = true },
-                { key = "author_raid_heal", type = "dropdown", x = 101, y = 37, w = 80, h = 5, label = L["团本治疗 Author"], items = BuildAuthorPresetItems("raid_heal"), labelPos = "top", search = true },
-            } } },
-            { id = "manager", title = L["Author 配置管理"], content = { kind = "grid", items = {
-                { key = "selectedConfiguration", type = "dropdown", x = 1, y = 1, w = 90, h = 5, label = L["选择 Author 配置"], items = allConfigurations, labelPos = "top", search = true },
-                { key = "configurationName", type = "input", x = 101, y = 1, w = 90, h = 5, label = L["Author 名称"], labelPos = "top" },
-                { key = "btn_copy_configuration", type = "button", x = 1, y = 13, w = 46, h = 5, label = L["复制配置"], func = CopyManagedConfiguration },
-                { key = "btn_rename_configuration", type = "button", x = 51, y = 13, w = 46, h = 5, label = L["重命名"], func = RenameManagedConfiguration },
-                { key = "btn_delete_configuration", type = "button", x = 101, y = 13, w = 46, h = 5, label = L["删除"], func = DeleteManagedConfiguration },
-                { key = "desc_builtin_delete_hint", type = "description", x = 1, y = 21, w = 196, h = 3, label = builtInDeleteHint },
-                { key = "desc_config_status", type = "description", x = 1, y = 26, w = 196, h = 4, label = ApplyStatusColor(configStatusText, configStatusOk, configStatusOk == false) },
-            } } },
-        },
+
+    local updates = {
+        btn_toggle_grid_edit = { label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"] },
+        selectedVoicePack = { items = BuildPackItemsForGrid() },
+        card_pack_details = { title = tostring(info.displayName or ""), desc = tostring(info.subtitle or "") },
+        desc_pack_info = { label = BuildVoicePackInfoBody() },
+        appearanceProfileID = { items = BuildAppearanceProfileItems() },
+        author_mplus_tank = { items = BuildAuthorPresetItems("mplus_tank") },
+        author_mplus_dps = { items = BuildAuthorPresetItems("mplus_dps") },
+        author_mplus_heal = { items = BuildAuthorPresetItems("mplus_heal") },
+        author_raid_tank = { items = BuildAuthorPresetItems("raid_tank") },
+        author_raid_dps = { items = BuildAuthorPresetItems("raid_dps") },
+        author_raid_heal = { items = BuildAuthorPresetItems("raid_heal") },
+        desc_config_status = { label = ApplyStatusColor(configStatusText, configStatusOk, configStatusOk == false) },
     }
+
+    for key, fields in pairs(updates) do
+        local item = FindLayoutEntry(layout, key)
+        if item then
+            for field, value in pairs(fields) do
+                item[field] = value
+            end
+        end
+    end
 end
 
-local CARD_GUI = BuildCardGUI()
-local PAGE_BINDING = { moduleKey = MODULE_KEY, getConfig = GetPageDB }
-EXUI:RegisterSettingsPage(MODULE_KEY, CARD_GUI, { addon = "EXBoss" })
+local function GetOrBuildLayout()
+    -- 专精规则与配置卡片数量会动态变化，每次刷新重新生成布局。
+    pageLayoutData = BuildLayout()
+    UpdateLayoutData(pageLayoutData)
+    return pageLayoutData
+end
 
 local function RenderGrid(contentFrame, resetScroll)
     local Grid = _G.ExwindGrid
     if not Grid then
         return
     end
+
+    local layout = GetOrBuildLayout()
+    ExwindTools:RegisterModuleLayout(MODULE_KEY, layout)
 
     if not scrollFrame then
         scrollFrame = CreateFrame("ScrollFrame", nil, contentFrame, "ScrollFrameTemplate")
@@ -1047,48 +1092,35 @@ local function RenderGrid(contentFrame, resetScroll)
             ExwindTools.UI.ActivePageFrame = scrollChild
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        local declaration = EXUI:GetSettingsPage(MODULE_KEY)
-        local dynamic = BuildCardGUI()
-        for index, card in ipairs(dynamic.cards) do
-            declaration.cards[index].content = card.content
+        if Grid.SetContainerCols then
+            Grid:SetContainerCols(scrollChild, GRID_COLS)
         end
-        if cardSession then cardSession:Release() end
-        cardSession = Grid:MountCards(scrollChild, declaration, {
-            pageId = MODULE_KEY,
-            regionId = "main",
-            moduleKey = MODULE_KEY,
-            defaultBinding = PAGE_BINDING,
-            scrollFrame = scrollFrame,
-            onContentHeightChanged = function(height)
-                if scrollChild then scrollChild:SetHeight(math.max(1, tonumber(height) or 1)) end
-            end,
-        })
-        EXUI.ActiveCardSession = cardSession
+        Grid:Render(scrollChild, layout, GetPageDB(), MODULE_KEY)
         UpdateConfigurationManagerButtonState(Grid)
     end)
 end
 
 UpdateConfigurationManagerButtonState = function(Grid)
-    if not Grid or not cardSession then
+    if not Grid or type(Grid.Widgets) ~= "table" then
         return
     end
     -- Keep these controls clickable.  The action itself validates whether the
     -- selected Author was imported and shows the precise reason for built-ins.
     -- Grid's disabled-state handling was leaving the rename button inert even
     -- after an imported Author had been selected.
-    local copyButton = Grid:GetSessionWidget(cardSession, "btn_copy_configuration", "manager")
+    local copyButton = Grid.Widgets.btn_copy_configuration
     if copyButton and copyButton.SetEnabled then
         copyButton:SetEnabled(true)
     elseif copyButton and copyButton.Enable then
         copyButton:Enable()
     end
-    local renameButton = Grid:GetSessionWidget(cardSession, "btn_rename_configuration", "manager")
+    local renameButton = Grid.Widgets.btn_rename_configuration
     if renameButton and renameButton.SetEnabled then
         renameButton:SetEnabled(true)
     elseif renameButton and renameButton.Enable then
         renameButton:Enable()
     end
-    local deleteButton = Grid:GetSessionWidget(cardSession, "btn_delete_configuration", "manager")
+    local deleteButton = Grid.Widgets.btn_delete_configuration
     if deleteButton and deleteButton.SetEnabled then
         deleteButton:SetEnabled(true)
     elseif deleteButton and deleteButton.Enable then
@@ -1159,8 +1191,6 @@ end
 
 function Page:Hide()
     Page._visible = false
-    if EXUI.ActiveCardSession == cardSession then EXUI.ActiveCardSession = nil end
-    if cardSession then cardSession:Release(); cardSession = nil end
     if scrollFrame then
         scrollFrame:Hide()
     end

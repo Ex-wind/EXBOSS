@@ -33,16 +33,14 @@ local ANCHOR_OPTS = GetFlashText():GetStandardAnchorGroupOptions()
 if type(ANCHOR_OPTS) ~= "table" then
     error("FlashTextMediumPage requires standard AnchorController group options", 2)
 end
-local CARD_GUI = {
-    version = 1,
-    title = L["文字公告(中)"],
-    description = L["中字提示的启用、持续时间、锚点与字体。"],
-    cards = {
-        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
-        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
-        { id = "text", title = L["文字公告(中)"], content = { kind = "composite", component = "fontgroup", key = "font_text", opts = { unboundedWidth = true } } },
-    },
+local LAYOUT = {
+    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["文字公告(中)"], labelSize = 25 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 30, label = L["模块通用设置"], opts = COMMON_OPTS },
+    { key = "anchor", type = "anchorgroup", x = 1, y = 43, w = 200, h = 25, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
+    { key = "font_text", type = "fontgroup", x = 1, y = 71, w = 200, h = 50, label = L["文字公告(中)"], labelSize = 20,
+        opts = { unboundedWidth = true } },
 }
+ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 -- 页面只声明既有布局、样本入口和 Slider 合同；Dock、Scroll、Watch、延迟
 -- Render、ActivePage 所有权与 OnHide/release 均由 StandardModulePage 统一拥有。
@@ -58,7 +56,7 @@ end
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    gui = CARD_GUI,
+    layout = LAYOUT,
     preview = {
         height = 160,
         render = RenderStandardPreview,

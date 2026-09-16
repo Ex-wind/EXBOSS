@@ -71,8 +71,6 @@ local TRIGGER_OFFSET_MODE_ITEMS = {
     { L["提前"], "early" },
 }
 local SETTINGS_LAYOUT = {}
-local SETTINGS_GUI
-local settingsCardSession
 local CACHE = {
     challengeMapLookup = nil,
     spellTextCache = {},
@@ -127,7 +125,6 @@ local function RegisterSpellSettingsGridAsActive(moduleKey)
         return
     end
     ExwindTools.UI.ActivePageFrame = settingsScrollChild
-    ExwindTools.UI.ActiveCardSession = settingsCardSession
     if type(moduleKey) == "string" and moduleKey ~= "" then
         ExwindTools.UI.CurrentModule = moduleKey
     end
@@ -140,9 +137,6 @@ local function ClearSpellSettingsGridActiveRegistration()
     if ExwindTools.UI.ActivePageFrame == settingsScrollChild then
         ExwindTools.UI.ActivePageFrame = nil
         ExwindTools.UI.CurrentModule = nil
-    end
-    if ExwindTools.UI.ActiveCardSession == settingsCardSession then
-        ExwindTools.UI.ActiveCardSession = nil
     end
 end
 
@@ -1032,41 +1026,9 @@ local function BuildSettingsLayout()
     for _, row in ipairs(rows) do
         SETTINGS_LAYOUT[#SETTINGS_LAYOUT + 1] = row
     end
-
-    local groups = {
-        master = { title = L["显示开关"], originX = 1, originY = 1, items = {} },
-        text = { title = L["文本设置"], originX = 3, originY = 8, items = {} },
-        voice = { title = L["语音设置"], originX = 3, originY = 73, items = {} },
-        cast = { title = L["施法设置"], originX = 105, originY = 8, items = {} },
-        target = { title = L["被点名提示"], originX = 105, originY = 73, items = {} },
-    }
-    local masterKeys = { enabled = true, showBunBar = true, showTimerBar = true, showNameplate = true }
-    for _, row in ipairs(SETTINGS_LAYOUT) do
-        if row.type ~= "card" then
-            local group
-            if masterKeys[row.key] then group = groups.master
-            elseif row.x < 103 then group = row.y < 73 and groups.text or groups.voice
-            else group = row.y < 73 and groups.cast or groups.target end
-            local item = {}
-            for key, value in pairs(row) do item[key] = value end
-            item.x = row.x - group.originX + 1
-            item.y = row.y - group.originY + 1
-            group.items[#group.items + 1] = item
-        end
+    if ExwindTools and ExwindTools.RegisterModuleLayout then
+        ExwindTools:RegisterModuleLayout(SPELL_SETTINGS_MODULE_KEY, SETTINGS_LAYOUT)
     end
-    SETTINGS_GUI = {
-        version = 1,
-        title = L["小怪技能设置"],
-        description = L["当前小怪技能的显示、文本、语音、施法与被点名提示。"],
-        cards = {
-            { id = "master", title = groups.master.title, content = { kind = "grid", items = groups.master.items } },
-            { id = "text", title = groups.text.title, content = { kind = "grid", items = groups.text.items } },
-            { id = "voice", title = groups.voice.title, content = { kind = "grid", items = groups.voice.items } },
-            { id = "cast", title = groups.cast.title, content = { kind = "grid", items = groups.cast.items } },
-            { id = "target", title = groups.target.title, content = { kind = "grid", items = groups.target.items } },
-        },
-    }
-    EXUI:RegisterSettingsPage(SPELL_SETTINGS_MODULE_KEY, SETTINGS_GUI, { addon = "EXBoss" })
 end
 
 local function RefreshSettingsDynamicWidgets()
@@ -1075,8 +1037,11 @@ local function RefreshSettingsDynamicWidgets()
     if not (Grid and type(mdb) == "table") then
         return
     end
-    local aggregate = settingsCardSession and Grid:BuildSessionWidgetIndex(settingsCardSession)
-    local widgets = aggregate and aggregate.widgets
+    local widgets = Grid.Widgets
+    local state = settingsScrollChild and Grid.ContainerStates and Grid.ContainerStates[settingsScrollChild]
+    if type(state) == "table" and type(state.widgets) == "table" then
+        widgets = state.widgets
+    end
     if type(widgets) ~= "table" then
         return
     end
@@ -1933,19 +1898,14 @@ function Page:RenderSettingsGrid(resetScroll)
     if resetScroll == true then
         settingsScrollFrame:SetVerticalScroll(0)
     end
-    if settingsCardSession then settingsCardSession:Release() end
-    local binding = { moduleKey = SPELL_SETTINGS_MODULE_KEY, getConfig = function() return GetSpellEditorDB() end }
-    settingsCardSession = Grid:MountCards(settingsScrollChild, EXUI:GetSettingsPage(SPELL_SETTINGS_MODULE_KEY), {
-        pageId = SPELL_SETTINGS_MODULE_KEY,
-        regionId = "spell-settings",
-        moduleKey = SPELL_SETTINGS_MODULE_KEY,
-        defaultBinding = binding,
-        scrollFrame = settingsScrollFrame,
-        onContentHeightChanged = function(height)
-            if settingsScrollChild then settingsScrollChild:SetHeight(math.max(1, tonumber(height) or 1)) end
-        end,
-    })
+    if Grid.SetContainerCols then
+        Grid:SetContainerCols(settingsScrollChild, 200)
+    end
+    if Grid.SetContainerPadding then
+        Grid:SetContainerPadding(settingsScrollChild, { left = 0, right = 10, top = 10, bottom = 0 })
+    end
     RegisterSpellSettingsGridAsActive(SPELL_SETTINGS_MODULE_KEY)
+    Grid:Render(settingsScrollChild, SETTINGS_LAYOUT, db, SPELL_SETTINGS_MODULE_KEY)
     RefreshSettingsDynamicWidgets()
 end
 
@@ -2268,7 +2228,6 @@ function Page:Hide()
     spellEditorContext = nil
     _suspendSpellSettingPersist = false
     ClearSpellSettingsGridActiveRegistration()
-    if settingsCardSession then settingsCardSession:Release(); settingsCardSession = nil end
     if TrashCore and TrashCore.SetMonitorUIEnabled then
         TrashCore.SetMonitorUIEnabled(false)
     end

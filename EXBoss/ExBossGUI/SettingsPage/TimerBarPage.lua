@@ -18,6 +18,11 @@ ExBoss.UI.Panel.TimerBarPage = ExBoss.UI.Panel.TimerBarPage or {}
 local Page = ExBoss.UI.Panel.TimerBarPage
 
 local MODULE_KEY = "ExBoss.TimerBar"
+local BASE_GRID_COLS = 200
+local MIN_GRID_COLS = 200
+local MAX_GRID_COLS = 200
+local TARGET_CELL_PX = 18
+local LAYOUT_CACHE = {}
 
 -- =============================================================
 -- 模块控件规格
@@ -77,21 +82,82 @@ local SLIDER_GROUP_PATHS = {
     font_timer = "font_timer",
 }
 
--- 页面只保留卡片声明；标准页固定使用 200 逻辑列，不再维护整页缩放缓存。
-local CARD_GUI = {
-    version = 1,
-    title = L["计时条设置"],
-    description = L["计时条的通用行为、额外材质、锚点、排列与文字。"],
-    cards = {
-        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = TIMER_BAR_COMMON_OPTS } },
-        { id = "alert_texture", title = L["额外子元素－材质"], content = { kind = "composite", component = "modulecommonsettings", key = "extraTexture", opts = TIMER_BAR_EXTRA_TEXTURE_OPTS } },
-        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = TIMER_BAR_ANCHOR_OPTS } },
-        { id = "layout", title = L["排列设置"], content = { kind = "composite", component = "widgetlayout", key = "layout", opts = TIMER_BAR_LAYOUT_OPTS } },
-        { id = "bar", title = L["计时条外观"], content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
-        { id = "name", title = L["法术名称"], content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
-        { id = "time", title = L["时间文本"], content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
-    },
+-- =============================================================
+-- Grid 纯布局声明
+-- =============================================================
+
+local LAYOUT = {
+    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["计时条设置"], labelSize = 25 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 11, w = 200, h = 29, label = L["模块通用设置"], opts = TIMER_BAR_COMMON_OPTS },
+    { key = "extraTexture", type = "modulecommonsettings", x = 1, y = 42, w = 200, h = 50, label = L["额外子元素－材质"], opts = TIMER_BAR_EXTRA_TEXTURE_OPTS },
+    { key = "anchorGroup", type = "anchorgroup", x = 1, y = 94, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = TIMER_BAR_ANCHOR_OPTS },
+    { key = "layout", type = "widgetlayout", x = 1, y = 116, w = 200, h = 20, measure = true, label = L["排列设置"], opts = TIMER_BAR_LAYOUT_OPTS },
+    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 139, w = 200, h = 50, label = L["计时条外观"], labelSize = 20 },
+    { key = "font_spell", type = "fontgroup", x = 1, y = 193, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
+    { key = "font_timer", type = "fontgroup", x = 1, y = 246, w = 200, h = 50, label = L["时间文本"], labelSize = 20 },
 }
+
+
+
+-- =============================================================
+-- Grid 布局缩放与注册
+-- =============================================================
+local function ResolveGridCols(contentWidth)
+    local w = tonumber(contentWidth) or 0
+    if w < 100 then
+        return BASE_GRID_COLS
+    end
+    local cols = math.floor(((w - 20) / TARGET_CELL_PX) + 0.5)
+    if cols < MIN_GRID_COLS then cols = MIN_GRID_COLS end
+    if cols > MAX_GRID_COLS then cols = MAX_GRID_COLS end
+    return cols
+end
+
+local function ScaleLayout(items, toCols)
+    if toCols == BASE_GRID_COLS then
+        return LAYOUT
+    end
+    local cached = LAYOUT_CACHE[toCols]
+    if cached then
+        return cached
+    end
+
+    local scale = toCols / BASE_GRID_COLS
+    local function ScaleItems(src)
+        local out = {}
+        for _, item in ipairs(src) do
+            local row = {}
+            for k, v in pairs(item) do
+                if k ~= "children" then
+                    row[k] = v
+                end
+            end
+            if type(item.x) == "number" and type(item.w) == "number" then
+                local nx = math.floor(((item.x - 1) * scale) + 1 + 0.5)
+                local nw = math.max(1, math.floor(item.w * scale + 0.5))
+                if nx < 1 then nx = 1 end
+                if nx > toCols then nx = toCols end
+                if nx + nw - 1 > toCols then
+                    nw = math.max(1, toCols - nx + 1)
+                end
+                row.x = nx
+                row.w = nw
+            end
+            if type(item.children) == "table" then
+                row.children = ScaleItems(item.children)
+            end
+            out[#out + 1] = row
+        end
+        return out
+    end
+
+    cached = ScaleItems(items)
+    LAYOUT_CACHE[toCols] = cached
+    return cached
+end
+
+-- 注册布局（加载时执行一次）
+ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 -- =============================================================
 -- 标准页面合同
@@ -100,14 +166,13 @@ local function GetTimerBar()
     return ExBoss.UI and ExBoss.UI.TimerBar
 end
 
-local function RebindTimerBarModuleCommon(context)
-    for _, ref in ipairs({
-        { "moduleCommon", "general" },
-        { "extraTexture", "alert_texture" },
-    }) do
-        local group = context.grid:GetSessionWidget(context.cardSession, ref[1], ref[2])
+local function RebindTimerBarModuleCommon(grid, container, db)
+    local state = grid and grid.ContainerStates and grid.ContainerStates[container]
+    local widgets = state and state.widgets
+    for _, key in ipairs({ "moduleCommon", "extraTexture" }) do
+        local group = widgets and widgets[key]
         if group and type(group.RebindDB) == "function" then
-            group:RebindDB(context.config)
+            group:RebindDB(db)
         end
     end
 end
@@ -129,7 +194,12 @@ end
 local StandardPage = ExwindTools.UI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    gui = CARD_GUI,
+    layout = function(context)
+        return ScaleLayout(LAYOUT, ResolveGridCols(context.scrollChild:GetWidth()))
+    end,
+    getColumns = function(context)
+        return ResolveGridCols(context.scrollChild:GetWidth())
+    end,
     preview = {
         -- 模块合同下限：TimerBar 预览至少显示两条，不能从 1px Dock 开始。
         height = 120,
@@ -147,7 +217,7 @@ local StandardPage = ExwindTools.UI:CreateStandardModulePage({
         }
     end,
     afterGridLayout = function(context)
-        RebindTimerBarModuleCommon(context)
+        RebindTimerBarModuleCommon(context.grid, context.scrollChild, context.config)
     end,
 })
 

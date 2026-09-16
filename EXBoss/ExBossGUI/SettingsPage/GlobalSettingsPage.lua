@@ -56,22 +56,6 @@ local ResetDisplayStylesOnly
 local ResetAllConfigExceptAppearance
 local ResetAllConfigIncludingAppearance
 
-local function ShowEXBossStaticPopup(which, textArg1, textArg2, data)
-    local popup = StaticPopup_Show(which, textArg1, textArg2, data)
-    local panelTheme = ExwindTools.PanelTheme
-    if popup and panelTheme and panelTheme.ApplyWindowChrome then
-        panelTheme.ApplyWindowChrome(popup, {
-            radius = 10,
-            suppressNative = true,
-            restoreOnHide = true,
-        })
-    end
-    if popup and EXUI and EXUI.ApplyPopupChildControls then
-        EXUI:ApplyPopupChildControls(popup, { restoreOnHide = true })
-    end
-    return popup
-end
-
 -- titleKey/descKey are locale keys resolved at render time via GetTitle/GetDesc,
 -- avoiding the load-time capture bug where L["..."] would always return zhCN
 -- because EXBOSS12S2 (and the saved locale mode) is not yet available at file load.
@@ -447,9 +431,9 @@ local function CreateOverviewSection(parent, anchor, exui)
     overviewSection:SetHeight(442)
     overviewSection:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
     overviewSection:SetBackdropColor(0.03, 0.04, 0.06, 0.82)
     overviewSection:SetBackdropBorderColor(0.2, 0.2, 0.25, 0.95)
@@ -564,9 +548,9 @@ local function CreateVoiceSection(parent, anchor, exui)
     voiceSection:SetHeight(120)
     voiceSection:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
     voiceSection:SetBackdropColor(0.03, 0.04, 0.06, 0.82)
     voiceSection:SetBackdropBorderColor(0.2, 0.2, 0.25, 0.95)
@@ -615,32 +599,44 @@ local function CreateVoiceSection(parent, anchor, exui)
 end
 
 local function CreateColorSection(parent, anchor, exui)
-    colorSection = EXUI:CreateSettingsCard(parent, { title = L["通用颜色方案"] })
+    colorSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     colorSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
     colorSection:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -14, 0)
-    colorSection:SetContentHeight(400)
-    local colorBody = colorSection:GetBody()
+    colorSection:SetHeight(430)
+    colorSection:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    colorSection:SetBackdropColor(0.03, 0.04, 0.06, 0.82)
+    colorSection:SetBackdropBorderColor(0.2, 0.2, 0.25, 0.95)
 
-    local colorDesc = EXUI:CreateVisualFontString(colorBody, EXFONTFRAME, "GameFontHighlightSmall")
-    colorDesc:SetPoint("TOPLEFT", 0, -2)
-    colorDesc:SetPoint("RIGHT", colorBody, "RIGHT", 0, 0)
+    local colorTitle = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontNormal")
+    colorTitle:SetPoint("TOPLEFT", 10, -8)
+    colorTitle:SetText(L["通用颜色方案"])
+    colorTitle:SetTextColor(1, 0.82, 0.45)
+
+    local colorDesc = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontHighlightSmall")
+    colorDesc:SetPoint("TOPLEFT", 10, -28)
+    colorDesc:SetPoint("RIGHT", colorSection, "RIGHT", -10, 0)
     colorDesc:SetText(L["Boss技能页面可选择下列方案；选择“自定义颜色”时使用“自定义方案”。勾选启用的额外方案会出现在技能页下拉。"])
     colorDesc:SetTextColor(0.85, 0.85, 0.9)
     colorDesc:SetJustifyH("LEFT")
 
     local _, schemes, custom, extraSlots = EnsureColorDB()
-    local rowY = -28
+    local rowY = -52
     for _, key in ipairs(GetSchemeOrder()) do
         local row = schemes and schemes[key]
 
-        local nameFS = EXUI:CreateVisualFontString(colorBody, EXFONTFRAME, "GameFontHighlight")
+        local nameFS = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontHighlight")
         nameFS:SetPoint("TOPLEFT", 12, rowY)
         nameFS:SetText(GetSchemeDisplayName(key))
         nameFS:SetTextColor(0.95, 0.95, 0.95)
         fixedColorLabels[key] = nameFS
 
         if exui and exui.CreateColorButton then
-            local btn = exui:CreateColorButton(colorBody, L["颜色"], row or { r = 1, g = 1, b = 1 }, "", false, function()
+            local btn = exui:CreateColorButton(colorSection, L["颜色"], row or { r = 1, g = 1, b = 1 }, "", false, function()
                 ApplyVoiceOverrides()
             end)
             btn:SetPoint("TOPLEFT", 180, rowY + 8)
@@ -652,7 +648,7 @@ local function CreateColorSection(parent, anchor, exui)
 
     if exui and exui.CreateEditBox then
         customNameInput = exui:CreateEditBox(
-            colorBody,
+            colorSection,
             (custom and custom.name) or L["自定义方案"],
             160,
             28,
@@ -674,7 +670,7 @@ local function CreateColorSection(parent, anchor, exui)
     end
 
     if exui and exui.CreateColorButton then
-        customColorButton = exui:CreateColorButton(colorBody, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
+        customColorButton = exui:CreateColorButton(colorSection, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
             function()
                 ApplyVoiceOverrides()
             end
@@ -684,7 +680,7 @@ local function CreateColorSection(parent, anchor, exui)
     end
 
     rowY = rowY - 42
-    local extraTitle = EXUI:CreateVisualFontString(colorBody, EXFONTFRAME, "GameFontHighlight")
+    local extraTitle = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontHighlight")
     extraTitle:SetPoint("TOPLEFT", 12, rowY)
     extraTitle:SetText(L["额外方案（最多3个）"])
     extraTitle:SetTextColor(0.95, 0.95, 0.95)
@@ -697,7 +693,7 @@ local function CreateColorSection(parent, anchor, exui)
         end
 
         if exui and exui.CreateCheckbox then
-            local cb = exui:CreateCheckbox(colorBody, L["启用"], slot.enabled == true, function(checked)
+            local cb = exui:CreateCheckbox(colorSection, L["启用"], slot.enabled == true, function(checked)
                 local _, _, _, slots = EnsureColorDB()
                 if type(slots) ~= "table" then return end
                 local row = slots and slots[i]
@@ -715,7 +711,7 @@ local function CreateColorSection(parent, anchor, exui)
 
         if exui and exui.CreateEditBox then
             local nameInput = exui:CreateEditBox(
-                colorBody,
+                colorSection,
                 slot.name or (L["额外方案"] .. tostring(i)),
                 190,
                 28,
@@ -750,7 +746,7 @@ local function CreateColorSection(parent, anchor, exui)
         end
 
         if exui and exui.CreateColorButton then
-            local colorBtn = exui:CreateColorButton(colorBody, L["颜色"], slot, "", false, function()
+            local colorBtn = exui:CreateColorButton(colorSection, L["颜色"], slot, "", false, function()
                 ApplyVoiceOverrides()
             end)
             colorBtn:SetPoint("TOPLEFT", 290, rowY + 6)
@@ -764,22 +760,33 @@ local function CreateColorSection(parent, anchor, exui)
 end
 
 local function CreateResetSection(parent, anchor)
-    resetSection = EXUI:CreateSettingsCard(parent, { title = L["重置设置"] })
+    resetSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     resetSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
     resetSection:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -14, 0)
-    resetSection:SetContentHeight(204)
-    local resetBody = resetSection:GetBody()
+    resetSection:SetHeight(204)
+    resetSection:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    resetSection:SetBackdropColor(0.12, 0.03, 0.03, 0.85)
+    resetSection:SetBackdropBorderColor(0.6, 0.15, 0.15, 0.95)
 
-    local resetDesc = EXUI:CreateVisualFontString(resetBody, EXFONTFRAME, "GameFontHighlightSmall")
-    resetDesc:SetPoint("TOPLEFT", 0, -2)
-    resetDesc:SetPoint("RIGHT", resetBody, "RIGHT", 0, 0)
+    local resetTitle = EXUI:CreateVisualFontString(resetSection, EXFONTFRAME, "GameFontNormal")
+    resetTitle:SetPoint("TOPLEFT", 10, -10)
+    resetTitle:SetText("|cffff4444" .. L["重置设置"] .. "|r")
+
+    local resetDesc = EXUI:CreateVisualFontString(resetSection, EXFONTFRAME, "GameFontHighlightSmall")
+    resetDesc:SetPoint("TOPLEFT", 10, -30)
+    resetDesc:SetPoint("RIGHT", resetSection, "RIGHT", -10, 0)
     resetDesc:SetJustifyH("LEFT")
     resetDesc:SetText(L["推荐先使用针对性重置：外观问题用“仅重置外观设置”，小怪CD异常用“重置小怪内置CD设置”。\n“重置所有配置（不包含外观）”会清空通用设置、语音配置、技能配置与时间轴设置，但保留外观。\n“清除全部设置”会把 EXBoss 的全部配置都恢复到初始状态。"])
     resetDesc:SetTextColor(0.9, 0.7, 0.7)
 
-    local resetStyleBtn = CreateFrame("Button", nil, resetBody, "UIPanelButtonTemplate")
+    local resetStyleBtn = CreateFrame("Button", nil, resetSection, "UIPanelButtonTemplate")
     resetStyleBtn:SetSize(220, 28)
-    resetStyleBtn:SetPoint("BOTTOMLEFT", resetBody, "BOTTOMLEFT", 0, 118)
+    resetStyleBtn:SetPoint("BOTTOMLEFT", resetSection, "BOTTOMLEFT", 10, 118)
     resetStyleBtn:SetText(L["仅重置外观设置"])
     resetStyleBtn:SetScript("OnClick", function()
         local popupID = "EXBOSS_RESET_STYLE_ONLY_CONFIRM"
@@ -798,12 +805,12 @@ local function CreateResetSection(parent, anchor)
                 end,
             }
         end
-        ShowEXBossStaticPopup(popupID)
+        StaticPopup_Show(popupID)
     end)
 
-    local resetConfigBtn = CreateFrame("Button", nil, resetBody, "UIPanelButtonTemplate")
+    local resetConfigBtn = CreateFrame("Button", nil, resetSection, "UIPanelButtonTemplate")
     resetConfigBtn:SetSize(220, 28)
-    resetConfigBtn:SetPoint("BOTTOMLEFT", resetBody, "BOTTOMLEFT", 0, 46)
+    resetConfigBtn:SetPoint("BOTTOMLEFT", resetSection, "BOTTOMLEFT", 10, 46)
     resetConfigBtn:SetText(L["重置所有配置（不包含外观）"])
     resetConfigBtn:SetScript("OnClick", function()
         local popupID = "EXBOSS_RESET_CONFIG_ONLY_CONFIRM"
@@ -822,12 +829,12 @@ local function CreateResetSection(parent, anchor)
                 end,
             }
         end
-        ShowEXBossStaticPopup(popupID)
+        StaticPopup_Show(popupID)
     end)
 
-    local resetAllBtn = CreateFrame("Button", nil, resetBody, "UIPanelButtonTemplate")
+    local resetAllBtn = CreateFrame("Button", nil, resetSection, "UIPanelButtonTemplate")
     resetAllBtn:SetSize(220, 28)
-    resetAllBtn:SetPoint("BOTTOMLEFT", resetBody, "BOTTOMLEFT", 0, 10)
+    resetAllBtn:SetPoint("BOTTOMLEFT", resetSection, "BOTTOMLEFT", 10, 10)
     resetAllBtn:SetText(L["清除全部设置（包含外观）"])
     resetAllBtn:SetScript("OnClick", function()
         local popupID = "EXBOSS_RESET_ALL_CONFIRM"
@@ -846,7 +853,7 @@ local function CreateResetSection(parent, anchor)
                 end,
             }
         end
-        ShowEXBossStaticPopup(popupID)
+        StaticPopup_Show(popupID)
     end)
     resetSection:Hide()
 end

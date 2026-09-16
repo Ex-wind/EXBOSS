@@ -839,16 +839,6 @@ local function CreatePanel()
     })
     mainFrame:SetBackdropColor(0.08, 0.08, 0.10, 0.97)
     mainFrame:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    local panelTheme = ExwindTools.PanelTheme
-    if panelTheme and panelTheme.ApplyWindowChrome then
-        panelTheme.ApplyWindowChrome(mainFrame, {
-            radius = 10,
-            background = { 0.08, 0.08, 0.10, 0.97 },
-            border = { 0.30, 0.30, 0.35, 1 },
-            suppressNative = true,
-            restoreOnHide = false,
-        })
-    end
 
     -- ── 标题栏 ────────────────────────────────────────────────
     local titleBar = EXUI:CreateVisualTexture(mainFrame, EXBACKGROUNDFRAME)
@@ -867,36 +857,36 @@ local function CreatePanel()
     scaleLabel:SetText(L["缩放"])
     scaleLabel:SetTextColor(0.7, 0.7, 0.7, 1)
 
-    local scaleDropdown
+    local scaleDropdown = CreateFrame("DropdownButton", nil, mainFrame, "WowStyle1DropdownTemplate")
+    scaleDropdown:SetWidth(100)
+    scaleDropdown:SetPoint("LEFT", scaleLabel, "RIGHT", 6, 0)
+    scaleDropdown:SetFrameLevel(mainFrame:GetFrameLevel() + 30)
+
     local function ApplyPanelScale(pct)
-        pct = tonumber(pct) or 100
         if EXBOSS12S2 and EXBOSS12S2.ui and EXBOSS12S2.ui.general then
             EXBOSS12S2.ui.general.panelScale = pct
         end
         mainFrame:SetScale(pct / 100)
-        if panelTheme and panelTheme.ApplyWindowChrome then
-            panelTheme.ApplyWindowChrome(mainFrame, {
-                radius = 10,
-                background = { 0.08, 0.08, 0.10, 0.97 },
-                border = { 0.30, 0.30, 0.35, 1 },
-                suppressNative = true,
-                restoreOnHide = false,
-            })
-        end
-        if scaleDropdown then scaleDropdown._currentValue = pct end
+        scaleDropdown:SetText(pct .. "%")
+        scaleDropdown._currentPct = pct
     end
     mainFrame._applyPanelScale = ApplyPanelScale
 
+    local scaleOptions = { 70, 75, 80, 85, 90, 95, 100, 105, 110 }
+    scaleDropdown:SetupMenu(function(self, rootDescription)
+        for _, pct in ipairs(scaleOptions) do
+            rootDescription:CreateRadio(pct .. "%",
+                function() return self._currentPct == pct end,
+                function() ApplyPanelScale(pct) end
+            )
+        end
+    end)
+
     local initPct = (EXBOSS12S2 and EXBOSS12S2.ui and EXBOSS12S2.ui.general and EXBOSS12S2.ui.general.panelScale) or 100
     initPct = math.max(70, math.min(110, initPct))
-    local scaleOptions = {}
-    for _, pct in ipairs({ 70, 75, 80, 85, 90, 95, 100, 105, 110 }) do
-        scaleOptions[#scaleOptions + 1] = { pct .. "%", pct }
-    end
-    scaleDropdown = EXUI:CreateDropdown(mainFrame, 100, "", scaleOptions, initPct, ApplyPanelScale)
-    scaleDropdown:SetPoint("LEFT", scaleLabel, "RIGHT", 6, 0)
-    scaleDropdown:SetFrameLevel(mainFrame:GetFrameLevel() + 30)
-    ApplyPanelScale(initPct)
+    scaleDropdown._currentPct = initPct
+    scaleDropdown:SetText(initPct .. "%")
+    mainFrame:SetScale(initPct / 100)
 
     -- 标题栏拖拽层：避免内容区控件吞掉鼠标，确保始终可拖动窗口
     local dragHandle = CreateFrame("Frame", nil, mainFrame)
@@ -912,14 +902,18 @@ local function CreatePanel()
     end)
 
     -- 关闭按钮
-    local closeBtn = EXUI:CreateButton(mainFrame, 28, 24, "×", function()
+    local closeBtn = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", 2, 2)
+    closeBtn:SetScript("OnClick", function()
         FlushFocusedEditBox()
         mainFrame:Hide()
     end)
-    closeBtn:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -8, -6)
 
     -- 标题栏右上角：编辑模式按钮（沿用 ExwindTools 的全局编辑模式逻辑）
-    local editModeBtn = EXUI:CreateButton(mainFrame, 120, 22, "", function()
+    local editModeBtn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+    editModeBtn:SetSize(120, 22)
+    editModeBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, -1)
+    editModeBtn:SetScript("OnClick", function()
         local ET = _G.ExwindTools
         if ET and ET.UI and ET.UI.ToggleEditMode then
             ET.UI:ToggleEditMode()
@@ -930,7 +924,6 @@ local function CreatePanel()
             end
         end
     end)
-    editModeBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, -1)
     mainFrame._editModeBtn = editModeBtn
     RefreshEditModeButtonLabel()
 
@@ -952,7 +945,10 @@ local function CreatePanel()
     outerStrip:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
 
     local function MakeStripButton(label, onClick)
-        local btn = EXUI:CreateButton(outerStrip, OUTER_STRIP_W - 16, 32, label, function()
+        local btn = CreateFrame("Button", nil, outerStrip, "UIPanelButtonTemplate")
+        btn:SetSize(OUTER_STRIP_W - 16, 32)
+        btn:SetText(label)
+        btn:SetScript("OnClick", function()
             FlushFocusedEditBox()
             onClick()
             RefreshContent()
@@ -991,9 +987,6 @@ local function CreatePanel()
         btn:SetText(tabDef.label)
         if PanelTemplates_TabResize then
             PanelTemplates_TabResize(btn, 0)
-        end
-        if EXUI.ApplyNativePanelTabAppearance then
-            EXUI:ApplyNativePanelTabAppearance(btn)
         end
         btn._tabKey = tabDef.key
 
@@ -1063,13 +1056,16 @@ local function CreatePanel()
     statusText:SetText(L["/exb  打开/关闭    |    /exb edit  编辑模式"])
     Panel.statusText = statusText
 
-    local changelogBtn = EXUI:CreateButton(mainFrame, 88, 22, L["更新日志"], function()
+    local changelogBtn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+    changelogBtn:SetSize(88, 22)
+    changelogBtn:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -12, 6)
+    changelogBtn:SetFrameLevel(mainFrame:GetFrameLevel() + 40)
+    changelogBtn:SetText(L["更新日志"])
+    changelogBtn:SetScript("OnClick", function()
         if ExBoss and ExBoss.ShowChangelog then
             ExBoss:ShowChangelog({ markShown = true })
         end
     end)
-    changelogBtn:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -12, 6)
-    changelogBtn:SetFrameLevel(mainFrame:GetFrameLevel() + 40)
     Panel.changelogBtn = changelogBtn
 
     Panel._frame = mainFrame

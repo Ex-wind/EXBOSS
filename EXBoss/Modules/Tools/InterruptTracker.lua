@@ -137,20 +137,17 @@ local RAID_MARKER_EXTRA_OPTS = ExwindTools:BuildStandardTimerBarAlertIconsGroupO
         x = { min = -1000, max = 1000, step = 1 }, y = { min = -1000, max = 1000, step = 1 } },
 })
 local LAYOUT_OPTS = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = false, maxVisibleMin = 1, maxVisibleMax = 5, defaultMaxVisible = 5 }
-local CARD_GUI = {
-    version = 1,
-    title = L["打断监控"],
-    description = L["队友打断监控的通用行为、团队标记、排列与条体文字。"],
-    cards = {
-        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
-        { id = "raid_marker", title = L["额外子元素－团队标记"], content = { kind = "composite", component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS } },
-        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
-        { id = "layout", title = L["排列设置"], content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
-        { id = "bar", title = L["计时条外观"], content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
-        { id = "name", title = L["玩家名字"], content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
-        { id = "time", title = L["冷却时间"], content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
-    },
+local EX_LAYOUT = {
+    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["打断监控"], labelSize = 25 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 50, label = L["模块通用设置"], opts = COMMON_OPTS },
+    { key = "raidMarkerExtra", type = "modulecommonsettings", x = 1, y = 62, w = 200, h = 50, label = L["额外子元素－团队标记"], opts = RAID_MARKER_EXTRA_OPTS },
+    { key = "anchor", type = "anchorgroup", x = 1, y = 114, w = 200, h = 20, label = L["锚点设置"], opts = ANCHOR_OPTS },
+    { key = "layout", type = "widgetlayout", x = 1, y = 136, w = 200, h = 20, measure = true, label = L["排列设置"], opts = LAYOUT_OPTS },
+    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 158, w = 200, h = 52, label = L["计时条外观"] },
+    { key = "font_spell", type = "fontgroup", x = 1, y = 212, w = 200, h = 50, label = L["玩家名字"] },
+    { key = "font_timer", type = "fontgroup", x = 1, y = 264, w = 200, h = 50, label = L["冷却时间"] },
 }
+ExwindTools:RegisterModuleLayout(EXWIND_MODULE_KEY, EX_LAYOUT)
 
 local TIMER_SCHEMA = {
     timerBarKey = "timerGroup", layoutKey = "layout", offsetXKey = "posX", offsetYKey = "posY",
@@ -561,7 +558,7 @@ end
 ExBoss.UI.Panel = ExBoss.UI.Panel or {}; ExBoss.UI.Panel.InterruptTrackerPage = ExBoss.UI.Panel.InterruptTrackerPage or {}
 local GUIPage = ExBoss.UI.Panel.InterruptTrackerPage
 STANDARD_PAGE = EXUI:CreateStandardModulePage({
-    moduleKey = EXWIND_MODULE_KEY, page = GUIPage, binding = STANDARD_CONFIG_BINDING, gui = CARD_GUI, getColumns = 200,
+    moduleKey = EXWIND_MODULE_KEY, page = GUIPage, binding = STANDARD_CONFIG_BINDING, layout = EX_LAYOUT, getColumns = 200,
     preview = { height = 172, render = function(dock) Module:ShowPanelPreview(dock) end,
         refresh = function() Module:RefreshPanelPreview() end, release = function() Module:ReleasePanelPreview() end },
     applyScrollSkin = function(scrollFrame) if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then ExBoss.UI.ApplyModernScrollBarSkin(scrollFrame) end end,

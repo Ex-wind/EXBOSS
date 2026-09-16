@@ -62,21 +62,20 @@ local COMMON_OPTS = {
     },
 }
 
-local CARD_GUI = {
-    version = 1,
-    title = L["施法进度条设置"],
-    description = L["施法进度条的通用行为、锚点、条体与文字。"],
-    cards = {
-        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
-        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_GROUP_OPTS } },
-        { id = "bar", title = L["施法条外观"], content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
-        { id = "name", title = L["法术名称"], content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
-        { id = "time", title = L["时间文本"], content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
-    },
+local GRID_LAYOUT = {
+    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["施法进度条设置"], labelSize = 25 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 48, label = L["模块通用设置"], opts = COMMON_OPTS },
+    { key = "anchor", type = "anchorgroup", x = 1, y = 61, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = ANCHOR_GROUP_OPTS },
+    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 84, w = 200, h = 50, label = L["施法条外观"], labelSize = 20 },
+    { key = "font_spell", type = "fontgroup", x = 1, y = 137, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
+    { key = "font_timer", type = "fontgroup", x = 1, y = 190, w = 200, h = 50, label = L["时间文本"], labelSize = 20 },
 }
 
+ExwindTools:RegisterModuleLayout(MODULE_KEY, GRID_LAYOUT)
+
 local function RebindModuleCommon(context)
-    local common = context.grid:GetSessionWidget(context.cardSession, "moduleCommon", "general")
+    local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
+    local common = state and state.widgets and state.widgets.moduleCommon
     if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
 end
 
@@ -104,7 +103,7 @@ end
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    gui = CARD_GUI,
+    layout = GRID_LAYOUT,
     getColumns = 200,
     preview = { height = 1, render = RenderCastProgressPanelPreview, refresh = RefreshCastProgressPanelPreview, release = ReleaseCastProgressPanelPreview },
     previewDock = {

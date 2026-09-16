@@ -397,22 +397,30 @@ if GridExporter and GridExporter.RegisterExportReference then
     GridExporter:RegisterExportReference(TIMER_BAR_OPTS, "TIMER_BAR_OPTS")
 end
 
-local CARD_GUI = {
-    version = 1,
-    title = L["大米怪物施法"],
-    description = L["大米怪物施法提示的通用行为、提示元素、排列与条体文字。"],
-    cards = {
-        { id = "general", title = L["模块通用设置"], content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
-        { id = "raid_marker", title = L["额外子元素－团队标记"], content = { kind = "composite", component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS } },
-        { id = "target_indicator", title = L["额外子元素－玩家目标提示"], content = { kind = "composite", component = "modulecommonsettings", key = "playerTargetIndicatorExtra", opts = PLAYER_TARGET_INDICATOR_EXTRA_OPTS } },
-        { id = "anchor", title = L["锚点设置"], content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
-        { id = "layout", title = L["排列设置"], content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
-        { id = "bar", title = L["计时条外观"], content = { kind = "composite", component = "timerbargroup", key = "timerGroup", opts = TIMER_BAR_OPTS } },
-        { id = "spell", title = L["法术名称"], content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = FONT_OPTS } },
-        { id = "target", title = L["施法目标"], content = { kind = "composite", component = "fontgroup", key = "font_target", opts = FONT_OPTS } },
-        { id = "time", title = L["时间文字"], content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = FONT_OPTS } },
-    },
+local EX_LAYOUT = {
+    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["大米怪物施法"], labelSize = 25 },
+    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 30, label = L["模块通用设置"], opts = COMMON_OPTS },
+    { key = "raidMarkerExtra", type = "modulecommonsettings", x = 1, y = 42, w = 200, h = 50, label = L["额外子元素－团队标记"], opts = RAID_MARKER_EXTRA_OPTS },
+    { key = "playerTargetIndicatorExtra", type = "modulecommonsettings", x = 1, y = 94, w = 200, h = 50, label = L["额外子元素－玩家目标提示"], opts = PLAYER_TARGET_INDICATOR_EXTRA_OPTS },
+    { key = "anchor", type = "anchorgroup", x = 1, y = 146, w = 200, h = 20, label = L["锚点设置"], opts = ANCHOR_OPTS },
+    { key = "layout", type = "widgetlayout", x = 1, y = 168, w = 200, h = 23, measure = true, label = L["排列设置"], opts = LAYOUT_OPTS },
+    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 193, w = 200, h = 52, label = L["计时条外观"], opts = TIMER_BAR_OPTS },
+    { key = "font_spell", type = "fontgroup", x = 1, y = 248, w = 200, h = 50, label = L["法术名称"], opts = {
+        offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
+        shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
+    } },
+    { key = "font_target", type = "fontgroup", x = 1, y = 300, w = 200, h = 50, label = L["施法目标"], opts = {
+        offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
+        shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
+    } },
+    { key = "font_timer", type = "fontgroup", x = 1, y = 352, w = 200, h = 50, label = L["时间文字"], opts = {
+        offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
+        shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
+    } },
 }
+
+
+ExwindTools:RegisterModuleLayout(EXWIND_MODULE_KEY, EX_LAYOUT)
 
 local function GetLayoutDB()
     return EX_DB.layout or EX_DEFAULTS.layout
@@ -1236,7 +1244,7 @@ local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = EXWIND_MODULE_KEY,
     page = GUIPage,
     binding = STANDARD_CONFIG_BINDING,
-    gui = CARD_GUI,
+    layout = EX_LAYOUT,
     getColumns = 200,
     preview = {
         height = 172,
