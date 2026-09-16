@@ -945,6 +945,10 @@ local function FindLayoutEntry(items, key)
     return nil
 end
 
+-- [卡片/Grid 迁移边界：语音包与配置]
+-- 允许：只按共享规范调整语音包、包详情、当前配置、Author 管理四组的 x/y/w/h 与外层卡片。
+-- 禁止：修改职责槽/Author/外观的业务顺序、稳定 key、确认/重载/复制/改名/删除回调或页面 DB 投影。
+-- type="card" 当前只是 Grid 背景项，不自动拥有相邻控件、回调或释放责任。
 local function BuildConfigurationLayout()
     local info = GetCurrentPackInfo()
     local db = GetPageDB()
@@ -1044,6 +1048,7 @@ local function GetOrBuildLayout()
     return pageLayoutData
 end
 
+-- [混合函数边界] RenderGrid 内只可调整 Scroll/Grid 几何；动态重建布局、RegisterModuleLayout、编辑状态和延迟 guard 禁止修改。
 local function RenderGrid(contentFrame, resetScroll)
     local Grid = _G.ExwindGrid
     if not Grid then

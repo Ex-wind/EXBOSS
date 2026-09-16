@@ -59,6 +59,9 @@ local ResetAllConfigIncludingAppearance
 -- titleKey/descKey are locale keys resolved at render time via GetTitle/GetDesc,
 -- avoiding the load-time capture bug where L["..."] would always return zhCN
 -- because EXBOSS12S2 (and the saved locale mode) is not yet available at file load.
+-- [卡片/Grid 迁移边界：设置目录]
+-- ITEMS 顺序、key/mode/moduleKey/appearanceRoots 是路由与导出业务合同，禁止因视觉迁移改名、重排或补入不可达旧页。
+-- 允许迁移的是左侧目录项外观和各真实右侧页面自己的内容布局；目录项不是大型内容卡。
 local ITEMS = {
     { key = "overview",           category = "general", titleKey = "通用设置",         descKey = "全局显示模式与语音输出。",                                                                                                          mode = "embedded", moduleKey = "ExBoss.GeneralOverview", appearanceRoots = { "ui.general", "voice.global", "autoGossip" } },
     { key = "countdownvoice",     category = "general", titleKey = "语音设置",          descKey = "开怪倒数与数字语音。",                                                                                                               mode = "embedded", moduleKey = "ExBoss.CountdownVoiceSettings", appearanceRoots = { "voice.countdown" } },
@@ -424,6 +427,7 @@ local function CreateBossTankFilterChecks(parent, exui)
     Page.hideTankBossAlertsForHealCheck:SetPoint("TOPLEFT", 10, -208)
 end
 
+-- [排除边界] 这是未由当前 ITEMS 选择的旧 builtin overview；真实通用页是 GeneralOverviewPage，禁止为卡片迁移恢复此区。
 local function CreateOverviewSection(parent, anchor, exui)
     overviewSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     overviewSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
@@ -541,6 +545,7 @@ local function CreateOverviewSection(parent, anchor, exui)
     overviewSection:Hide()
 end
 
+-- [排除边界] 这是未由当前 ITEMS 选择的旧 builtin voice；真实语音设置是 CountdownVoicePage/VoicePackPage，禁止为卡片迁移恢复此区。
 local function CreateVoiceSection(parent, anchor, exui)
     voiceSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     voiceSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
@@ -598,6 +603,8 @@ local function CreateVoiceSection(parent, anchor, exui)
     voiceSection:Hide()
 end
 
+-- [卡片/Grid 迁移边界：内置颜色页]
+-- 允许：替换外层视觉容器与控件几何；禁止：修改方案顺序、DB 字段、写回/刷新回调或启用条件。
 local function CreateColorSection(parent, anchor, exui)
     colorSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     colorSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
@@ -759,6 +766,8 @@ local function CreateColorSection(parent, anchor, exui)
     colorSection:Hide()
 end
 
+-- [卡片/Grid 迁移边界：危险操作]
+-- 允许：把现有危险区整体接入共享卡；禁止：改按钮含义、StaticPopup、Accept 副作用、ReloadUI 或新增/移除重置动作。
 local function CreateResetSection(parent, anchor)
     resetSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     resetSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
@@ -1321,6 +1330,8 @@ local function ItemMatchesSearch(item)
 end
 
 local function HideEmbeddedPages()
+    -- 目录切换只直接隐藏各页 _scrollFrame 并在下方清 ActivePageFrame/CurrentModule，不调用 page:Hide()。
+    -- StandardModulePage 依靠 ScrollFrame OnHide 进入 teardown；非标准页只执行各自已有的 OnHide。迁移不得把预期的完整释放写成现状或另造第二条释放链。
     local pages = {
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.GeneralOverviewPage,
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.CountdownVoicePage,
@@ -1507,6 +1518,7 @@ local function RefreshList()
     listChild:SetHeight(math.max(1, -y + 8))
 end
 
+-- [混合函数边界] EnsureUI 内只可调整目录/宿主/内置区的几何与外观；搜索、ITEMS 顺序、embedded host、回调和释放链禁止修改。
 local function EnsureUI(leftFrame, contentFrame)
     if leftRoot and rightRoot then return end
 

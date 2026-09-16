@@ -16,6 +16,9 @@ Common.MODULE_KEY = "ExBoss.BossConfig.DungeonOptions"
 
 local UI = Common._ui or {}
 Common._ui = UI
+-- [卡片/Grid 迁移边界：DungeonCommon]
+-- LAYOUT 由当前副本动态重建；分类卡/筛选/工具栏/表头/虚拟列表的 key、renderer 与业务顺序禁止修改。
+-- 允许迁移外框几何与内容高度反馈，但虚拟列表保持固定视口，不能为自动高度展开全部 action。
 local LAYOUT = {}
 
 -- 方案 A 的视觉令牌。这里只影响 Frame/Texture/FontString 的表现，AuraSound
@@ -516,6 +519,7 @@ end
 
 -- Action、分类、增减益类型、触发状态与声音使用固定独立列。单位仍只参与
 -- 搜索和运行时匹配，不在紧凑列表中重复显示。
+-- [混合函数边界] 这里只可迁移列宽/锚点；action/category/auraType/trigger/voice 列身份与顺序禁止修改。
 local function LayoutAuraSoundColumns(frame, parts, rightInset)
     if not (frame and parts) then return end
     local inset = tonumber(rightInset) or 8
@@ -598,6 +602,7 @@ local function LayoutAuraSoundColumns(frame, parts, rightInset)
     end
 end
 
+-- [自定义内容边界] 整行作为已有 renderer 引用；只可调整行内几何/皮肤，enabled/edit/preview/tooltip 回调与排序刷新禁止修改。
 function Common.CreateAuraSoundVirtualRow(parent)
     local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     row:SetBackdrop(AURA_FLAT_BACKDROP)
@@ -824,6 +829,7 @@ function Common.BindAuraSoundVirtualRow(row, item, index, context)
     Common.RefreshAuraSoundVirtualRow(row)
 end
 
+-- [虚拟列表边界] VirtualList/可视行池拥有行创建、绑定与回收；Grid/卡片只拥有固定视口 host，不得展开全量数据或重复释放行。
 function Common.EnsureAuraSoundVirtualList(host)
     if not host then return nil end
     -- 列表、可视行和行内下拉属于通用页，而不是会被不同 custom renderer
@@ -853,6 +859,7 @@ function Common.EnsureAuraSoundVirtualList(host)
     return list
 end
 
+-- mount/update/release 是同一自定义内容生命周期，必须成对保留。
 function Common.MountAuraSoundVirtualList(host, context)
     local list = Common.EnsureAuraSoundVirtualList(host)
     if not list then return end
@@ -937,6 +944,7 @@ function Common.UpdateAuraSoundVirtualList(host, context)
     list:Show()
 end
 
+-- release 只清本 renderer 的绑定/可视行；外层 Grid host 由 Common:Hide 归还，二者不能互相重复释放。
 function Common.ReleaseAuraSoundVirtualList(host)
     local list = UI.auraSoundVirtualList
     if list and list.ReleaseData then
@@ -1583,6 +1591,7 @@ function Common.SetAuraSoundCategoryFilter(categoryKey)
     Common:RefreshAuraSoundFilteredList()
 end
 
+-- [自定义卡边界] 分类卡 renderer 可换外观/几何，但筛选身份、LSM 提交/试听与 mount/update/release 归属禁止修改。
 function Common.EnsureAuraSoundCategoryCardRenderer()
     if Common._auraSoundCategoryCardRendererRegistered then return end
     local Grid = _G.ExwindGrid
@@ -1716,6 +1725,7 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
     Common._auraSoundCategoryCardRendererRegistered = true
 end
 
+-- [自定义内容边界] 分类筛选 renderer 可换外观/几何；临时筛选状态、卡片顺序与释放归属禁止修改。
 function Common.EnsureAuraSoundCategoryFilterRenderer()
     if Common._auraSoundCategoryFilterRendererRegistered then return end
     local Grid = _G.ExwindGrid
@@ -2278,6 +2288,7 @@ function Common.EnsureEncounterVoiceRenderer()
     Common._encounterVoiceRendererRegistered = true
 end
 
+-- [共享宿主边界] root/gridHost 覆盖 Boss 的同一右侧 scroll child；只可迁移锚点/外观，不能改 parent、strata、一次释放或高度稳定 guard。
 function Common.EnsureFrames(host)
     if not host then return nil end
     local created = false
@@ -2738,6 +2749,7 @@ end
 
 -- 当前“副本通用设置”先专注光环音效；通用开关与首领额外设置会在之后独立
 -- 页面承载，不能再占用这张规则表的横向空间。
+-- [布局声明边界] 只可按共享规范调整 x/y/w/h 与外框；renderer key、分类顺序和固定虚拟列表视口必须保留。
 function Common:BuildPageLayout(dungeonKey)
     return {
         { key = "aura_sound_category_floor", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 4, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "地板" },
@@ -2757,6 +2769,7 @@ function Common:HasContent()
     return type(dungeonKey) == "string" and dungeonKey ~= ""
 end
 
+-- [混合函数边界] Render 内只可接入共享卡外框与最终高度/reflow；host/dungeon/width guard、旧 Boss 控件单次释放、slot 身份和 renderer 注册禁止修改。
 function Common:Render(host)
     local dungeonKey = Page:GetCurrentDungeonCommonOptions()
     if not (host and dungeonKey and self:HasContent()) then return false end
@@ -2818,6 +2831,7 @@ function Common:Render(host)
     return true
 end
 
+-- [释放边界] 先关编辑覆盖层，再释放独立 Grid/虚拟上下文与 ActivePage 注册；卡片容器不得重复释放或保留上一副本身份。
 function Common:Hide()
     self._virtualListRestore = nil
     UI._renderedHost = nil

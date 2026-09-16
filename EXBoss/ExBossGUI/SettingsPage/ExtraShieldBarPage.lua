@@ -39,6 +39,10 @@ if type(SHIELD_ANCHOR_OPTS) ~= "table" then
     error("ExtraShieldBarPage requires standard AnchorGroup options", 2)
 end
 
+-- [卡片/Grid 迁移边界：ExtraShieldBar 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、虚构无业务意义的 layout、预览、Slider 或释放合同。
+-- modulecommonsettings/anchorgroup/timerBarGroup/fontgroup 必须整体引用，不能拆成原子控件重拼。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["额外护盾条设置"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 9, w = 200, h = 20, label = L["模块通用设置"], opts = SHIELD_COMMON_OPTS },
@@ -72,11 +76,13 @@ local function ReleaseStandardPreview()
 end
 
 local function RebindModuleCommon(grid, container, db)
+    -- state.widgets.moduleCommon 是稳定组合控件入口，迁移后必须保留 key 查找语义。
     local state = grid and grid.ContainerStates and grid.ContainerStates[container]
     local group = state and state.widgets and state.widgets.moduleCommon
     if group and type(group.RebindDB) == "function" then group:RebindDB(db) end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Scroll、preview 与 release；布局迁移不得改这些回调。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

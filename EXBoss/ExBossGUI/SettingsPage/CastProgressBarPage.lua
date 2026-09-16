@@ -62,6 +62,10 @@ local COMMON_OPTS = {
     },
 }
 
+-- [卡片/Grid 迁移边界：CastProgressBar 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
+-- modulecommonsettings/anchorgroup/timerBarGroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local GRID_LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["施法进度条设置"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 48, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -74,6 +78,7 @@ local GRID_LAYOUT = {
 ExwindTools:RegisterModuleLayout(MODULE_KEY, GRID_LAYOUT)
 
 local function RebindModuleCommon(context)
+    -- state.widgets.moduleCommon 是稳定组合控件入口，迁移后必须保留 key 查找语义。
     local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
     local common = state and state.widgets and state.widgets.moduleCommon
     if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
@@ -100,6 +105,7 @@ local function ReleaseCastProgressPanelPreview()
     end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有外置 Dock、Scroll、preview 与 release；布局迁移不得改这些回调。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

@@ -39,6 +39,9 @@ if not StaticPopupDialogs["EXBOSS_RESET_TOOL_CONFIRM"] then
     }
 end
 
+-- [卡片/Grid 迁移边界：小工具目录]
+-- ITEMS 顺序、key/page/moduleKey 是可达性、重置与导出合同，禁止因视觉迁移改名或重排。
+-- 允许迁移的是导航项、标题与危险动作区外观；真正内容由各 StandardModulePage 自己拥有。
 local ITEMS = {
     { key = "mythiccast",       titleKey = "大米怪物施法", moduleKey = "ExBoss.Tools.MythicCast" },
     { key = "interrupttracker", titleKey = "队友打断监控", moduleKey = "ExBoss.Tools.InterruptTracker" },
@@ -67,6 +70,7 @@ function Page:GetExportModuleKeys()
 end
 
 local function HideEmbeddedPages()
+    -- 切换工具时必须调用旧页 Hide 释放 panel preview；新卡壳不能成为第二个生命周期 owner。
     local pages = {
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.MythicCastPage,
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.InterruptTrackerPage,
@@ -178,6 +182,7 @@ local function RefreshList()
     listChild:SetHeight(math.max(1, -y + 8))
 end
 
+-- [混合函数边界] EnsureUI 内只可调整搜索/列表/标题/重置按钮的几何与外观；路由、选中态、重置回调和 embedded 页释放禁止修改。
 local function EnsureUI(leftFrame)
     if leftRoot then
         return

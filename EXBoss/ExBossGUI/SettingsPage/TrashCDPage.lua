@@ -964,6 +964,10 @@ local function PlayVoicePreview(sourceType, label, customLSM, customPath)
     end
 end
 
+-- [卡片/Grid 迁移边界：TrashCD 技能编辑器]
+-- 允许：只按共享规范调整 master/text/voice/cast/target 五组的 x/y/w/h、外层卡片与当前可见高度。
+-- 禁止：修改稳定 key/type、地图/NPC/法术业务顺序、draft→Store 提交、试听回调或三个 pane 的选择身份。
+-- 来源控件共享同一坐标槽位；高度只累计当前可见来源一次，type="card" 背景不自动拥有相邻控件。
 local function BuildSettingsLayout()
     if #SETTINGS_LAYOUT > 0 then
         return
@@ -1039,6 +1043,7 @@ local function RefreshSettingsDynamicWidgets()
     end
     local widgets = Grid.Widgets
     local state = settingsScrollChild and Grid.ContainerStates and Grid.ContainerStates[settingsScrollChild]
+    -- state.widgets 是复用后控件的权威 key 索引；迁移后不得改为按视觉位置或全局控件猜身份。
     if type(state) == "table" and type(state.widgets) == "table" then
         widgets = state.widgets
     end
@@ -1591,6 +1596,7 @@ local function UpdateDetailCard()
     RefreshDetailCardLayout()
 end
 
+-- [业务排序边界] 地图按钮顺序来自 GetDungeonRows；迁移只能改变选择卡几何/皮肤，不能重排或复制数据。
 local function BuildDungeonButtons()
     ReleaseDungeonButtons()
     if not mapScrollChild then
@@ -1653,6 +1659,7 @@ local function BuildDungeonButtons()
     RefreshDungeonButtonVisuals()
 end
 
+-- [业务排序边界] 法术列表维持解析后的 map/NPC/spell 顺序与当前筛选；紧凑行可换外观，但不能重排、改选择身份或每次重建整页。
 function Page:RefreshSpellList()
     _spellListBuildToken = _spellListBuildToken + 1
     local token = _spellListBuildToken
@@ -1880,6 +1887,7 @@ function Page:RefreshSelectedSpell()
     end
 end
 
+-- [混合函数边界] 只可迁移设置 Grid 的几何、卡片外框与内容高度反馈；draft/context、RegisterModuleLayout、ActivePage 与持久回调禁止修改。
 function Page:RenderSettingsGrid(resetScroll)
     if not (settingsScrollChild and settingsPane and settingsPane:IsShown()) then
         return
@@ -1909,6 +1917,7 @@ function Page:RenderSettingsGrid(resetScroll)
     RefreshSettingsDynamicWidgets()
 end
 
+-- [混合函数边界] EnsureUI 内只可迁移三 pane、详情卡、Scroll/Grid 的外观与 SetPoint/SetSize；池、OnClick、异步 Spell 数据、预览与回调禁止修改。
 local function EnsureUI(parent)
     if root then
         return
@@ -2052,6 +2061,7 @@ end
 
 -- Unified Shell 的 B+C 必须由 Core 按 20:80 分配。本页原本把这套结构硬编码
 -- 在单一 root 的 380px 左栏内；这里仅重新挂接既有 pane，不改副本/法术/设置数据。
+-- [共享宿主边界] 只可调整 left/map 与 content/spell/settings 三 pane 的锚点；Unified 挂载、独立滚动与选择状态禁止修改。
 local function ApplyHostLayout(leftHost, contentHost)
     if not root or not contentHost then return end
     local gap = 8
@@ -2198,6 +2208,7 @@ if ExwindTools and not Page._eventsRegistered then
     Page._eventsRegistered = true
 end
 
+-- [页面生命周期边界] Render 仅可新增安全 reflow；不得改变页面 generation、列表刷新次序、draft 身份与预览启动。
 function Page:Render(leftHost, contentFrame)
     -- 兼容旧独立面板调用：Render(contentFrame)。
     if contentFrame == nil then
@@ -2221,6 +2232,7 @@ function Page:Render(leftHost, contentFrame)
     self:RefreshSpellList()
 end
 
+-- [释放边界] 必须保留 ActivePage 清理、Grid 控件归还、draft/context 作废、三个 pane/屏幕预览停止；卡壳不得重复释放。
 function Page:Hide()
     Page._visible = false
     -- 页面显示值永远不跨页面保存；下次显示重新读取当前 Runtime。

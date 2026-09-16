@@ -96,6 +96,7 @@ local function FocusAndHighlight(control)
     end
 end
 
+-- [窗口边界：导出结果] 仅可迁移窗口外观与控件几何；FULLSCREEN_DIALOG、拖动、ESC、焦点、全选复制和关闭脚本禁止修改。
 local function ShowExportPopup(encoded, name)
     if not exportPopup then
         local popup = CreateFrame("Frame", "ExBoss_ExportPopup", UIParent, "BackdropTemplate")
@@ -241,6 +242,8 @@ local function IsImportNameRowSelected(row)
 end
 
 local function LayoutImportControls()
+    -- [卡片/Grid 迁移边界：导入动态高度]
+    -- 只可把现有可见控件的几何与 importSection/scrollChild 高度反馈接入共享容器；选择顺序、输入、导入回调与部分失败语义禁止修改。
     if not importSection then return end
     local y = -230
     for _, row in ipairs(importNameRows) do
@@ -604,6 +607,10 @@ local function DefaultExportChecks()
     return true, false
 end
 
+-- [卡片/Grid 迁移边界：导入导出页]
+-- 允许：只按共享规范替换导出/导入两块的外观、锚点、宽高与动态高度报告。
+-- 禁止：修改控件创建顺序、导入/导出/解析/重载回调、输入焦点、职责槽顺序或结果弹窗行为。
+-- SectionBg 当前是真实 parent；若换共享卡必须整体承接其 children，不能只把背景当容器声明后遗留子控件。
 local function EnsureUI(contentFrame)
     if uiBuilt and scrollFrame and scrollFrame:GetParent() == contentFrame then return end
     if scrollFrame then scrollFrame:Hide(); scrollFrame:SetParent(UIParent) end

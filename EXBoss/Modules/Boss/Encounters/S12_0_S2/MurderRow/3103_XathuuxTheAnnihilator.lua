@@ -56,6 +56,9 @@ do
         boss = { key = "xathuux_the_annihilator", name = "Xathuux the Annihilator", zhCN = "歼灭者萨祖克斯" },
         phaseAlerts = {},
         vulnerability = {},
+        -- [卡片/Grid 迁移边界：3103 encounter extra]
+        -- 仅 layout 的 x/y/w/h 与外层卡片呈现可按共享规范迁移；key/defaults/onChanged 及上方事件业务禁止修改。
+        -- type="card" 当前只是背景/分组声明，不自动拥有 enabled 控件或其释放责任。
         extras = {
             {
                 key = EXTRA_KEY,

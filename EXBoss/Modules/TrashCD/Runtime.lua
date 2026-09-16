@@ -141,6 +141,8 @@ function Mod.GetDebugBufferText()
     return table.concat(buffer, "\n")
 end
 
+-- [窗口边界：Trash 调试复制窗] 只可迁移窗口 chrome、输入/滚动几何；调试缓冲、复制文本、焦点、全选与关闭行为禁止修改。
+-- 此函数是混合业务文件中唯一获准的设置外 GUI 区块，其余 Runtime 逻辑不属于卡片迁移范围。
 local function EnsureDebugCopyFrame()
     if type(Mod._debugCopyFrame) == "table" then
         return Mod._debugCopyFrame

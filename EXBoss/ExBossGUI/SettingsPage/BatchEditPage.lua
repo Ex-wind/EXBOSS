@@ -136,6 +136,10 @@ local TRASH_VOICE_SOURCE_ITEMS = {
 }
 
 
+-- [卡片/Grid 迁移边界：批量修改]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h、来源/目标卡片和当前可见分支高度。
+-- 禁止：修改 key/type、范围/筛选/动作业务顺序、预览→确认应用两阶段回调或 Store 写回。
+-- 多组控件共享同一坐标槽位；高度只能累计当前可见分支一次，不能把隐藏分支重复相加。
 local LAYOUT = {
     { key = "scope", type = "dropdown", x = 4, y = 17, w = 57, h = 6, label = T("作用范围"), items = SCOPE_ITEMS },
     { key = "targetFilter", type = "dropdown", x = 68, y = 17, w = 57, h = 6, label = T("目标筛选"), items = FILTER_ITEMS },
@@ -1426,6 +1430,7 @@ local function SetWidgetVisible(widget, visible)
 end
 
 local function CollectWidgetBounds(parent, keys)
+    -- 现有卡框只根据控件边界绘制在后方，不是拥有控件与释放责任的真实容器；迁移不得自动改 parent。
     local Grid = _G.ExwindGrid
     if not (parent and Grid and type(Grid.Widgets) == "table") then
         return nil
@@ -1701,6 +1706,7 @@ local function RefreshReplaceCopy()
 end
 
 local function RefreshActionUI()
+    -- 这里只允许迁移显隐后的几何/高度反馈；字段选择、互斥条件和每个稳定 key 均属业务合同。
     local Grid = _G.ExwindGrid
     if not (Grid and type(Grid.Widgets) == "table") then
         return
@@ -1788,6 +1794,7 @@ local function ResolveGridCols()
     return BASE_GRID_COLS
 end
 
+-- [混合函数边界] Page:Render 内只可替换 Scroll/Grid 与背景卡的几何语句；DB 默认、按钮 WatchState、业务回调和写回禁止修改。
 function Page:Render(contentFrame)
     local Grid = _G.ExwindGrid
     if not Grid then

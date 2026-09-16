@@ -24,6 +24,9 @@ local CONTENT_X = LEFT_W + 10
 local OUTER_STRIP_W = 140
 local EMBED_TOP_Y    = -36
 
+-- [卡片/Grid 迁移边界：顶级路由]
+-- TABS/redirect/dispatch 顺序与 key 是导航业务合同，禁止因卡片外观迁移改名、重排、恢复历史页或改变可达性。
+-- 页面内容卡片只在各 Page 内迁移；本文件继续只拥有 Unified/fallback 宿主与切页释放。
 local TABS = {
     { key = "home",          label = L["首页"] },
     { key = "voicepack",     label = L["语音/配置"] },
@@ -39,6 +42,9 @@ local EMBED_TABS = {
     { key = "embed:exwindtools", label = "ExwindTools" },
     { key = "embed:exaura",      label = "EXAura" },
 }
+
+-- [跨插件嵌入边界] 这是 8 个 EXBoss 内容 Tab 之外的 2 条 route：fallback 才使用下方 embedHost，Unified 必须转发到 tools/aura Provider。
+-- key、左侧外挂条顺序、SetEmbedHost/ClearEmbedHost 成对调用与 Provider 转发均禁止因卡片迁移改变；相邻插件内容不归 EXBoss 卡片拥有。
 
 -- =============================================================
 -- 运行时状态
@@ -411,6 +417,8 @@ ExBoss.UI.ApplySidebarModuleButtonState = ApplySidebarModuleButtonState
 -- =============================================================
 -- 插件切换嵌入 (左侧外挂标签条 -> EXBoss 画布整体渲染其他插件)
 -- =============================================================
+-- [嵌入生命周期边界] fallback embedHost 只承载相邻插件已有 UI：两个 embed route 间切换时清另一插件，返回 EXBoss 内容 Tab 时 UnembedActive 清两者；单纯隐藏 fallback 窗口不会清 host。
+-- 不能由 EXBoss 卡片接管、复制或另行释放相邻插件内容。
 local function SetOwnTopTabBarShown(shown)
     for _, btn in pairs(tabButtons) do
         if shown then btn:Show() else btn:Hide() end
@@ -496,6 +504,7 @@ end
 -- =============================================================
 -- 内容区刷新
 -- =============================================================
+-- [混合函数边界] RefreshContent 内仅宿主 frame 的 SetPoint/SetAllPoints 属布局语句；Tab 分派、Hide 顺序、页面 Render/Hide 与嵌入清理全部禁止修改。
 local function RefreshContent()
     if not contentFrame then return end
 
@@ -772,6 +781,7 @@ end
 -- =============================================================
 -- 窗口创建（懒加载，只执行一次）
 -- =============================================================
+-- [宿主边界] 只可按共享外观调整 EXBoss 内容 root/nav/content 的几何与背景；不能在这里替各页面创建卡片或接管其释放。
 local function CreateUnifiedPanel()
     if mainFrame then return end
     local shellFrame = unifiedHosts.contentHost:GetParent()
@@ -800,6 +810,7 @@ local function CreateUnifiedPanel()
     Panel._frame = mainFrame
 end
 
+-- [窗口边界：fallback] 仅可迁移旧独立窗口 chrome 与几何；拖动、ESC、Tab 状态机、路由、焦点提交和 Unified 回退条件禁止修改。
 local function CreatePanel()
     if mainFrame then return end
 

@@ -48,6 +48,10 @@ local LAYOUT_OPTS = {
     defaultMaxVisible = 5,
 }
 
+-- [卡片/Grid 迁移边界：IconAlert 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、允许增长方向、预览、Slider 或释放合同。
+-- modulecommonsettings/anchorgroup/widgetlayout/icongroup/fontgroup/glow_settings 必须整体引用，不能拆开重拼。
 local GRID_LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["图标设置"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 11, w = 200, h = 22, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -79,6 +83,7 @@ local function ReleaseStandardPreview()
     end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Dock、Scroll、Watch、preview 与 release；布局迁移不得另建生命周期。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

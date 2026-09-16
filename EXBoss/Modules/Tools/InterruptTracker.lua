@@ -137,6 +137,10 @@ local RAID_MARKER_EXTRA_OPTS = ExwindTools:BuildStandardTimerBarAlertIconsGroupO
         x = { min = -1000, max = 1000, step = 1 }, y = { min = -1000, max = 1000, step = 1 } },
 })
 local LAYOUT_OPTS = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = false, maxVisibleMin = 1, maxVisibleMax = 5, defaultMaxVisible = 5 }
+-- [卡片/Grid 迁移边界：InterruptTracker 设置页]
+-- 允许：只按共享规范调整下列设置声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改队伍/施法业务事件与排序、key/path/opts、StandardConfigBinding、collection、预览或释放链。
+-- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用，不能拆成原子控件重拼。
 local EX_LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["打断监控"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 50, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -557,6 +561,7 @@ ExBoss.ResetModuleConfig[EXWIND_MODULE_KEY] = function()
 end
 ExBoss.UI.Panel = ExBoss.UI.Panel or {}; ExBoss.UI.Panel.InterruptTrackerPage = ExBoss.UI.Panel.InterruptTrackerPage or {}
 local GUIPage = ExBoss.UI.Panel.InterruptTrackerPage
+-- [生命周期边界] STANDARD_PAGE 只承接设置页；上方 runtime/world/panel collection 与 WatchState/事件链均禁止改动。
 STANDARD_PAGE = EXUI:CreateStandardModulePage({
     moduleKey = EXWIND_MODULE_KEY, page = GUIPage, binding = STANDARD_CONFIG_BINDING, layout = EX_LAYOUT, getColumns = 200,
     preview = { height = 172, render = function(dock) Module:ShowPanelPreview(dock) end,

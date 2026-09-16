@@ -25,6 +25,9 @@ local SOURCE_ITEMS = {
     { L["LSM音效"], "lsm" },
 }
 
+-- [卡片/Grid 迁移边界：数字语音]
+-- 允许：只按共享规范调整开怪倒数与数字语音两组的 x/y/w/h、外层卡片和可见高度。
+-- 禁止：修改 digit key 生成规则、数字业务顺序、Runtime↔页面 DB 投影、试听回调或来源显隐逻辑。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["语音设置"], labelSize = 24 },
     { key = "header_pull", type = "header", x = 1, y = 11, w = 200, h = 5, label = L["开怪倒数"], labelSize = 20 },
@@ -65,6 +68,7 @@ local function ApplyDefaults(dst, defaults)
 end
 
 local function BuildLayout()
+    -- 重复数字行的 i 顺序是业务顺序；组合迁移只能包裹/定位整行，不能重排或改变 key。
     local rows = DeepCopy(LAYOUT)
     local baseY = 47
     for i = 1, MAX_COUNTDOWN_DIGIT do
@@ -156,6 +160,7 @@ local function SyncPageDBToRuntimeDB()
 end
 
 local function GetEditorWidgets()
+    -- state.widgets 的 digit* key 是显隐与试听的稳定入口，迁移后必须保留 key 查找语义。
     local state = Grid.ContainerStates and Grid.ContainerStates[scrollChild] or nil
     return state and state.widgets or {}
 end
@@ -200,6 +205,8 @@ local function RegisterLayout()
     ExwindTools:RegisterModuleLayout(MODULE_KEY, BuildLayout())
 end
 
+-- [混合函数边界] Page:Render 内只可调整 Scroll/Grid 几何；投影复制、RegisterModuleLayout、WatchState 与 ActivePage 注册禁止修改。
+-- Page:Hide 只隐藏 ScrollFrame；从设置目录离开时 ActivePageFrame/CurrentModule 由 GlobalSettingsPage 清理，不能误写为本页 OnHide 释放。
 function Page:Render(contentFrame)
     if not contentFrame then
         return

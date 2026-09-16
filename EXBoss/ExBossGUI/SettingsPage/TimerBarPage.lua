@@ -86,6 +86,10 @@ local SLIDER_GROUP_PATHS = {
 -- Grid 纯布局声明
 -- =============================================================
 
+-- [卡片/Grid 迁移边界：TimerBar 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、字段业务次序、ScaleLayout 语义、预览或 Slider/释放合同。
+-- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用；旧背景/标题项不等于内容容器。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["计时条设置"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 11, w = 200, h = 29, label = L["模块通用设置"], opts = TIMER_BAR_COMMON_OPTS },
@@ -167,6 +171,7 @@ local function GetTimerBar()
 end
 
 local function RebindTimerBarModuleCommon(grid, container, db)
+    -- state.widgets 的既有 key 是组合控件身份；迁移后不得改名或改为按位置查找。
     local state = grid and grid.ContainerStates and grid.ContainerStates[container]
     local widgets = state and state.widgets
     for _, key in ipairs({ "moduleCommon", "extraTexture" }) do
@@ -191,6 +196,7 @@ local function ReleaseTimerBarPanelPreview()
     end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Scroll、延迟 Render、preview 与 release；布局迁移不得重建这些生命周期。
 local StandardPage = ExwindTools.UI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

@@ -109,6 +109,10 @@ local function IsEncounterWarningSoundsEnabled()
     return value ~= "2"
 end
 
+-- [卡片/Grid 迁移边界：通用设置]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与自然卡片分组。
+-- 禁止：修改 key/type/parentKey/subKey、字段业务次序、CVar/Store 写回与即时刷新回调。
+-- header/背景类声明不自动拥有相邻控件；迁移后仍须让原 DB 路径与回调负责保存。
 local LAYOUT = {
     { key = "header_8111", type = "header", x = 1, y = 4, w = 200, h = 6, label = L["通用设置"], labelSize = 20 },
     { key = "barDisplayMode", type = "dropdown", x = 1, y = 17, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
@@ -410,6 +414,7 @@ EXUI:RegisterModuleValueController(MODULE_KEY, {
     RefreshActiveSurfaces = RefreshActiveSurfaces,
 })
 
+-- [混合函数边界] Page:Render 内只可调整 sf/sc 的锚点、宽高与布局挂载；rootDB、ActivePage、延迟 guard 和 Grid:Render 绑定禁止修改。
 function Page:Render(contentFrame)
     local Grid = _G.ExwindGrid
     if not Grid or not contentFrame then

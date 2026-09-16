@@ -68,6 +68,10 @@ local C = {
     MAP_ICON_RENDER_OVERRIDES = {},
 }
 
+-- [卡片/Grid 迁移边界：Boss 主页面]
+-- C 中的卡片几何可由共享规范承接，但事件/extra/副本/首领的业务顺序、稳定选择身份与两行视口语义禁止修改。
+-- 普通技能、encounter extra、DungeonCommon 三种详情共享同一右侧宿主；不得为迁移复制宿主或新增第二套选择状态。
+
 -- Grid 的颜色方案由函数路径在渲染时解析。
 local EVENT_COLOR_ITEMS_FUNC = "func:ExBoss.Voice.ColorSchemes.BuildDropdownItems"
 
@@ -279,6 +283,7 @@ local function GetSpellSettingsWidgets()
     if not Grid then
         return nil
     end
+    -- state.widgets 是复用后控件的权威 key 索引；迁移后必须保留，不能改成按屏幕位置或新建控件猜身份。
     local state = UI.spellSettingsGridChild and Grid.ContainerStates and Grid.ContainerStates[UI.spellSettingsGridChild]
     if type(state) == "table" and type(state.widgets) == "table" then
         return state.widgets
@@ -2200,6 +2205,7 @@ local function GetSpellListViewportHeight()
         + 8
 end
 
+-- [混合函数边界] 这里仅 SetPoint/尺寸属于可迁移布局；固定两行列表、描述区边界、共享 Grid 宿主和滚动层级禁止改义。
 local function ApplyBossRightPanelLayout()
     if not (UI.rightRoot and UI.spellSettingsFrame) then return end
     -- 列表区是固定的两行法术卡；描述卡和下方设置区只能从这个边界之后开始。
@@ -2211,6 +2217,10 @@ local function ApplyBossRightPanelLayout()
     UI.spellSettingsFrame:SetPoint("BOTTOMRIGHT", UI.rightRoot, "BOTTOMRIGHT", -8, 8)
 end
 
+-- [卡片/Grid 迁移边界：普通技能设置]
+-- 允许：只按共享规范调整五组现有声明的 x/y/w/h 与外层卡片呈现。
+-- 禁止：修改 key/type/items、同槽来源显隐、字段/语音触发业务顺序、draft/Store 回调或试听行为。
+-- type="card" 当前只是同一 Grid 中的背景项，不自动拥有相邻控件、回调或释放责任。
 local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spellIcon, iconFlags)
     for i = #SETTINGS_LAYOUT, 1, -1 do
         SETTINGS_LAYOUT[i] = nil
@@ -2338,6 +2348,7 @@ local function SetSpellDetailHeaderEmpty(message)
 end
 
 -- 副本通用设置没有“法术卡片 + 描述卡”这一层级：右侧只保留一块 Grid 容器。
+-- [共享宿主边界] 只可迁移下列宿主锚点；三模式切换、同一 grid child、title/scroll 显隐和 DungeonCommon 释放顺序禁止修改。
 local function SetRightSettingsPresentation(isDungeonCommon)
     if not (UI.rightRoot and UI.spellSettingsFrame and UI.spellDetailHeader
             and UI.spellSettingsGridScroll and UI.spellScrollFrame) then
@@ -2950,6 +2961,7 @@ local function SetAdaptiveSpellCardTitle(card, text)
     title:SetText(finalText)
 end
 
+-- [混合函数边界] EnsureUI 内只可迁移 frame/card/list 的创建外观、SetPoint/SetSize；所有 OnClick、选择身份、异步 token、池 acquire/release 禁止修改。
 local function EnsureUI(leftFrame, contentFrame)
     if UI.leftRoot and UI.rightRoot then return end
 
@@ -3802,6 +3814,7 @@ local function RebindSpellSettingsGrid(mdb)
     local Grid = _G.ExwindGrid
     local container = UI.spellSettingsGridChild
     local state = Grid and Grid.ContainerStates and container and Grid.ContainerStates[container]
+    -- state.widgets 与 SETTINGS_LAYOUT key 必须原样对应；这是草稿原地重绑而不重建回调的身份合同。
     local widgets = state and state.widgets
     if not (STATE.spellSettingsGridBound and type(mdb) == "table" and type(widgets) == "table"
             and next(widgets) ~= nil and state.config == mdb) then
@@ -3914,6 +3927,7 @@ local function PlayTriggerPreviewByIndex(triggerIndex)
     end
 end
 
+-- [三模式边界] 这里只允许各模式完成后的宿主尺寸/reflow 接线；revision/context、extra isCurrent、DungeonCommon Hide/Render 和普通 draft 绑定禁止修改。
 local function RefreshSpellSettingsPanel(expectedRevision)
     if expectedRevision ~= nil and expectedRevision ~= STATE.spellEditorRevision then
         return
@@ -4091,6 +4105,7 @@ local function ScheduleRefreshSpellSettingsPanel()
     end
 end
 
+-- [业务排序边界] 普通 events 维持源数组顺序，extras 维持 Registry 顺序并追加；迁移只能改变卡片几何/皮肤，不能重排或合并数据。
 RefreshSpellCards = function()
     if not UI.spellScrollChild then return end
 
@@ -4790,6 +4805,7 @@ RefreshSeasonDropdown = function(seasons)
     UI.seasonDropdown:SetText(displayText)
 end
 
+-- [页面生命周期边界] Page:Render 内只可迁移 left/right root 几何与内容 reflow；generation guard、选择归一化、异步刷新顺序禁止修改。
 function Page:Render(leftFrame, contentFrame)
     if not leftFrame or not contentFrame then return end
     STATE.pageRenderGeneration = STATE.pageRenderGeneration + 1
@@ -4837,6 +4853,7 @@ function Page:Render(leftFrame, contentFrame)
     end)
 end
 
+-- [释放边界] 必须保持先作废 revision/token，再释放 Grid 与三类池/覆盖层；卡片容器不能重复释放内容或截断 DungeonCommon Hide。
 function Page:Hide()
     STATE.pageRenderGeneration = STATE.pageRenderGeneration + 1
     CommitSpellTextFormState()

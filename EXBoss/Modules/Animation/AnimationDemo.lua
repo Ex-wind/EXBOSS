@@ -115,6 +115,7 @@ local function CreateDemoButton(parent, label, x, y, onClick)
 	return button
 end
 
+-- [窗口边界：Animation Demo] 只可迁移测试窗口 chrome、按钮与几何；八方向顺序、动画回调、/exanim 可达性和停止行为禁止修改。
 local function CreateDemoFrame()
 	frame = CreateFrame("Frame", "EXBossAnimationDemoFrame", UIParent, "BackdropTemplate")
 	frame:SetSize(PANEL_SIZE + 40, PANEL_SIZE + 140)

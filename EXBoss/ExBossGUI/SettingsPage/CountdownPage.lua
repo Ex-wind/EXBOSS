@@ -65,6 +65,10 @@ local COMMON_OPTS = {
     },
 }
 
+-- [卡片/Grid 迁移边界：Countdown 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、测试回调、Secret-safe 固定样本、预览或释放合同。
+-- modulecommonsettings/anchorgroup/icongroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["屏幕倒计时"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 64, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -77,6 +81,7 @@ local LAYOUT = {
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 local function RebindCountdownModuleCommon(grid, container, db)
+    -- state.widgets.moduleCommon 是稳定组合控件入口，迁移后必须保留 key 查找语义。
     local state = grid and grid.ContainerStates and grid.ContainerStates[container]
     local common = state and state.widgets and state.widgets.moduleCommon
     if common and type(common.RebindDB) == "function" then common:RebindDB(db) end
@@ -94,6 +99,7 @@ local function ReleaseStandardPreview()
     GetCountdown():ReleasePanelPreview()
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Scroll、Watch、预览与 release；布局迁移只改声明几何。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

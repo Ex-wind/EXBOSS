@@ -206,6 +206,10 @@ local function IsGridEditActive()
     return Grid and Grid.IsLiveEditing == true and Grid.LiveContainer == scrollChild
 end
 
+-- [卡片/Grid 迁移边界：首页]
+-- 允许：只按共享规范调整现有两组声明的 x/y/w/h 与卡片外观；未进入布局的旧 helper 不得借迁移恢复。
+-- 禁止：修改 localeMode、ReloadUI 回调、key/type、页面 DB 或 ValueController。
+-- type="card" 当前只是 Grid 背景项，不自动拥有后续控件、回调或释放责任。
 local function BuildLayout()
     return {
         { key = "card_locale", type = "card", x = 3, y = 7, w = 92, h = 30, title = L["界面语言"], desc = "", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
@@ -258,6 +262,7 @@ local function GetOrBuildLayout()
     return pageLayoutData
 end
 
+-- [混合函数边界] RenderGrid 内只可替换 Scroll/Grid 的几何挂载语句；RegisterModuleLayout、CurrentModule、DB 与延迟 guard 禁止修改。
 local function RenderGrid(contentFrame, resetScroll)
     local Grid = _G.ExwindGrid
     local EXUI = ExwindTools and ExwindTools.UI

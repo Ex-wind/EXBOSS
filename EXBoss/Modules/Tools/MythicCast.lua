@@ -397,6 +397,10 @@ if GridExporter and GridExporter.RegisterExportReference then
     GridExporter:RegisterExportReference(TIMER_BAR_OPTS, "TIMER_BAR_OPTS")
 end
 
+-- [卡片/Grid 迁移边界：MythicCast 设置页]
+-- 允许：只按共享规范调整下列设置声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改业务事件/排序、key/path/opts、StandardConfigBinding、世界/运行时 collection、预览或释放链。
+-- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用，不能拆成原子控件重拼。
 local EX_LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["大米怪物施法"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 30, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -1240,6 +1244,7 @@ local function ReleaseMythicCastPanelPreview()
     Module:ReleasePanelPreview()
 end
 
+-- [生命周期边界] StandardModulePage 只承接设置页；上方 runtime/world/panel collection 与业务回调均禁止因卡片迁移改动。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = EXWIND_MODULE_KEY,
     page = GUIPage,

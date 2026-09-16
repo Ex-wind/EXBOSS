@@ -33,6 +33,10 @@ local ANCHOR_OPTS = GetFlashText():GetStandardAnchorGroupOptions()
 if type(ANCHOR_OPTS) ~= "table" then
     error("FlashTextMediumPage requires standard AnchorController group options", 2)
 end
+-- [卡片/Grid 迁移边界：FlashTextMedium 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、测试按钮回调、预览、Slider 或释放合同。
+-- modulecommonsettings/anchorgroup/fontgroup 是完整组合，不能拆成原子控件重拼。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["文字公告(中)"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 30, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -53,6 +57,7 @@ local function ReleaseStandardPreview()
     if module and type(module.ReleasePanelPreview) == "function" then module:ReleasePanelPreview() end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Scroll、Watch、预览与 release；布局迁移不得另建页面外壳。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

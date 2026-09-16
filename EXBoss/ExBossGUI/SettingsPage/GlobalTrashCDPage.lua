@@ -97,6 +97,10 @@ local NAMEPLATE_ICON_STRATA_ITEMS = {
 -- =============================================================
 -- 布局
 -- =============================================================
+-- [卡片/Grid 迁移边界：小怪全局设置]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h、三组自然卡片与实际可见高度。
+-- 禁止：修改 key/type/path、页面 draft→Store 提交、live slider、姓名版预览或字段业务次序。
+-- icongroup/fontgroup 必须整体引用；顶部 panel preview 与屏幕姓名版 preview 是两套独立生命周期。
 local LAYOUT                      = {
     { key = "header_main", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["小怪内置CD姓名版图标"], labelSize = 22 },
     {
@@ -474,6 +478,8 @@ EXUI:RegisterModuleValueController(EDITOR_KEY, {
 -- =============================================================
 -- Render
 -- =============================================================
+-- [混合函数边界] Page:Render 内只可调整 Dock/Scroll/Grid 的锚点与尺寸；revision guard、draft、预览、ActivePage 与既有 OnHide 行为禁止修改。
+-- 设置目录切换只隐藏 ScrollFrame：其 OnHide 会清 draft/revision、preview 与 ActivePage，但不会释放 Grid；不得把下方 Page:Hide 的完整释放写成当前目录调用链。
 function Page:Render(contentFrame)
     local Grid = _G.ExwindGrid
     if not Grid then return end
@@ -566,6 +572,7 @@ function Page:Render(contentFrame)
     end)
 end
 
+-- [释放边界] 显式 Page:Hide 才会额外 ReleaseContainerWidgets；当前 GlobalSettings 目录不会调用它，未来迁移不得偷偷改变调用链或重复释放。
 function Page:Hide()
     Page._renderGeneration = (Page._renderGeneration or 0) + 1
     Page._editorRevision = (Page._editorRevision or 0) + 1

@@ -47,6 +47,10 @@ local COMMON_OPTS = {
     fields = COMMON_FIELDS,
 }
 
+-- [卡片/Grid 迁移边界：BunBar 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
+-- modulecommonsettings/anchorgroup/icongroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["束状条设置"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 96, label = L["模块通用设置"], opts = COMMON_OPTS },
@@ -60,6 +64,7 @@ local LAYOUT = {
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 local function RebindModuleCommon(context)
+    -- state.widgets 的 moduleCommon key 是组合控件身份；迁移后仍按同 key 查找，不能按视觉位置推断。
     local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
     local common = state and state.widgets and state.widgets.moduleCommon
     if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
@@ -76,6 +81,7 @@ local function ReleasePreview()
     if module then module:ReleasePanelPreview() end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Dock、Scroll、Watch、Grid focus 与 preview release；布局迁移不得改这些回调。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

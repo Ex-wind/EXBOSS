@@ -34,6 +34,10 @@ local ANCHOR_OPTS = GetRingProgress():GetAnchorGroupOptions()
 
 -- 页面只保留真实配置字段与 Grid 几何；不再自行管理 PreviewDock、watch、onHide、
 -- private focus callback 或 Slider 生命周期。
+-- [卡片/Grid 迁移边界：RingProgress 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改 key/type/path/opts、测试施法/引导回调、动态背景启用逻辑、预览或释放合同。
+-- fontgroup 必须整体引用；旧 header/divider/背景项只绘制与定位，不自动成为内容/回收容器。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["圆环进度设置"] or "圆环进度设置", labelSize = 25 },
     { key = "desc", type = "description", x = 1, y = 11, w = 200, h = 3, label = L["屏幕中央显示圆环进度"] or "屏幕中央显示圆环进度", labelSize = 18 },
@@ -94,6 +98,7 @@ local function ApplyScrollSkin(scrollFrame)
     end
 end
 
+-- [生命周期边界] StandardModulePage 继续拥有 Scroll、preview surface、Slider 与 release；布局迁移不得改其回调。
 local StandardPage = EXUI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,

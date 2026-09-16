@@ -113,6 +113,8 @@ do
         RefreshTexts()
     end
 
+    -- [运行时 GUI 排除边界：风火图面板]
+    -- EXBossKyrakkaWindFirePanel 是遭遇运行时自定义面板，不是设置页/卡片/Grid 内容；只记录其现有 parent、拖动、关闭、动画与显示/隐藏生命周期，本轮禁止修改。
     local function EnsurePanel()
         if panel then return end
         panel = CreateFrame("Frame", "EXBossKyrakkaWindFirePanel", UIParent, "BackdropTemplate")

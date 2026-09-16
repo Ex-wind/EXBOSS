@@ -17,6 +17,10 @@ local COMMON_OPTS = {
         { path = "healthColor", type = "checkbox", label = L["血量条随剩余血量染色"], row = 4 },
     },
 }
+-- [卡片/Grid 迁移边界：DungeonExtras 设置页]
+-- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 禁止：修改业务开关 path/key、增长方向、StandardConfigBinding、预览或释放合同。
+-- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用；风火图业务样式不并入血量条卡片。
 local LAYOUT = {
     { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["副本额外设置"], labelSize = 25 },
     { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 64, label = L["已接管的副本提示"], opts = COMMON_OPTS },
@@ -28,6 +32,7 @@ local LAYOUT = {
     { key = "font_timer", type = "fontgroup", x = 1, y = 233, w = 200, h = 50, label = L["血量百分比"] },
 }
 Tools:RegisterModuleLayout(KEY, LAYOUT)
+-- [生命周期边界] StandardModulePage 继续拥有 Scroll、preview 与 release；布局迁移不得另建页面生命周期。
 local standardPage = EXUI:CreateStandardModulePage({
     moduleKey = KEY, page = Page, binding = Mod.StandardConfigBinding, layout = LAYOUT, getColumns = 200,
     preview = { height = 202,
