@@ -8,6 +8,7 @@ local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI or _G.ExwindToolsUI
 if not EXUI then return end
+local COLOR                       = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 local L                           = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, k) return k end })
 
 ExBoss.UI.Panel.GlobalTrashCDPage = ExBoss.UI.Panel.GlobalTrashCDPage or {}
@@ -507,8 +508,8 @@ function Page:Render(contentFrame)
         local dock        = CreateFrame("Frame", "ExBoss_TrashCDNameplatePreviewDock", contentFrame, "BackdropTemplate")
         dock:SetHeight(160)
         dock:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        dock:SetBackdropBorderColor(0.20, 0.62, 0.90, 0.45)
-        dock:SetBackdropColor(0.5804, 0.6471, 0.9882, 1)
+        dock:SetBackdropBorderColor(unpack(COLOR.Border.Default))
+        dock:SetBackdropColor(unpack(COLOR.Surface.Card))
         Page._previewDock = dock
 
         sf:HookScript("OnHide", function()

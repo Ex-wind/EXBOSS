@@ -3,13 +3,13 @@
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, k) return k end })
 
 ExBoss.UI.Panel.BossPage = ExBoss.UI.Panel.BossPage or {}
 local Page = ExBoss.UI.Panel.BossPage
 
 local C = {
-    DEFAULT_EVENT_BORDER_COLOR = { r = 0.65, g = 0.65, b = 0.65 },
     MODEL_TUNE = {
         zoom = 0.85,
         cam = 1.05,
@@ -504,12 +504,12 @@ local function EnsureSpellTextInputPersistHooks()
             end)
             widget:SetScript("OnEditFocusGained", function(self)
                 if self.SetBackdropBorderColor then
-                    self:SetBackdropBorderColor(0.64, 0.19, 0.79, 1)
+                    self:SetBackdropBorderColor(unpack(COLOR.Control.Input.FocusBorder))
                 end
             end)
             widget:SetScript("OnEditFocusLost", function(self)
                 if self.SetBackdropBorderColor then
-                    self:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                    self:SetBackdropBorderColor(unpack(COLOR.Control.Input.Border))
                 end
                 UpdatePlaceholder()
                 local text = GetWidgetEditText(self)
@@ -1637,13 +1637,6 @@ local function ResolvePrimaryAlertIconSourceByBorder(eventID, borderR, borderG, 
                 target = { r = xr, g = xg, b = xb },
                 mechanic = { r = mr, g = mg, b = mb },
             }
-        else
-            ref = {
-                tank = { r = 0xC6 / 255, g = 0x9B / 255, b = 0x6C / 255 },
-                heal = { r = 0x5F / 255, g = 0xFF / 255, b = 0x9D / 255 },
-                target = { r = 0xFF / 255, g = 0x3B / 255, b = 0x30 / 255 },
-                mechanic = { r = 0xDA / 255, g = 0x5B / 255, b = 0xFF / 255 },
-            }
         end
 
         local bestKey, bestDist = nil, math.huge
@@ -1704,9 +1697,9 @@ local function BuildPrimaryCategoryMarkup(eventID, iconSize, iconYOffset)
     local borderR, borderG, borderB = ResolveVoiceEventBorderColor(eventID)
     if borderR == nil or borderG == nil or borderB == nil then
         borderR, borderG, borderB =
-            C.DEFAULT_EVENT_BORDER_COLOR.r,
-            C.DEFAULT_EVENT_BORDER_COLOR.g,
-            C.DEFAULT_EVENT_BORDER_COLOR.b
+            COLOR.Border.Interactive[1],
+            COLOR.Border.Interactive[2],
+            COLOR.Border.Interactive[3]
     end
 
     local kind, source = ResolvePrimaryAlertIconSourceByBorder(eventID, borderR, borderG, borderB)
@@ -2053,10 +2046,7 @@ local function WrapColorText(text, color)
     if type(color) ~= "table" then
         return body
     end
-    local r = math.floor((tonumber(color.r) or 1) * 255 + 0.5)
-    local g = math.floor((tonumber(color.g) or 1) * 255 + 0.5)
-    local b = math.floor((tonumber(color.b) or 1) * 255 + 0.5)
-    return string.format("|cff%02x%02x%02x%s|r", r, g, b, body)
+    return COLOR.WrapDynamicRGB(color.r, color.g, color.b, body)
 end
 
 local function GetSpellDescription(spellID)
@@ -2227,48 +2217,44 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
     end
 
     local rows = {
-        { key = "card_master", type = "card", x = 1, y = 1, w = 200, h = 6, label = "", padding = 6, keepBorderVisible = true,
-            bgColor = { r = 0.030, g = 0.038, b = 0.054, a = 0.98 }, borderColor = { r = 0.26, g = 0.30, b = 0.38, a = 0.82 }, accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 1.00 } },
+        { key = "card_master", type = "card", x = 1, y = 1, w = 200, h = 6, label = "", padding = 6, keepBorderVisible = true },
         { key = "enabled", type = "checkbox", x = 3, y = 1, w = 36, h = 5, label = L["启用"], labelSize = 18 },
 
-        { key = "card_text", type = "card", x = 1, y = 8, w = 107, h = 40, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 1.00 } },
+        { key = "card_text", type = "card", x = 1, y = 8, w = 107, h = 40, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", titleSize = 17, keepBorderVisible = true },
         { key = "eventColorEnabled", type = "checkbox", x = 4, y = 16, w = 26, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 33, y = 16, w = 35, h = 5, label = "", labelPos = "left", items = EVENT_COLOR_ITEMS_FUNC, search = true },
         { key = "eventColor", type = "color", x = 73, y = 16, w = 33, h = 5, label = L["自定义颜色"] },
-        { key = "centralEnabled", type = "checkbox", x = 4, y = 23, w = 26, h = 5, label = L["|cffffd637中央文本|r"] },
+        { key = "centralEnabled", type = "checkbox", x = 4, y = 23, w = 26, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["中央文本"]) },
         { key = "centralLead", type = "input", x = 34, y = 23, w = 12, h = 5, label = L["(秒)"], labelPos = "right" },
         { key = "centralText", type = "input", x = 57, y = 23, w = 49, h = 5, label = "" },
-        { key = "countdownEnabled", type = "checkbox", x = 4, y = 30, w = 26, h = 5, label = L["|cffffd637倒数文本|r"] },
+        { key = "countdownEnabled", type = "checkbox", x = 4, y = 30, w = 26, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["倒数文本"]) },
         { key = "preAlertText", type = "input", x = 34, y = 30, w = 72, h = 5, label = "" },
-        { key = "timerBarRenameEnabled", type = "checkbox", x = 4, y = 37, w = 26, h = 5, label = L["|cffffd637计时条改名|r"] },
+        { key = "timerBarRenameEnabled", type = "checkbox", x = 4, y = 37, w = 26, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["计时条改名"]) },
         { key = "timerBarRenameText", type = "input", x = 34, y = 37, w = 72, h = 5, label = "" },
 
-        { key = "card_display", type = "card", x = 109, y = 8, w = 93, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.50, g = 0.74, b = 1.00, a = 1.00 } },
+        { key = "card_display", type = "card", x = 109, y = 8, w = 93, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true },
         { key = "ringEnabled", type = "checkbox", x = 112, y = 16, w = 28, h = 5, label = L["施法圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 112, y = 23, w = 28, h = 5, label = L["施法读条"] },
         { key = "ringCastCheckEnabled", type = "checkbox", x = 112, y = 30, w = 28, h = 5, label = L["施法检测"] },
         { key = "castProgressBarRenameEnabled", type = "checkbox", x = 112, y = 37, w = 28, h = 5, label = L["读条改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 143, y = 37, w = 54, h = 5, label = "" },
 
-        { key = "card_voice", type = "card", x = 1, y = 50, w = 107, h = 40, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.28, g = 0.84, b = 1.00, a = 1.00 } },
-        { key = "tr0Enabled", type = "checkbox", x = 4, y = 58, w = 26, h = 5, label = L["|cffffd637中央文本|r"] },
+        { key = "card_voice", type = "card", x = 1, y = 50, w = 107, h = 40, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", titleSize = 17, keepBorderVisible = true },
+        { key = "tr0Enabled", type = "checkbox", x = 4, y = 58, w = 26, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["中央文本"]) },
         { key = "tr0Source", type = "dropdown", x = 34, y = 58, w = 27, h = 5, label = "", items = C.TRIGGER_SOURCE_ITEMS, search = true },
         { key = "tr0Label", type = "dropdown", x = 61, y = 58, w = 33, h = 5, label = "", items = {}, search = true },
         { key = "tr0LSM", type = "lsm_sound", x = 61, y = 58, w = 33, h = 5, label = "", search = true },
         { key = "tr0Path", type = "input", x = 61, y = 58, w = 33, h = 5, label = "" },
         { key = "tr0TtsText", type = "input", x = 61, y = 58, w = 33, h = 5, label = "" },
         { key = "tr0ValueTest", type = "button", x = 95, y = 58, w = 11, h = 6, label = L["试听"] },
-        { key = "tr1Enabled", type = "checkbox", x = 4, y = 65, w = 26, h = 5, label = L["|cffffd637施法开始|r"] },
+        { key = "tr1Enabled", type = "checkbox", x = 4, y = 65, w = 26, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["施法开始"]) },
         { key = "tr1Source", type = "dropdown", x = 34, y = 65, w = 27, h = 5, label = "", items = C.TRIGGER_SOURCE_ITEMS, search = true },
         { key = "tr1Label", type = "dropdown", x = 61, y = 65, w = 33, h = 5, label = "", items = {}, search = true },
         { key = "tr1LSM", type = "lsm_sound", x = 61, y = 65, w = 33, h = 5, label = "", search = true },
         { key = "tr1Path", type = "input", x = 61, y = 65, w = 33, h = 5, label = "" },
         { key = "tr1TtsText", type = "input", x = 61, y = 65, w = 33, h = 5, label = "" },
         { key = "tr1ValueTest", type = "button", x = 95, y = 65, w = 11, h = 6, label = L["试听"] },
-        { key = "tr2Enabled", type = "checkbox", x = 4, y = 72, w = 26, h = 5, label = L["|cffffd637倒数提示|r"] },
+        { key = "tr2Enabled", type = "checkbox", x = 4, y = 72, w = 26, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["倒数提示"]) },
         { key = "tr2CountdownLead", type = "dropdown", x = 34, y = 72, w = 27, h = 5, label = "", items = C.COUNTDOWN_LEAD_ITEMS, search = true },
         { key = "tr2PlayTextEnabled", type = "checkbox", x = 4, y = 79, w = 26, h = 5, label = L["播放文字"] },
         { key = "tr2Source", type = "dropdown", x = 34, y = 79, w = 27, h = 5, label = "", items = C.TRIGGER_SOURCE_ITEMS, search = true },
@@ -2278,8 +2264,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "tr2TtsText", type = "input", x = 61, y = 79, w = 33, h = 5, label = "" },
         { key = "tr2ValueTest", type = "button", x = 95, y = 79, w = 11, h = 6, label = L["试听"] },
 
-        { key = "card_target_alert", type = "card", x = 109, y = 50, w = 93, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.40, g = 1.00, b = 0.62, a = 1.00 } },
+        { key = "card_target_alert", type = "card", x = 109, y = 50, w = 93, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 112, y = 58, w = 28, h = 5, label = L["启用"] },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 112, y = 66, w = 25, h = 5, label = L["圆环"] },
         { key = "targetAlertTextEnabledV2", type = "checkbox", x = 142, y = 66, w = 25, h = 5, label = L["文本"] },
@@ -2319,10 +2304,9 @@ local function UpdateSpellDetailHeader(spellName, spellIdentifier, eventID, spel
     UI.spellDetailIcon:Show()
     UI.spellDetailTitle:SetText(safeName)
     UI.spellDetailMeta:SetText(string.format(
-        "%s |cff7f8794spell:%s  event:%s|r",
+        "%s %s",
         alertMarkup ~= "" and alertMarkup or "",
-        tostring(sid or "-"),
-        tostring(eid or "-")
+        COLOR.WrapText(COLOR.Text.Secondary, string.format("spell:%s  event:%s", tostring(sid or "-"), tostring(eid or "-")))
     ))
     UI.spellDetailCast:SetText(castLine or "")
     UI.spellDetailBody:SetText((bodyText and bodyText ~= "") and bodyText or L["暂无描述。"])
@@ -2802,7 +2786,7 @@ local function AcquireBossCard()
     b.activeBar:SetPoint("TOPLEFT", 0, 0)
     b.activeBar:SetPoint("BOTTOMLEFT", 0, 0)
     b.activeBar:SetWidth(3)
-    b.activeBar:SetColorTexture(0, 0.7, 1, 1)
+    b.activeBar:SetColorTexture(unpack(COLOR.Accent.Primary))
     b.activeBar:Hide()
 
     b.creature = CreateFrame("PlayerModel", nil, b)
@@ -2867,8 +2851,8 @@ local function AcquireSpellCard()
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    card:SetBackdropColor(0.06, 0.06, 0.08, 0.88)
-    card:SetBackdropBorderColor(0.25, 0.25, 0.28, 0.9)
+    card:SetBackdropColor(unpack(COLOR.Surface.Card))
+    card:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     card.leftBar = EXUI:CreateVisualTexture(card, EXBACKGROUNDFRAME)
     card.leftBar:SetWidth(4)
@@ -3010,7 +2994,7 @@ local function EnsureUI(leftFrame, contentFrame)
         mapTitle:SetPoint("TOPLEFT", UI.leftRoot, "TOPLEFT", 10, -10)
     end
     mapTitle:SetText(L["副本切换"])
-    mapTitle:SetTextColor(1, 0.82, 0.45)
+    mapTitle:SetTextColor(unpack(COLOR.Accent.Primary))
     mapTitle:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
 
     UI.mapScrollFrame = CreateFrame("ScrollFrame", nil, UI.leftRoot, "ScrollFrameTemplate")
@@ -3027,19 +3011,19 @@ local function EnsureUI(leftFrame, contentFrame)
 
     UI.mapEmptyText = EXUI:CreateVisualFontString(UI.mapScrollChild, EXFONTFRAME, "GameFontDisableSmall")
     UI.mapEmptyText:SetPoint("CENTER", 0, 0)
-    UI.mapEmptyText:SetTextColor(0.55, 0.55, 0.55)
+    UI.mapEmptyText:SetTextColor(unpack(COLOR.Text.Secondary))
     UI.mapEmptyText:SetText(L["该分类无副本数据"])
 
     local sep = EXUI:CreateVisualTexture(UI.leftRoot, EXBORDERFRAME)
     sep:SetHeight(1)
     sep:SetPoint("TOPLEFT", UI.mapScrollFrame, "BOTTOMLEFT", 6, -3)
     sep:SetPoint("TOPRIGHT", UI.mapScrollFrame, "BOTTOMRIGHT", -6, -3)
-    sep:SetColorTexture(1, 1, 1, 0.18)
+    sep:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
 
     local bossTitle = EXUI:CreateVisualFontString(UI.leftRoot, EXFONTFRAME, "GameFontNormal")
     bossTitle:SetPoint("TOPLEFT", sep, "BOTTOMLEFT", 4, -6)
     bossTitle:SetText(L["首领列表"])
-    bossTitle:SetTextColor(1, 0.82, 0.45)
+    bossTitle:SetTextColor(unpack(COLOR.Accent.Primary))
     bossTitle:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
 
     UI.bossScrollFrame = CreateFrame("ScrollFrame", nil, UI.leftRoot, "ScrollFrameTemplate")
@@ -3057,7 +3041,7 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.bossEmptyText:SetPoint("TOPLEFT", 8, -6)
     UI.bossEmptyText:SetPoint("RIGHT", -8, 0)
     UI.bossEmptyText:SetJustifyH("LEFT")
-    UI.bossEmptyText:SetTextColor(0.55, 0.55, 0.55)
+    UI.bossEmptyText:SetTextColor(unpack(COLOR.Text.Secondary))
     UI.bossEmptyText:SetText(L["当前副本暂无 BOSS 数据"])
 
     UI.rightRoot = CreateFrame("Frame", nil, contentFrame)
@@ -3072,7 +3056,7 @@ local function EnsureUI(leftFrame, contentFrame)
         UI.modeLabelText = EXUI:CreateVisualFontString(UI.titleControlHost, EXFONTFRAME, "GameFontNormal")
         UI.modeLabelText:SetPoint("RIGHT", UI.titleControlHost, "RIGHT", -196, 0)
         UI.modeLabelText:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
-        UI.modeLabelText:SetTextColor(0.95, 0.95, 0.95)
+        UI.modeLabelText:SetTextColor(unpack(COLOR.Text.Primary))
         UI.modeLabelText:SetText(L["轴模式"])
     end
 
@@ -3123,20 +3107,20 @@ local function EnsureUI(leftFrame, contentFrame)
             edgeSize = 1,
             insets = { left = 1, right = 1, top = 1, bottom = 1 },
         })
-        b:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
-        b:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.95)
+        b:SetBackdropColor(unpack(COLOR.Control.Button.Secondary.Fill))
+        b:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.Border))
         b.text = EXUI:CreateVisualFontString(b, EXFONTFRAME, "GameFontNormal")
         b.text:SetPoint("CENTER", 0, 0)
         b.text:SetFont(ExwindTools.MAIN_FONT, 13, "OUTLINE")
         b.text:SetText(text or "")
         b:SetScript("OnEnter", function(self)
-            self:SetBackdropBorderColor(0.1, 0.8, 1, 1)
+            self:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.HoverBorder))
         end)
         b:SetScript("OnLeave", function(self)
             if self._previewActive == true then
-                self:SetBackdropBorderColor(1, 0.35, 0.15, 0.95)
+                self:SetBackdropBorderColor(unpack(COLOR.Control.Button.Danger.Border))
             else
-                self:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.95)
+                self:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.Border))
             end
         end)
         return b
@@ -3163,9 +3147,8 @@ local function EnsureUI(leftFrame, contentFrame)
         UI.modeTestStopBtn._previewActive = running == true
         UI.modeTestStartBtn.text:SetText(L["测开"])
         UI.modeTestStopBtn.text:SetText(L["测关"])
-        UI.modeTestStartBtn:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.95)
-        UI.modeTestStopBtn:SetBackdropBorderColor(running and 1 or 0.35, running and 0.35 or 0.35,
-            running and 0.15 or 0.35, 0.95)
+        UI.modeTestStartBtn:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.Border))
+        UI.modeTestStopBtn:SetBackdropBorderColor(unpack(running and COLOR.Control.Button.Danger.Border or COLOR.Control.Button.Secondary.Border))
     end
 
     UI.modeTestStartBtn:SetScript("OnClick", function()
@@ -3199,8 +3182,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellSettingsFrame:SetBackdropColor(0.03, 0.04, 0.06, 0.92)
-    UI.spellSettingsFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    UI.spellSettingsFrame:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    UI.spellSettingsFrame:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     UI.spellDetailHeader = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")
     UI.spellDetailHeader:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
@@ -3214,8 +3197,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellDetailHeader:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
-    UI.spellDetailHeader:SetBackdropBorderColor(0.22, 0.22, 0.28, 1)
+    UI.spellDetailHeader:SetBackdropColor(unpack(COLOR.Surface.PanelHeader))
+    UI.spellDetailHeader:SetBackdropBorderColor(unpack(COLOR.Border.Default))
     UI.spellDetailHeader._exDetailLayoutWidth = 0
     UI.spellDetailHeader._exDetailLayoutPending = false
     UI.spellDetailHeader:SetScript("OnSizeChanged", function(self, width)
@@ -3245,11 +3228,11 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailAccent:SetPoint("TOPLEFT", UI.spellDetailHeader, "TOPLEFT", 1, -1)
     UI.spellDetailAccent:SetHeight(2)
     UI.spellDetailAccent:SetWidth(180)
-    UI.spellDetailAccent:SetColorTexture(1.00, 0.82, 0.22, 0.95)
+    UI.spellDetailAccent:SetColorTexture(unpack(COLOR.Accent.Primary))
 
     UI.spellDetailPlaceholder = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontDisableSmall")
     UI.spellDetailPlaceholder:SetPoint("CENTER", 0, 0)
-    UI.spellDetailPlaceholder:SetTextColor(0.55, 0.55, 0.6)
+    UI.spellDetailPlaceholder:SetTextColor(unpack(COLOR.Text.Secondary))
     UI.spellDetailPlaceholder:SetText(L["点击上方法术卡片后，可在此查看法术描述。"])
 
     UI.spellDetailIcon = EXUI:CreateVisualTexture(UI.spellDetailHeader, EXBASEFRAME)
@@ -3262,21 +3245,21 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailTitle:SetJustifyH("LEFT")
     UI.spellDetailTitle:SetWordWrap(false)
     UI.spellDetailTitle:SetFont(ExwindTools.MAIN_FONT, 23, "OUTLINE")
-    UI.spellDetailTitle:SetTextColor(1, 0.95, 0.55)
+    UI.spellDetailTitle:SetTextColor(unpack(COLOR.Text.Primary))
 
     UI.spellDetailMeta = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontHighlight")
     UI.spellDetailMeta:SetPoint("LEFT", UI.spellDetailTitle, "RIGHT", 10, 0)
     UI.spellDetailMeta:SetJustifyH("LEFT")
     UI.spellDetailMeta:SetWordWrap(false)
     UI.spellDetailMeta:SetFont(ExwindTools.MAIN_FONT, 16, "")
-    UI.spellDetailMeta:SetTextColor(0.55, 0.57, 0.62)
+    UI.spellDetailMeta:SetTextColor(unpack(COLOR.Text.Secondary))
 
     UI.spellDetailCast = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontNormal")
     UI.spellDetailCast:SetPoint("TOPLEFT", UI.spellDetailTitle, "BOTTOMLEFT", 0, -2)
     UI.spellDetailCast:SetPoint("RIGHT", UI.spellDetailHeader, "RIGHT", -18, 0)
     UI.spellDetailCast:SetJustifyH("LEFT")
     UI.spellDetailCast:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
-    UI.spellDetailCast:SetTextColor(0.92, 0.92, 0.95)
+    UI.spellDetailCast:SetTextColor(unpack(COLOR.Text.Primary))
 
     -- 正文独立滚动；标题、射程/施法时间和测试控件始终固定在信息卡上。
     UI.spellDetailBodyScroll = CreateFrame("ScrollFrame", nil, UI.spellDetailHeader, "ScrollFrameTemplate")
@@ -3305,7 +3288,7 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailDivider:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 14, 10)
     UI.spellDetailDivider:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "BOTTOMRIGHT", -14, 10)
     UI.spellDetailDivider:SetHeight(1)
-    UI.spellDetailDivider:SetColorTexture(1, 1, 1, 0.14)
+    UI.spellDetailDivider:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
     UI.spellDetailDivider:Hide()
 
     UI.spellSettingsGridScroll = CreateFrame("ScrollFrame", nil, UI.spellSettingsFrame, "ScrollFrameTemplate")
@@ -3420,7 +3403,7 @@ UpdateSummary = function()
     local mapName = selectedMapID and GetMapDisplayName(selectedMapID) or L["未选择副本"]
     local boss = GetCurrentBoss()
     if not boss then
-        UI.summaryText:SetText(string.format("|cffffd100[%s]|r  %s", tostring(selectedSeason or "-"), mapName))
+        UI.summaryText:SetText(COLOR.WrapText(COLOR.Status.Gold, "[" .. tostring(selectedSeason or "-") .. "]") .. "  " .. mapName)
         return
     end
 
@@ -3429,14 +3412,14 @@ UpdateSummary = function()
     local overrideMode = encounterID and GetEncounterModeOverride(encounterID) or "auto"
     local effectiveMode = encounterID and ResolveEffectiveMode(encounterID) or "blizzard"
     UI.summaryText:SetText(string.format(
-        "|cffffd100[%s]|r  %s  >  %s  |  %s: |cff00ffcc%d|r  |  %s: |cffffff99%s|r (%s: %s)",
-        tostring(selectedSeason or "-"),
+        "%s  %s  >  %s  |  %s: %s  |  %s: %s (%s: %s)",
+        COLOR.WrapText(COLOR.Status.Gold, "[" .. tostring(selectedSeason or "-") .. "]"),
         mapName,
         tostring(boss.name or L["未知首领"]),
         L["技能数"],
-        #events,
+        COLOR.WrapText(COLOR.Status.Success, #events),
         L["轴"],
-        GetModeDisplay(overrideMode),
+        COLOR.WrapText(COLOR.Status.Warning, GetModeDisplay(overrideMode)),
         L["生效"],
         GetModeDisplay(effectiveMode)
     ))
@@ -4183,9 +4166,9 @@ RefreshSpellCards = function()
         local borderR, borderG, borderB = ResolveVoiceEventBorderColor(eventID)
         if borderR == nil or borderG == nil or borderB == nil then
             borderR, borderG, borderB =
-                C.DEFAULT_EVENT_BORDER_COLOR.r,
-                C.DEFAULT_EVENT_BORDER_COLOR.g,
-                C.DEFAULT_EVENT_BORDER_COLOR.b
+                COLOR.Border.Interactive[1],
+                COLOR.Border.Interactive[2],
+                COLOR.Border.Interactive[3]
         end
 
         local col = (index - 1) % C.SPELL_CARD.cols
@@ -4241,7 +4224,7 @@ RefreshSpellCards = function()
         local disableText = ""
         if not spellEnabled then
             if override and override.enabled == false then
-                disableText = " |cffff6666[" .. L["已禁用"] .. "]|r"
+                disableText = " " .. COLOR.WrapText(COLOR.Status.Error, "[" .. L["已禁用"] .. "]")
             end
         end
         SetAdaptiveSpellCardTitle(card, string.format("%s%s", tostring(displayName), disableText))
@@ -4264,13 +4247,13 @@ RefreshSpellCards = function()
             local bg = Clamp01(self._borderG, 0.35)
             local bb = Clamp01(self._borderB, 0.35)
             if self._selected then
-                self:SetBackdropColor(0.08, 0.18, 0.30, 0.95)
+                self:SetBackdropColor(unpack(COLOR.Control.Menu.Selected))
                 self:SetBackdropBorderColor(Clamp01(br * 1.15, 1), Clamp01(bg * 1.15, 1), Clamp01(bb * 1.15, 1), 1)
             elseif self._hovered then
-                self:SetBackdropColor(0.08, 0.08, 0.12, 0.82)
+                self:SetBackdropColor(unpack(COLOR.Control.Menu.Hover))
                 self:SetBackdropBorderColor(Clamp01(br * 1.08, 1), Clamp01(bg * 1.08, 1), Clamp01(bb * 1.08, 1), 1)
             else
-                self:SetBackdropColor(0, 0, 0, 0.5)
+                self:SetBackdropColor(unpack(COLOR.Surface.Card))
                 self:SetBackdropBorderColor(br, bg, bb, 1)
             end
         end
@@ -4386,20 +4369,20 @@ RefreshBossList = function(resetScroll)
         local selected = self._selected
         local hovered = self._hovered
         if selected then
-            self:SetBackdropColor(0.1, 0.4, 0.8, 0.3)
-            self:SetBackdropBorderColor(0, 0.8, 1, 1)
+            self:SetBackdropColor(unpack(COLOR.Control.Menu.Selected))
+            self:SetBackdropBorderColor(unpack(COLOR.Accent.Primary))
             self.activeBar:Show()
-            self.nameText:SetTextColor(1, 0.86, 0.48)
+            self.nameText:SetTextColor(unpack(COLOR.Text.Primary))
         elseif hovered then
-            self:SetBackdropColor(0.08, 0.08, 0.08, 0.88)
-            self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+            self:SetBackdropColor(unpack(COLOR.Surface.PanelHeaderHover))
+            self:SetBackdropBorderColor(unpack(COLOR.Border.Hover))
             self.activeBar:Hide()
-            self.nameText:SetTextColor(0.95, 0.95, 0.95)
+            self.nameText:SetTextColor(unpack(COLOR.Text.PanelTitleHover))
         else
-            self:SetBackdropColor(0.04, 0.04, 0.04, 0.8)
-            self:SetBackdropBorderColor(0.38, 0.38, 0.38, 0.95)
+            self:SetBackdropColor(unpack(COLOR.Surface.Card))
+            self:SetBackdropBorderColor(unpack(COLOR.Border.Default))
             self.activeBar:Hide()
-            self.nameText:SetTextColor(0.82, 0.66, 0.46)
+            self.nameText:SetTextColor(unpack(COLOR.Text.Secondary))
         end
     end
 
@@ -4648,24 +4631,24 @@ RefreshMapTabs = function(resetScroll)
         local selected = tonumber(self.mapID) == tonumber(selectedMapID)
         local hovered = self._hovered
         -- 外层按钮完全透明；选中和 hover 只作用于图标方框。
-        self:SetBackdropColor(0, 0, 0, 0)
-        self:SetBackdropBorderColor(0, 0, 0, 0)
+        self:SetBackdropColor(unpack(COLOR.Transparent))
+        self:SetBackdropBorderColor(unpack(COLOR.Border.Transparent))
         if selected then
-            self.iconFrame:SetBackdropColor(0.20, 0.43, 0.75, 0.95)
+            self.iconFrame:SetBackdropColor(unpack(COLOR.Accent.CheckboxSelected))
             -- 选中只改变填充色，仍保留原本的白色图标描边。
-            self.iconFrame:SetBackdropBorderColor(0.76, 0.80, 0.90, 1)
+            self.iconFrame:SetBackdropBorderColor(unpack(COLOR.Accent.Primary))
             self.icon:SetDesaturated(false)
-            self.text:SetTextColor(1, 0.85, 0.35)
+            self.text:SetTextColor(unpack(COLOR.Text.Primary))
         elseif hovered then
-            self.iconFrame:SetBackdropColor(0.18, 0.21, 0.32, 0.95)
-            self.iconFrame:SetBackdropBorderColor(0.82, 0.86, 0.96, 1)
+            self.iconFrame:SetBackdropColor(unpack(COLOR.Surface.PanelHeaderHover))
+            self.iconFrame:SetBackdropBorderColor(unpack(COLOR.Border.Hover))
             self.icon:SetDesaturated(false)
-            self.text:SetTextColor(0.95, 0.95, 0.95)
+            self.text:SetTextColor(unpack(COLOR.Text.PanelTitleHover))
         else
-            self.iconFrame:SetBackdropColor(0.15, 0.18, 0.28, 0.95)
-            self.iconFrame:SetBackdropBorderColor(0.76, 0.80, 0.90, 1)
+            self.iconFrame:SetBackdropColor(unpack(COLOR.Surface.Card))
+            self.iconFrame:SetBackdropBorderColor(unpack(COLOR.Border.Default))
             self.icon:SetDesaturated(true)
-            self.text:SetTextColor(0.75, 0.75, 0.78)
+            self.text:SetTextColor(unpack(COLOR.Text.Secondary))
         end
     end
 

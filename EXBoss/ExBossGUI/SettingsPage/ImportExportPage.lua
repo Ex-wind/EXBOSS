@@ -5,6 +5,7 @@
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 
 ExBoss.UI.Panel.ImportExportPage = ExBoss.UI.Panel.ImportExportPage or {}
 local Page = ExBoss.UI.Panel.ImportExportPage
@@ -15,11 +16,6 @@ local BACKDROP = {
     tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 },
 }
 local BACKDROP_SIMPLE = { bgFile = "Interface\\Buttons\\WHITE8X8" }
-local THEME = {
-    Background = { 0.04, 0.04, 0.05, 0.98 }, Border = { 0.25, 0.25, 0.28, 1 },
-    Primary = { 0.64, 0.19, 0.79 }, Success = { 0.13, 0.77, 0.37 },
-    TextMain = { 0.9, 0.9, 0.9, 1 }, TextSub = { 0.6, 0.6, 0.65, 1 },
-}
 local ROLE_LABELS = {
     mplus_tank = L["大秘境坦克"], mplus_heal = L["大秘境治疗"], mplus_dps = L["大秘境 DPS"],
     raid_tank = L["团本坦克"], raid_heal = L["团本治疗"], raid_dps = L["团本 DPS"],
@@ -38,25 +34,23 @@ end
 
 local function CreateSmallButton(parent, text, onClick)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(0.2, 0.2, 0.25, 0.9)
+    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(unpack(COLOR.Surface.Card))
     local label = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormal")
-    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(THEME.TextMain))
+    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(COLOR.Text.Primary))
     button:SetScript("OnClick", onClick)
-    button:SetScript("OnEnter", function(self) self:SetBackdropColor(0.3, 0.3, 0.35, 0.95) end)
-    button:SetScript("OnLeave", function(self) self:SetBackdropColor(0.2, 0.2, 0.25, 0.9) end)
+    button:SetScript("OnEnter", function(self) self:SetBackdropColor(unpack(COLOR.Surface.ControlHover)) end)
+    button:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(COLOR.Surface.Card)) end)
     return button
 end
 
 local function CreateActionButton(parent, text, onClick, color)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    local base = color or THEME.Primary
-    button:SetSize(180, 40); button:SetBackdrop(BACKDROP); button:SetBackdropColor(unpack(base)); button:SetBackdropBorderColor(0.5, 0.5, 0.55, 0.8)
+    local base = color or COLOR.Accent.Primary
+    button:SetSize(180, 40); button:SetBackdrop(BACKDROP); button:SetBackdropColor(unpack(base)); button:SetBackdropBorderColor(unpack(COLOR.Border.Interactive))
     local label = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormal")
-    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(1, 1, 1, 1)
+    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(COLOR.White))
     button:SetScript("OnClick", onClick)
-    button:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(math.min(1, base[1] * 1.3), math.min(1, base[2] * 1.3), math.min(1, base[3] * 1.3), 1)
-    end)
+    button:SetScript("OnEnter", function(self) self:SetBackdropColor(unpack(COLOR.Accent.PrimaryHover)) end)
     button:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(base)) end)
     return button
 end
@@ -70,12 +64,12 @@ end
 
 local function StyleInput(control)
     if control and control.SetBackdropColor then
-        control:SetBackdropColor(0.10, 0.11, 0.16, 0.96)
-        control:SetBackdropBorderColor(0.48, 0.52, 0.66, 0.95)
+        control:SetBackdropColor(unpack(COLOR.Control.Input.Fill))
+        control:SetBackdropBorderColor(unpack(COLOR.Control.Input.Border))
     end
     local edit = GetNativeEditBox(control)
     if edit and edit.SetTextColor then
-        edit:SetTextColor(0.92, 0.94, 0.99, 1)
+        edit:SetTextColor(unpack(COLOR.Control.Input.Text))
     end
     return control
 end
@@ -101,7 +95,7 @@ local function ShowExportPopup(encoded, name)
     if not exportPopup then
         local popup = CreateFrame("Frame", "ExBoss_ExportPopup", UIParent, "BackdropTemplate")
         popup:SetSize(600, 350); popup:SetPoint("CENTER"); popup:SetFrameStrata("FULLSCREEN_DIALOG")
-        popup:SetBackdrop(BACKDROP); popup:SetBackdropColor(0.06, 0.06, 0.08, 0.98); popup:SetBackdropBorderColor(unpack(THEME.Border))
+        popup:SetBackdrop(BACKDROP); popup:SetBackdropColor(unpack(COLOR.Surface.Panel)); popup:SetBackdropBorderColor(unpack(COLOR.Border.Default))
         popup:EnableMouse(true); popup:SetMovable(true); popup:RegisterForDrag("LeftButton")
         popup:SetScript("OnDragStart", popup.StartMoving); popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
         if not tContains(UISpecialFrames, "ExBoss_ExportPopup") then table.insert(UISpecialFrames, "ExBoss_ExportPopup") end
@@ -109,7 +103,7 @@ local function ShowExportPopup(encoded, name)
         title:SetFont(ExwindTools.MAIN_FONT or "Fonts\\FRIZQT__.TTF", 22, "OUTLINE"); title:SetPoint("TOP", 0, -15); popup.Title = title
         local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -5, -5); close:SetScript("OnClick", function() popup:Hide() end)
         local hint = EXUI:CreateVisualFontString(popup, EXFONTFRAME, "GameFontHighlight")
-        hint:SetPoint("TOP", title, "BOTTOM", 0, -8); hint:SetTextColor(0.8, 0.8, 0.8); hint:SetText("|cffffd100Ctrl+C|r " .. L["复制，或点击"] .. " |cffffd100" .. L["全选复制"] .. "|r")
+        hint:SetPoint("TOP", title, "BOTTOM", 0, -8); hint:SetTextColor(unpack(COLOR.Text.Secondary)); hint:SetText(COLOR.WrapText(COLOR.Status.Gold, "Ctrl+C") .. " " .. L["复制，或点击"] .. " " .. COLOR.WrapText(COLOR.Status.Gold, L["全选复制"]))
         popup.ExportTextInput = CreateMultiLineEditBox(popup, 560, 200)
         popup.ExportTextInput:SetPoint("TOP", hint, "BOTTOM", 0, -10)
         local selectButton = CreateSmallButton(popup, L["全选复制"], function() FocusAndHighlight(popup.ExportTextInput) end)
@@ -119,15 +113,15 @@ local function ShowExportPopup(encoded, name)
         exportPopup = popup
     end
     exportPopup.ExportTextInput:SetText(encoded or "")
-    exportPopup.Title:SetText("|cff00ff80" .. L["导出成功"] .. "|r - " .. tostring(name or ""))
+    exportPopup.Title:SetText(COLOR.WrapText(COLOR.Status.Success, L["导出成功"]) .. " - " .. tostring(name or ""))
     exportPopup:Show(); FocusAndHighlight(exportPopup.ExportTextInput)
 end
 
 local function SectionBg(parent, title, color)
     local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetBackdrop(BACKDROP); frame:SetBackdropColor(unpack(THEME.Background)); frame:SetBackdropBorderColor(unpack(THEME.Border))
+    frame:SetBackdrop(BACKDROP); frame:SetBackdropColor(unpack(COLOR.Surface.Card)); frame:SetBackdropBorderColor(unpack(COLOR.Border.Default))
     local bar = EXUI:CreateVisualTexture(frame, EXBORDERFRAME)
-    bar:SetColorTexture(color[1], color[2], color[3], 0.90); bar:SetHeight(2); bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6); bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
+    bar:SetColorTexture(unpack(color)); bar:SetHeight(2); bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6); bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
     local heading = EXUI:CreateVisualFontString(frame, EXFONTFRAME)
     heading:SetFont(ExwindTools.MAIN_FONT or "Fonts\\FRIZQT__.TTF", 16, "OUTLINE"); heading:SetPoint("TOPLEFT", 14, -14); heading:SetText(title); heading:SetTextColor(unpack(color))
     return frame
@@ -135,7 +129,7 @@ end
 
 local function MakeLabel(parent, text)
     local label = EXUI:CreateVisualFontString(parent, EXFONTFRAME, "GameFontHighlightSmall")
-    label:SetText(text or ""); label:SetTextColor(unpack(THEME.TextSub)); label:SetJustifyH("LEFT")
+    label:SetText(text or ""); label:SetTextColor(unpack(COLOR.Text.Secondary)); label:SetJustifyH("LEFT")
     return label
 end
 
@@ -149,8 +143,8 @@ end
 
 local function SetStatus(target, text, ok)
     if not target then return end
-    local color = ok == true and "|cff33ee77" or ok == false and "|cffff6666" or "|cffbfc8d6"
-    target:SetText(color .. tostring(text or "") .. "|r")
+    local color = ok == true and COLOR.Status.Success or ok == false and COLOR.Status.Error or COLOR.Text.Secondary
+    target:SetText(COLOR.WrapText(color, text))
 end
 
 local function IsChecked(check)
@@ -622,7 +616,7 @@ local function EnsureUI(contentFrame)
     local columnWidth = math.floor((width - 20) / 2) - 6
     local defaultMplus, defaultRaid = DefaultExportChecks()
 
-    local exportSection = SectionBg(scrollChild, L["导出"], THEME.Primary)
+    local exportSection = SectionBg(scrollChild, L["导出"], COLOR.Accent.Primary)
     exportSection:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, -16); exportSection:SetWidth(columnWidth); exportSection:SetHeight(700)
     local y = -42
     MakeLabel(exportSection, L["导出包名称（可选，供接收方识别）"]):SetPoint("TOPLEFT", 14, y); y = y - 20
@@ -641,19 +635,19 @@ local function EnsureUI(contentFrame)
     local exportButton = CreateActionButton(exportSection, L["生成导出字符串"], ExportBundle)
     exportButton:SetSize(170, 38); exportButton:SetPoint("TOPLEFT", 14, y); y = y - 52
     exportStatus = EXUI:CreateVisualFontString(exportSection, EXFONTFRAME, "GameFontHighlightSmall")
-    exportStatus:SetPoint("TOPLEFT", 14, y); exportStatus:SetPoint("TOPRIGHT", -14, y); exportStatus:SetJustifyH("LEFT"); exportStatus:SetJustifyV("TOP"); exportStatus:SetTextColor(unpack(THEME.TextSub))
+    exportStatus:SetPoint("TOPLEFT", 14, y); exportStatus:SetPoint("TOPRIGHT", -14, y); exportStatus:SetJustifyH("LEFT"); exportStatus:SetJustifyV("TOP"); exportStatus:SetTextColor(unpack(COLOR.Text.Secondary))
     exportStatus:SetText(L["Boss 配置始终按「Author + 对应 User 覆盖」成对导出。相同 Author 只会导出一次，并附带职责启用映射。"])
 
-    importSection = SectionBg(scrollChild, L["导入"], THEME.Success)
+    importSection = SectionBg(scrollChild, L["导入"], COLOR.Accent.Primary)
     importSection:SetPoint("TOPLEFT", exportSection, "TOPRIGHT", 20, 0); importSection:SetWidth(columnWidth); importSection:SetHeight(700)
     local iy = -42
     MakeLabel(importSection, L["粘贴导出字符串"]):SetPoint("TOPLEFT", 14, iy); iy = iy - 20
     importInputBox = CreateMultiLineEditBox(importSection, columnWidth - 28, 110)
     importInputBox:SetPoint("TOPLEFT", 14, iy); iy = iy - 122
-    local parse = CreateActionButton(importSection, L["解析"], ParseImport, THEME.Success)
+    local parse = CreateActionButton(importSection, L["解析"], ParseImport, COLOR.Status.Success)
     parse:SetSize(100, 32); parse:SetPoint("TOPLEFT", 14, iy); iy = iy - 46
     importSummary = EXUI:CreateVisualFontString(importSection, EXFONTFRAME, "GameFontHighlightSmall")
-    importSummary:SetPoint("TOPLEFT", 14, iy); importSummary:SetPoint("TOPRIGHT", -14, iy); importSummary:SetJustifyH("LEFT"); importSummary:SetJustifyV("TOP"); importSummary:SetTextColor(unpack(THEME.TextMain)); importSummary:SetText("")
+    importSummary:SetPoint("TOPLEFT", 14, iy); importSummary:SetPoint("TOPRIGHT", -14, iy); importSummary:SetJustifyH("LEFT"); importSummary:SetJustifyV("TOP"); importSummary:SetTextColor(unpack(COLOR.Text.Primary)); importSummary:SetText("")
     importSummary._lineCount = 0
     iy = iy - 70
     importAppearanceCheck = EXUI:CreateCheckbox(importSection, L["导入并启用外观配置"], true, RefreshImportNameRows)
@@ -666,12 +660,12 @@ local function EnsureUI(contentFrame)
         check:SetPoint("TOPLEFT", 14, iy); iy = iy - 25
         importRoleChecks[slot] = check
     end
-    importButton = CreateActionButton(importSection, L["执行导入"], DoImport, THEME.Success)
+    importButton = CreateActionButton(importSection, L["执行导入"], DoImport, COLOR.Status.Success)
     importButton:SetSize(140, 36); importButton:SetPoint("BOTTOMLEFT", 14, 46)
-    apiImportButton = CreateActionButton(importSection, L["测试：通过 Wago API 导入"], DoPublicAPIImport, THEME.Primary)
+    apiImportButton = CreateActionButton(importSection, L["测试：通过 Wago API 导入"], DoPublicAPIImport, COLOR.Accent.Primary)
     apiImportButton:SetSize(200, 36); apiImportButton:SetPoint("BOTTOMLEFT", 164, 46)
     importStatus = EXUI:CreateVisualFontString(importSection, EXFONTFRAME, "GameFontHighlightSmall")
-    importStatus:SetPoint("BOTTOMLEFT", 14, 16); importStatus:SetPoint("BOTTOMRIGHT", -14, 16); importStatus:SetJustifyH("LEFT"); importStatus:SetTextColor(unpack(THEME.TextSub)); importStatus:SetText("")
+    importStatus:SetPoint("BOTTOMLEFT", 14, 16); importStatus:SetPoint("BOTTOMRIGHT", -14, 16); importStatus:SetJustifyH("LEFT"); importStatus:SetTextColor(unpack(COLOR.Text.Secondary)); importStatus:SetText("")
 
     scrollChild:SetSize(width, 740)
     uiBuilt = true

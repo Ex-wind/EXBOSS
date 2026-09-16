@@ -4,6 +4,7 @@ ExBoss.UI.Panel.HomePage = ExBoss.UI.Panel.HomePage or {}
 local Page = ExBoss.UI.Panel.HomePage
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local EXUI = _G.ExwindTools and _G.ExwindTools.UI
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 
 do
     local zhCN = ExBoss.NewLocale and ExBoss:NewLocale("zhCN")
@@ -24,13 +25,6 @@ local scrollChild = nil
 local missingDepsText = nil
 local RefreshPage = nil
 local pageLayoutData = nil
-
-local THEME = {
-    gold = { 1.00, 0.82, 0.35 },
-    cyan = { 0.36, 0.82, 1.00 },
-    green = { 0.48, 0.92, 0.72 },
-    red = { 1.00, 0.36, 0.32 },
-}
 
 local VOICE_PACKS = {
     "夏一可(Yike)", "顾衣衿(Guyijin)", "砂糖悠鸣(SatouYumei)", "糖糖酱(Tangtangjiang)",
@@ -129,10 +123,10 @@ end
 
 local function BuildCreditsText()
     return table.concat({
-        "|cffffce45" .. L["插件作者"] .. "|r  EXWIND",
-        "|cffc8d6e5" .. L["开发协助"] .. "|r  @露露緹婭 @小海牛 @绿色歹人",
-        "|cffc8d6e5" .. L["测试协助"] .. "|r  @誓言 @苏苏 @明日奈奈子",
-        "|cff99aabb" .. L["额外感谢"] .. "|r  @野顾 @永恒 @shun @semage @硬玩复仇 @Sora @毛天使 @末城 @苏帕米",
+        COLOR.WrapText(COLOR.Accent.Primary, L["插件作者"]) .. "  EXWIND",
+        COLOR.WrapText(COLOR.Text.Primary, L["开发协助"]) .. "  @露露緹婭 @小海牛 @绿色歹人",
+        COLOR.WrapText(COLOR.Text.Primary, L["测试协助"]) .. "  @誓言 @苏苏 @明日奈奈子",
+        COLOR.WrapText(COLOR.Text.Secondary, L["额外感谢"]) .. "  @野顾 @永恒 @shun @semage @硬玩复仇 @Sora @毛天使 @末城 @苏帕米",
     }, "\n")
 end
 
@@ -212,12 +206,12 @@ end
 -- type="card" 当前只是 Grid 背景项，不自动拥有后续控件、回调或释放责任。
 local function BuildLayout()
     return {
-        { key = "card_locale", type = "card", x = 3, y = 7, w = 92, h = 30, title = L["界面语言"], desc = "", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
+        { key = "card_locale", type = "card", x = 3, y = 7, w = 92, h = 30, title = L["界面语言"], desc = "" },
         { key = "localeMode", type = "dropdown", x = 8, y = 16, w = 38, h = 4, label = "", items = LOCALE_OPTIONS, search = true },
         { key = "btn_reload_ui", type = "button", x = 50, y = 16, w = 25, h = 4, label = L["立即重载界面"], func = function() ReloadUI() end, frameLevelOffset = 8 },
         { key = "desc_locale_status", type = "description", x = 8, y = 23, w = 80, h = 9, label = BuildLocaleStatusText() },
 
-        { key = "card_on_dev", type = "card", x = 99, y = 7, w = 92, h = 30, title = "ON DEV", desc = "", accentColor = { r = THEME.gold[1], g = THEME.gold[2], b = THEME.gold[3], a = 1 } },
+        { key = "card_on_dev", type = "card", x = 99, y = 7, w = 92, h = 30, title = "ON DEV", desc = "" },
         { key = "desc_on_dev", type = "description", x = 105, y = 19, w = 80, h = 6, label = "ON DEV" },
     }
 end

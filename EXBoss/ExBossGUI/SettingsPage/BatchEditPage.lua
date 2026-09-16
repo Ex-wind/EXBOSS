@@ -3,6 +3,7 @@
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 
 ExBoss.UI.Panel.BatchEditPage = ExBoss.UI.Panel.BatchEditPage or {}
 local Page = ExBoss.UI.Panel.BatchEditPage
@@ -24,36 +25,26 @@ local function T(key)
     return key
 end
 
-local THEME = {
-    panel = { 0.055, 0.065, 0.090, 0.96 },
-    panel2 = { 0.040, 0.048, 0.070, 0.96 },
-    line = { 0.26, 0.30, 0.36, 0.78 },
-    gold = { 1.00, 0.82, 0.35, 1 },
-    cyan = { 0.36, 0.82, 1.00, 1 },
-    text = { 0.88, 0.90, 0.94, 1 },
-}
-
 local function Font(fs, size, color, flags)
     local font = (ExwindTools and ExwindTools.MAIN_FONT) or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
     fs:SetFont(font, size or 14, flags or "")
-    local c = color or THEME.text
-    fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+    fs:SetTextColor(unpack(color or COLOR.Text.Primary))
 end
 
 local function CreateCardFrame(parent, accentColor, titleText, bgColor)
     local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    local bg = bgColor or THEME.panel
+    local bg = bgColor or COLOR.Surface.Card
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
     })
-    frame:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1)
-    frame:SetBackdropBorderColor(THEME.line[1], THEME.line[2], THEME.line[3], THEME.line[4])
+    frame:SetBackdropColor(unpack(bg))
+    frame:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     frame.accent = EXUI:CreateVisualTexture(frame, EXBORDERFRAME)
     frame.accent:SetTexture("Interface\\Buttons\\WHITE8X8")
-    frame.accent:SetVertexColor(accentColor[1], accentColor[2], accentColor[3], 0.95)
+    frame.accent:SetVertexColor(unpack(accentColor))
     frame.accent:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
     frame.accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
     frame.accent:SetHeight(2)
@@ -1831,8 +1822,8 @@ function Page:Render(contentFrame)
 
     if not Page._cards then
         Page._cards = {
-            source = CreateCardFrame(sc, THEME.gold, T("把什么内容"), THEME.panel2),
-            target = CreateCardFrame(sc, THEME.cyan, T("变更为"), THEME.panel),
+            source = CreateCardFrame(sc, COLOR.Accent.Primary, T("把什么内容"), COLOR.Surface.Card),
+            target = CreateCardFrame(sc, COLOR.Accent.Primary, T("变更为"), COLOR.Surface.Card),
         }
         Page._cards.source:SetFrameLevel(sc:GetFrameLevel())
         Page._cards.target:SetFrameLevel(sc:GetFrameLevel())

@@ -2,6 +2,7 @@
 
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 
 local Page = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.BossPage
 if not Page then return end
@@ -21,23 +22,6 @@ Common._ui = UI
 -- 允许迁移外框几何与内容高度反馈，但虚拟列表保持固定视口，不能为自动高度展开全部 action。
 local LAYOUT = {}
 
--- 方案 A 的视觉令牌。这里只影响 Frame/Texture/FontString 的表现，AuraSound
--- 的 action ID、字段结构、SavedVariables 与运行时调用链均保持原样。
-local AURA_UI_THEME = {
-    canvas = { 0.027, 0.043, 0.067, 1.00 },       -- #070b11
-    panel = { 0.067, 0.090, 0.129, 0.98 },        -- #111721
-    panelDeep = { 0.039, 0.059, 0.086, 0.98 },    -- #0a0f16
-    panelHover = { 0.085, 0.110, 0.150, 0.98 },
-    ink = { 0.925, 0.898, 0.820, 1.00 },          -- #ece5d1
-    muted = { 0.612, 0.639, 0.686, 1.00 },        -- #9ca3af
-    line = { 0.847, 0.773, 0.545, 0.18 },
-    lineStrong = { 0.847, 0.773, 0.545, 0.38 },
-    gold = { 0.953, 0.788, 0.424, 1.00 },         -- #f3c96c
-    cyan = { 0.447, 0.847, 1.000, 1.00 },         -- #72d8ff
-    success = { 0.420, 0.900, 0.650, 1.00 },
-    danger = { 0.937, 0.498, 0.490, 1.00 },
-}
-
 local AURA_FLAT_BACKDROP = {
     bgFile = "Interface\\Buttons\\WHITE8X8",
     edgeFile = "Interface\\Buttons\\WHITE8X8",
@@ -47,36 +31,28 @@ local AURA_FLAT_BACKDROP = {
 
 local function SetAuraThemeText(fontString, color)
     if not (fontString and color) then return end
-    fontString:SetTextColor(color[1], color[2], color[3], color[4] or 1)
+    fontString:SetTextColor(unpack(color))
 end
 
 local function CreateAuraPrototypeButton(parent, width, height, label, callback)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
     button:SetSize(width, height)
     button:SetBackdrop(AURA_FLAT_BACKDROP)
-    button:SetBackdropColor(0.050, 0.064, 0.090, 0.98)
-    button:SetBackdropBorderColor(
-        AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-        AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-    )
+    button:SetBackdropColor(unpack(COLOR.Control.Button.Secondary.Fill))
+    button:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.Border))
     button.text = ExwindTools.UI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormalSmall")
     button.text:SetPoint("CENTER", button, "CENTER", 0, 0)
     button.text:SetText(label or "")
-    SetAuraThemeText(button.text, AURA_UI_THEME.ink)
+    SetAuraThemeText(button.text, COLOR.Control.Button.Secondary.Text)
     button:SetScript("OnEnter", function(frame)
-        frame:SetBackdropColor(0.090, 0.100, 0.120, 1.00)
-        frame:SetBackdropBorderColor(
-            AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3], 0.72
-        )
-        SetAuraThemeText(frame.text, AURA_UI_THEME.gold)
+        frame:SetBackdropColor(unpack(COLOR.Control.Button.Secondary.HoverFill))
+        frame:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.HoverBorder))
+        SetAuraThemeText(frame.text, COLOR.Control.Button.Secondary.HoverText)
     end)
     button:SetScript("OnLeave", function(frame)
-        frame:SetBackdropColor(0.050, 0.064, 0.090, 0.98)
-        frame:SetBackdropBorderColor(
-            AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-            AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-        )
-        SetAuraThemeText(frame.text, AURA_UI_THEME.ink)
+        frame:SetBackdropColor(unpack(COLOR.Control.Button.Secondary.Fill))
+        frame:SetBackdropBorderColor(unpack(COLOR.Control.Button.Secondary.Border))
+        SetAuraThemeText(frame.text, COLOR.Control.Button.Secondary.Text)
     end)
     button:SetScript("OnClick", callback)
     function button:SetText(text) self.text:SetText(text or "") end
@@ -151,10 +127,9 @@ local AURA_TYPE_LABELS = {
     debuff = L["减益"],
 }
 
-local AURA_TYPE_COLORS = {
-    buff = { 0.42, 0.90, 0.65 },
-    debuff = { 1.00, 0.38, 0.34 },
-}
+local function GetAuraTypeColor(auraType)
+    return auraType == "buff" and COLOR.Status.Success or COLOR.Status.Danger
+end
 
 local AURA_UNIT_LABELS = {
     player = L["玩家"],
@@ -162,11 +137,10 @@ local AURA_UNIT_LABELS = {
     enemy = L["怪物"],
 }
 
-local AURA_UNIT_COLORS = {
-    player = { 0.70, 0.84, 1.00 },
-    party = { 0.84, 0.66, 1.00 },
-    enemy = { 1.00, 0.70, 0.34 },
-}
+local function GetAuraUnitColor(unit)
+    if unit == "enemy" then return COLOR.Status.Warning end
+    return unit == "party" and COLOR.Text.Primary or COLOR.Status.Info
+end
 
 local AURA_TRIGGER_ITEMS = {
     { L["添加"], "added" },
@@ -182,11 +156,11 @@ local AURA_TRIGGER_LABELS = {
 
 -- 状态是规则表的重要扫描线索：新增绿、叠层黄、移除红。行首细条则由
 -- BUFF/DEBUFF 单独表达，避免一个颜色承担两种语义。
-local AURA_TRIGGER_COLORS = {
-    added = { 0.42, 0.95, 0.70 },
-    applicationsIncreased = { 1.00, 0.78, 0.24 },
-    removed = { 1.00, 0.38, 0.34 },
-}
+local function GetAuraTriggerColor(trigger)
+    if trigger == "applicationsIncreased" then return COLOR.Status.Warning end
+    if trigger == "removed" then return COLOR.Status.Danger end
+    return COLOR.Status.Success
+end
 
 local AURA_CATEGORY_LABELS = {
     uncategorized = L["未分类"],
@@ -199,9 +173,9 @@ local AURA_CATEGORY_LABELS = {
 -- 顶部快捷卡只是当前常用分类的入口，不是 AuraSound 分类的完整枚举。
 -- category 仍然是 action 自身的开放字符串，列表和编辑器会原样保留所有其他分类。
 local AURA_CATEGORY_SHORTCUTS = {
-    { key = "地板", label = L["地板"], hint = L["踩到可以规避的地板技能"], color = { 0.941, 0.733, 0.341 }, icon = 132886 },
-    { key = "错误", label = L["错误"], hint = L["漏断/没有转火等"], color = { 0.937, 0.498, 0.490 }, icon = 136243 },
-    { key = "坦克", label = L["坦克"], hint = L["所有与坦克相关的"], color = { 0.404, 0.780, 0.949 }, icon = 132341 },
+    { key = "地板", label = L["地板"], hint = L["踩到可以规避的地板技能"], color = COLOR.Status.Warning, icon = 132886 },
+    { key = "错误", label = L["错误"], hint = L["漏断/没有转火等"], color = COLOR.Status.Danger, icon = 136243 },
+    { key = "坦克", label = L["坦克"], hint = L["所有与坦克相关的"], color = COLOR.Status.Info, icon = 132341 },
 }
 local AURA_CATEGORY_SHORTCUTS_BY_KEY = {}
 for _, category in ipairs(AURA_CATEGORY_SHORTCUTS) do
@@ -606,20 +580,15 @@ end
 function Common.CreateAuraSoundVirtualRow(parent)
     local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     row:SetBackdrop(AURA_FLAT_BACKDROP)
-    row:SetBackdropColor(
-        AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2],
-        AURA_UI_THEME.panelDeep[3], AURA_UI_THEME.panelDeep[4]
-    )
-    row:SetBackdropBorderColor(0, 0, 0, 0)
+    row:SetBackdropColor(unpack(COLOR.Surface.Card))
+    row:SetBackdropBorderColor(unpack(COLOR.Border.Transparent))
     row:EnableMouse(true)
 
     row.bottomLine = row:CreateTexture(nil, "BORDER")
     row.bottomLine:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
     row.bottomLine:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
     row.bottomLine:SetHeight(1)
-    row.bottomLine:SetColorTexture(
-        AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.12
-    )
+    row.bottomLine:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
 
     -- 此勾选框只对应 action.enabled 这个既有叶子字段；不会新建 action、
     -- 改写分类或覆盖任何音效设置，保证列表内的快速开关不会丢用户数据。
@@ -651,7 +620,7 @@ function Common.CreateAuraSoundVirtualRow(parent)
     row.title = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontHighlight")
     row.title:SetJustifyH("LEFT")
     row.title:SetWordWrap(false)
-    SetAuraThemeText(row.title, AURA_UI_THEME.ink)
+    SetAuraThemeText(row.title, COLOR.Text.Primary)
 
     row.unit = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontNormalSmall")
     row.unit:SetJustifyH("LEFT")
@@ -672,24 +641,18 @@ function Common.CreateAuraSoundVirtualRow(parent)
 
     row.categoryPill = CreateFrame("Frame", nil, row, "BackdropTemplate")
     row.categoryPill:SetBackdrop(AURA_FLAT_BACKDROP)
-    row.categoryPill:SetBackdropColor(0.070, 0.078, 0.086, 0.94)
-    row.categoryPill:SetBackdropBorderColor(
-        AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.26
-    )
+    row.categoryPill:SetBackdropColor(unpack(COLOR.Surface.PanelHeader))
+    row.categoryPill:SetBackdropBorderColor(unpack(COLOR.Border.Default))
     row.categoryDot = row.categoryPill:CreateTexture(nil, "ARTWORK")
     row.categoryDot:SetSize(6, 6)
-    row.categoryDot:SetColorTexture(
-        AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3], 1.00
-    )
+    row.categoryDot:SetColorTexture(unpack(COLOR.Accent.Primary))
 
     -- 分类方框是 row 的子 Frame。标签必须属于该方框本身，才能位于其
     -- Backdrop 之上；此前挂在 row 上，视觉层级反而被方框背景覆盖。
     row.category = ExwindTools.UI:CreateVisualFontString(row.categoryPill, EXFONTFRAME, "GameFontNormalSmall")
     row.category:SetJustifyH("LEFT")
     row.category:SetWordWrap(false)
-    row.category:SetTextColor(
-        AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3]
-    )
+    row.category:SetTextColor(unpack(COLOR.Accent.Primary))
 
     row.auraType = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontNormalSmall")
     row.auraType:SetJustifyH("LEFT")
@@ -698,20 +661,17 @@ function Common.CreateAuraSoundVirtualRow(parent)
     row.trigger = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontNormalSmall")
     row.trigger:SetJustifyH("LEFT")
     row.trigger:SetWordWrap(false)
-    row.trigger:SetTextColor(0.42, 0.95, 0.70)
+    row.trigger:SetTextColor(unpack(COLOR.Status.Success))
 
     row.voice = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontNormalSmall")
     row.voice:SetJustifyH("LEFT")
     row.voice:SetWordWrap(false)
-    SetAuraThemeText(row.voice, AURA_UI_THEME.ink)
+    SetAuraThemeText(row.voice, COLOR.Text.Primary)
 
     LayoutAuraSoundColumns(row, row, 8)
 
     row:SetScript("OnEnter", function(frame)
-        frame:SetBackdropColor(
-            AURA_UI_THEME.panelHover[1], AURA_UI_THEME.panelHover[2],
-            AURA_UI_THEME.panelHover[3], AURA_UI_THEME.panelHover[4]
-        )
+        frame:SetBackdropColor(unpack(COLOR.Surface.PanelHeaderHover))
         local binding = frame._auraSoundBinding
         local spellID = binding and binding.item and tonumber(binding.item.spellID)
         if not spellID then return end
@@ -719,7 +679,7 @@ function Common.CreateAuraSoundVirtualRow(parent)
         if GameTooltip.SetSpellByID then GameTooltip:SetSpellByID(spellID) end
         local soundText = binding and binding.item and HasAuraSoundSelection(binding.item)
             and Common.GetAuraSoundDisplayName(binding.item) or L["未配置声音"]
-        GameTooltip:AddLine(L["播放的声音："] .. soundText, 0.48, 0.95, 0.72)
+        GameTooltip:AddLine(L["播放的声音："] .. soundText, COLOR.Status.Success[1], COLOR.Status.Success[2], COLOR.Status.Success[3])
         GameTooltip:Show()
     end)
     row:SetScript("OnLeave", function(frame)
@@ -751,42 +711,37 @@ function Common.RefreshAuraSoundVirtualRow(row)
     if type(item) ~= "table" then return end
     local hasSound = HasAuraSoundSelection(item)
     row.voice:SetText(hasSound and Common.GetAuraSoundDisplayName(item) or L["未配置声音"])
-    row.voice:SetTextColor(hasSound and 0.48 or 0.95, hasSound and 0.95 or 0.52, hasSound and 0.72 or 0.34)
+    row.voice:SetTextColor(unpack(hasSound and COLOR.Status.Success or COLOR.Status.Warning))
     row.category:SetText(Common.GetAuraSoundCategoryLabel(item.category))
     local categoryMeta = AURA_CATEGORY_SHORTCUTS_BY_KEY[tostring(item.category or "")]
-    local categoryColor = categoryMeta and categoryMeta.color or AURA_UI_THEME.gold
+    local categoryColor = categoryMeta and categoryMeta.color or COLOR.Accent.Primary
     if row.categoryDot then
-        row.categoryDot:SetColorTexture(categoryColor[1], categoryColor[2], categoryColor[3], 1.00)
+        row.categoryDot:SetColorTexture(unpack(categoryColor))
     end
     if row.categoryPill then
-        row.categoryPill:SetBackdropBorderColor(categoryColor[1], categoryColor[2], categoryColor[3], 0.34)
+        row.categoryPill:SetBackdropBorderColor(unpack(categoryColor))
     end
     -- 分类名与前方色块和边框使用同一颜色；保持满不透明度，
     -- 让弹窗背景被压暗时文字仍能清楚辨认。
-    row.category:SetTextColor(categoryColor[1], categoryColor[2], categoryColor[3], 1.00)
+    row.category:SetTextColor(unpack(categoryColor))
     row.category:SetAlpha(1.00)
     local unit, auraType = GetAuraSoundTarget(item)
-    local unitColor = AURA_UNIT_COLORS[unit] or AURA_UNIT_COLORS.player
+    local unitColor = GetAuraUnitColor(unit)
     row.unit:SetText(Common.GetAuraSoundUnitLabel(item))
-    row.unit:SetTextColor(unitColor[1], unitColor[2], unitColor[3])
-    local auraTypeColor = AURA_TYPE_COLORS[auraType] or AURA_TYPE_COLORS.debuff
+    row.unit:SetTextColor(unpack(unitColor))
+    local auraTypeColor = GetAuraTypeColor(auraType)
     row.auraType:SetText(AURA_TYPE_LABELS[auraType] or L["减益"])
-    row.auraType:SetTextColor(auraTypeColor[1], auraTypeColor[2], auraTypeColor[3], 1.00)
+    row.auraType:SetTextColor(unpack(auraTypeColor))
     local trigger = tostring(item.trigger or "added")
-    local color = AURA_TRIGGER_COLORS[trigger] or AURA_TRIGGER_COLORS.added
+    local color = GetAuraTriggerColor(trigger)
     row.trigger:SetText(Common.GetAuraSoundTriggerLabel(trigger))
-    row.trigger:SetTextColor(color[1], color[2], color[3])
+    row.trigger:SetTextColor(unpack(color))
     local enabled = item.enabled ~= false
     if row.check then row.check:SetChecked(enabled) end
     -- 不再降低整行父级透明度，否则分类胶囊也会被连带压暗。未启用状态
     -- 只弱化名称、图标、声音和操作按钮，分类文字始终保持清晰。
     row:SetAlpha(1.00)
-    row.title:SetTextColor(
-        enabled and AURA_UI_THEME.ink[1] or AURA_UI_THEME.muted[1],
-        enabled and AURA_UI_THEME.ink[2] or AURA_UI_THEME.muted[2],
-        enabled and AURA_UI_THEME.ink[3] or AURA_UI_THEME.muted[3],
-        1.00
-    )
+    row.title:SetTextColor(unpack(enabled and COLOR.Text.Primary or COLOR.Text.Disabled))
     row.icon:SetAlpha(enabled and 1.00 or 0.52)
     row.voice:SetAlpha(enabled and 1.00 or 0.68)
     row.preview:SetAlpha(enabled and 1.00 or 0.62)
@@ -813,11 +768,9 @@ function Common.BindAuraSoundVirtualRow(row, item, index, context)
     }
     -- 方案 A 用统一深色行与极轻的交替变化；分类由胶囊承担识别，不再使用
     -- 彩色行首竖条，避免长列表重新变成彩虹表。
-    local backdrop = index % 2 == 0
-        and { 0.039, 0.059, 0.086, 0.98 }
-        or { 0.047, 0.066, 0.092, 0.98 }
+    local backdrop = index % 2 == 0 and COLOR.Surface.Card or COLOR.Surface.PanelHeader
     row._auraSoundRowColor = backdrop
-    row:SetBackdropColor(backdrop[1], backdrop[2], backdrop[3], backdrop[4])
+    row:SetBackdropColor(unpack(backdrop))
     -- VirtualList 的可视行在创建时可能还未拿到最终宽度；每次绑定后重算，
     -- 满宽面板才能把新增空间真实分配给名称与声音列。
     LayoutAuraSoundColumns(row, row, 8)
@@ -1049,22 +1002,17 @@ function Common.EnsureAuraSoundHeaderRenderer()
             if not host._auraSoundHeader then
                 host._auraSoundHeaderBackground = host:CreateTexture(nil, "BACKGROUND")
                 host._auraSoundHeaderBackground:SetAllPoints(host)
-                host._auraSoundHeaderBackground:SetColorTexture(
-                    AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2],
-                    AURA_UI_THEME.panelDeep[3], AURA_UI_THEME.panelDeep[4]
-                )
+                host._auraSoundHeaderBackground:SetColorTexture(unpack(COLOR.Surface.Card))
                 host._auraSoundHeaderLine = host:CreateTexture(nil, "BORDER")
                 host._auraSoundHeaderLine:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
                 host._auraSoundHeaderLine:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
                 host._auraSoundHeaderLine:SetHeight(1)
-                host._auraSoundHeaderLine:SetColorTexture(
-                    AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.24
-                )
+                host._auraSoundHeaderLine:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
                 local function CreateHeaderText()
                     local fs = ExwindTools.UI:CreateVisualFontString(host, EXFONTFRAME, "GameFontHighlight")
                     fs:SetJustifyH("LEFT")
                     fs:SetWordWrap(false)
-                    SetAuraThemeText(fs, AURA_UI_THEME.muted)
+                    SetAuraThemeText(fs, COLOR.Text.Secondary)
                     return fs
                 end
                 host._auraSoundHeader = {
@@ -1236,37 +1184,23 @@ end
 
 local function RefreshAuraSoundCategoryCardStyle(card)
     if not card then return end
-    local color = card._auraSoundCategoryColor or AURA_UI_THEME.gold
+    local color = card._auraSoundCategoryColor or COLOR.Accent.Primary
     local selected = card._auraSoundCategorySelected == true
     local hovered = card._auraSoundCategoryHovered == true
-    local strength = selected and 0.105 or hovered and 0.070 or 0.035
-    card:SetBackdropColor(
-        AURA_UI_THEME.panel[1] + color[1] * strength,
-        AURA_UI_THEME.panel[2] + color[2] * strength,
-        AURA_UI_THEME.panel[3] + color[3] * strength,
-        0.98
-    )
-    local borderAlpha = selected and 0.88 or hovered and 0.58 or 0.30
-    card:SetBackdropBorderColor(color[1], color[2], color[3], borderAlpha)
+    card:SetBackdropColor(unpack(selected and COLOR.Control.Menu.Selected or hovered and COLOR.Control.Menu.Hover or COLOR.Surface.Card))
+    card:SetBackdropBorderColor(unpack(selected and color or hovered and COLOR.Border.Hover or COLOR.Border.Default))
     if card.iconTile then
-        card.iconTile:SetBackdropBorderColor(color[1], color[2], color[3], selected and 0.76 or 0.36)
+        card.iconTile:SetBackdropBorderColor(unpack(selected and color or COLOR.Border.Default))
     end
     if card.footer then
-        card.footer:SetColorTexture(AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2], AURA_UI_THEME.panelDeep[3], 0.72)
+        card.footer:SetColorTexture(unpack(COLOR.Surface.PanelHeader))
     end
     if card.footerLine then
-        card.footerLine:SetColorTexture(
-            AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], selected and 0.34 or 0.18
-        )
+        card.footerLine:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
     end
-    SetAuraThemeText(card.title, AURA_UI_THEME.ink)
+    SetAuraThemeText(card.title, COLOR.Text.Primary)
     if card.filterState then
-        card.filterState:SetTextColor(
-            selected and color[1] or AURA_UI_THEME.muted[1],
-            selected and color[2] or AURA_UI_THEME.muted[2],
-            selected and color[3] or AURA_UI_THEME.muted[3],
-            1
-        )
+        card.filterState:SetTextColor(unpack(selected and color or COLOR.Text.Secondary))
     end
 end
 
@@ -1299,7 +1233,7 @@ function Common.PreviewAuraSoundCategoryCardLSM(card)
     local sound = NormalizeAuraCategorySoundDraft(card._auraSoundDraft)
     if sound.customLSM == "" then
         card.summary:SetText(L["请先选择 LSM 音效"])
-        card.summary:SetTextColor(1.00, 0.46, 0.34)
+        card.summary:SetTextColor(unpack(COLOR.Status.Error))
         return
     end
     engine:TryPlayStandaloneSound({
@@ -1316,7 +1250,7 @@ function Common.ApplyAuraSoundCategoryCardLSM(card)
     local sound = NormalizeAuraCategorySoundDraft(card._auraSoundDraft)
     if sound.customLSM == "" then
         card.summary:SetText(L["请先选择 LSM 音效"])
-        card.summary:SetTextColor(1.00, 0.46, 0.34)
+        card.summary:SetTextColor(unpack(COLOR.Status.Error))
         return
     end
     local view = GetAuraSoundView(UI.dungeonKey, UI.slotKey)
@@ -1344,7 +1278,7 @@ function Common.ApplyAuraSoundCategoryCardLSM(card)
                     local committed, reason = SetAuraSoundActionFields(UI.dungeonKey, UI.slotKey, actionID, fields)
                     if not committed then
                         card.summary:SetText(tostring(reason or L["光环声音保存失败"]))
-                        card.summary:SetTextColor(1.00, 0.46, 0.34)
+                        card.summary:SetTextColor(unpack(COLOR.Status.Error))
                         Common:RefreshAuraSoundRows()
                         return
                     end
@@ -1354,7 +1288,7 @@ function Common.ApplyAuraSoundCategoryCardLSM(card)
     end
     if affected == 0 then
         card.summary:SetText(L["此分类暂时没有 action"])
-        card.summary:SetTextColor(1.00, 0.68, 0.34)
+        card.summary:SetTextColor(unpack(COLOR.Status.Warning))
         return
     end
     card._auraSoundDraftDirty = nil
@@ -1368,17 +1302,17 @@ function Common.RefreshAuraSoundCategoryCard(host)
     if not (card and meta) then return end
     local count, soundSummary = Common.GetAuraSoundCategorySummary(UI.dungeonKey, UI.slotKey, categoryKey)
     local color = meta.color
-    card.accent:SetColorTexture(color[1], color[2], color[3], 0.95)
-    card.iconTile:SetBackdropColor(color[1] * 0.20, color[2] * 0.20, color[3] * 0.20, 0.98)
+    card.accent:SetColorTexture(unpack(color))
+    card.iconTile:SetBackdropColor(unpack(COLOR.Surface.PanelHeader))
     card.icon:SetTexture(meta.icon or 134400)
     card.title:SetText(meta.label)
     card.count:SetText(string.format(L["%d 个 action"], count))
-    card.count:SetTextColor(color[1], color[2], color[3], 1)
+    card.count:SetTextColor(unpack(color))
     card.hint:SetText(meta.hint or "")
     card._auraSoundCategorySelected = NormalizeAuraSoundCategoryFilter(UI.auraSoundCategoryFilter) == categoryKey
     card.filterState:SetText(card._auraSoundCategorySelected and L["● 当前筛选"] or L["点击筛选"])
     card.summary:SetText(soundSummary)
-    SetAuraThemeText(card.summary, AURA_UI_THEME.ink)
+    SetAuraThemeText(card.summary, COLOR.Text.Primary)
     card.categoryKey = categoryKey
     card._auraSoundDraft = GetAuraSoundCategorySoundDraft(UI.dungeonKey, UI.slotKey, categoryKey)
     card._auraSoundDraftDirty = nil
@@ -1406,20 +1340,11 @@ function Common:RefreshAuraSoundCategoryCardSelection()
     end
 end
 
-local AURA_CATEGORY_FILTER_FALLBACK_COLORS = {
-    { 0.48, 0.84, 1.00 }, { 0.52, 0.90, 0.66 }, { 1.00, 0.70, 0.34 },
-    { 0.72, 0.56, 1.00 }, { 1.00, 0.48, 0.62 }, { 0.50, 0.78, 0.86 },
-}
-
 local function GetAuraSoundCategoryFilterColor(categoryKey)
-    if categoryKey == AURA_CATEGORY_FILTER_OTHER then return { 0.52, 0.62, 0.76 } end
+    if categoryKey == AURA_CATEGORY_FILTER_OTHER then return COLOR.Text.Secondary end
     local shortcut = AURA_CATEGORY_SHORTCUTS_BY_KEY[categoryKey]
     if shortcut and shortcut.color then return shortcut.color end
-    local sum = 0
-    for index = 1, #tostring(categoryKey or "") do
-        sum = sum + (string.byte(tostring(categoryKey), index) or 0)
-    end
-    return AURA_CATEGORY_FILTER_FALLBACK_COLORS[(sum % #AURA_CATEGORY_FILTER_FALLBACK_COLORS) + 1]
+    return COLOR.Accent.Primary
 end
 
 local function RefreshAuraSoundCategoryFilterCardStyle(card)
@@ -1427,22 +1352,15 @@ local function RefreshAuraSoundCategoryFilterCardStyle(card)
     local selected = card._auraSoundCategorySelected == true
     local hovered = card._auraSoundCategoryHovered == true
     if selected then
-        card:SetBackdropColor(0.239, 0.176, 0.078, 0.98)
-        card:SetBackdropBorderColor(0.718, 0.529, 0.239, 0.92)
-        SetAuraThemeText(card.name, AURA_UI_THEME.gold)
+        card:SetBackdropColor(unpack(COLOR.Control.Menu.Selected))
+        card:SetBackdropBorderColor(unpack(COLOR.Accent.Primary))
+        SetAuraThemeText(card.name, COLOR.Accent.Primary)
     else
-        card:SetBackdropColor(
-            AURA_UI_THEME.panel[1], AURA_UI_THEME.panel[2], AURA_UI_THEME.panel[3], 0.98
-        )
-        card:SetBackdropBorderColor(
-            hovered and AURA_UI_THEME.gold[1] or 0.220,
-            hovered and AURA_UI_THEME.gold[2] or 0.267,
-            hovered and AURA_UI_THEME.gold[3] or 0.329,
-            hovered and 0.56 or 0.86
-        )
+        card:SetBackdropColor(unpack(hovered and COLOR.Control.Menu.Hover or COLOR.Surface.Card))
+        card:SetBackdropBorderColor(unpack(hovered and COLOR.Border.Hover or COLOR.Border.Default))
         -- 分类是主要筛选入口，未选中时也必须保持可读；此前的 muted 灰色
         -- 在深色面板上会被误认为半透明文字。
-        SetAuraThemeText(card.name, AURA_UI_THEME.ink)
+        SetAuraThemeText(card.name, COLOR.Text.Primary)
     end
     card.name:SetAlpha(1.00)
     if card.state then
@@ -1496,7 +1414,7 @@ local function BindAuraSoundCategoryFilterCard(card, item)
     card._auraSoundCategoryKey = categoryKey
     card._auraSoundCategoryColor = color
     card._auraSoundCategorySelected = NormalizeAuraSoundCategoryFilter(UI.auraSoundCategoryFilter) == categoryKey
-    card.accent:SetColorTexture(color[1], color[2], color[3], 0.96)
+    card.accent:SetColorTexture(unpack(color))
     local count = math.max(0, tonumber(item[3]) or 0)
     card.name:SetText(string.format("%s(%d)", tostring(item[1] or L["未分类"]), count))
     card.count:SetText(string.format(L["%d 个 action"], count))
@@ -1624,7 +1542,7 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
                 card.title:SetPoint("TOPRIGHT", card, "TOPRIGHT", -16, -17)
                 card.title:SetJustifyH("LEFT")
                 card.title:SetWordWrap(false)
-                SetAuraThemeText(card.title, AURA_UI_THEME.ink)
+                SetAuraThemeText(card.title, COLOR.Text.Primary)
                 card.count = ExwindTools.UI:CreateVisualFontString(card, EXFONTFRAME, "GameFontNormalSmall")
                 card.count:SetPoint("TOPLEFT", card.title, "BOTTOMLEFT", 0, -4)
                 card.count:SetWidth(82)
@@ -1635,13 +1553,13 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
                 card.hint:SetPoint("TOPRIGHT", card, "TOPRIGHT", -16, -41)
                 card.hint:SetJustifyH("LEFT")
                 card.hint:SetWordWrap(false)
-                SetAuraThemeText(card.hint, AURA_UI_THEME.muted)
+                SetAuraThemeText(card.hint, COLOR.Text.Secondary)
                 card.filterState = ExwindTools.UI:CreateVisualFontString(card, EXFONTFRAME, "GameFontNormalSmall")
                 card.filterState:SetPoint("TOPRIGHT", card, "TOPRIGHT", -14, -73)
                 card.filterState:SetWidth(98)
                 card.filterState:SetJustifyH("RIGHT")
                 card.filterState:SetWordWrap(false)
-                SetAuraThemeText(card.filterState, AURA_UI_THEME.muted)
+                SetAuraThemeText(card.filterState, COLOR.Text.Secondary)
                 card.filterState:Hide()
                 -- 保留不可见的反馈 FontString 给既有试听/保存错误路径使用；
                 -- 主卡不再显示任何声音摘要或额外状态文本。
@@ -1652,20 +1570,16 @@ function Common.EnsureAuraSoundCategoryCardRenderer()
                 card.footer:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 4, 4)
                 card.footer:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -4, 4)
                 card.footer:SetHeight(54)
-                card.footer:SetColorTexture(
-                    AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2], AURA_UI_THEME.panelDeep[3], 0.72
-                )
+                card.footer:SetColorTexture(unpack(COLOR.Surface.PanelHeader))
                 card.footerLine = card:CreateTexture(nil, "BORDER")
                 card.footerLine:SetPoint("TOPLEFT", card.footer, "TOPLEFT", 0, 0)
                 card.footerLine:SetPoint("TOPRIGHT", card.footer, "TOPRIGHT", 0, 0)
                 card.footerLine:SetHeight(1)
-                card.footerLine:SetColorTexture(
-                    AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.18
-                )
+                card.footerLine:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
                 card.lsmLabel = ExwindTools.UI:CreateVisualFontString(card, EXFONTFRAME, "GameFontNormalSmall")
                 card.lsmLabel:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 14, 39)
                 card.lsmLabel:SetText(L["LSM 音效"])
-                SetAuraThemeText(card.lsmLabel, AURA_UI_THEME.muted)
+                SetAuraThemeText(card.lsmLabel, COLOR.Text.Secondary)
                 card.lsm = ExwindTools.UI:CreateLSMSoundDropdown(card, 190, "", "", function(value)
                     Common.CommitAuraSoundCategoryCardLSM(card, value)
                 end, true)
@@ -1741,40 +1655,31 @@ function Common.EnsureAuraSoundCategoryFilterRenderer()
                     edgeSize = 1,
                     insets = { left = 1, right = 1, top = 1, bottom = 1 },
                 })
-                panel:SetBackdropColor(
-                    AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2],
-                    AURA_UI_THEME.panelDeep[3], 0.96
-                )
-                panel:SetBackdropBorderColor(
-                    AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.18
-                )
+                panel:SetBackdropColor(unpack(COLOR.Surface.Card))
+                panel:SetBackdropBorderColor(unpack(COLOR.Border.Default))
                 panel.titleRail = panel:CreateTexture(nil, "ARTWORK")
                 panel.titleRail:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
                 panel.titleRail:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 0, 0)
                 panel.titleRail:SetHeight(2)
-                panel.titleRail:SetColorTexture(
-                    AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3], 0.52
-                )
+                panel.titleRail:SetColorTexture(unpack(COLOR.Accent.Primary))
                 panel.title = ExwindTools.UI:CreateVisualFontString(panel, EXFONTFRAME, "GameFontNormalLarge")
                 panel.title:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -15)
                 panel.title:SetText(L["全部分类"])
-                SetAuraThemeText(panel.title, AURA_UI_THEME.ink)
+                SetAuraThemeText(panel.title, COLOR.Text.Primary)
                 panel.result = ExwindTools.UI:CreateVisualFontString(panel, EXFONTFRAME, "GameFontNormalSmall")
                 panel.result:SetPoint("TOPLEFT", panel.title, "BOTTOMLEFT", 0, -2)
                 panel.result:SetText(L["显示全部动作"])
-                SetAuraThemeText(panel.result, AURA_UI_THEME.muted)
+                SetAuraThemeText(panel.result, COLOR.Text.Secondary)
                 panel.result:Hide()
                 panel.meta = ExwindTools.UI:CreateVisualFontString(panel, EXFONTFRAME, "GameFontNormalSmall")
                 panel.meta:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -13)
-                SetAuraThemeText(panel.meta, AURA_UI_THEME.muted)
+                SetAuraThemeText(panel.meta, COLOR.Text.Secondary)
                 panel.meta:Hide()
                 panel.headerLine = panel:CreateTexture(nil, "BORDER")
                 panel.headerLine:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -39)
                 panel.headerLine:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -39)
                 panel.headerLine:SetHeight(1)
-                panel.headerLine:SetColorTexture(
-                    AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.12
-                )
+                panel.headerLine:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
                 panel.cards = {}
                 for slot = 1, AURA_CATEGORY_FILTER_MAX_CARDS do
                     local card = CreateAuraSoundCategoryFilterCard(panel)
@@ -1858,13 +1763,8 @@ end
 function Common.CreateAuraSoundCategoryDrawerRow(parent)
     local row = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     row:SetBackdrop(AURA_FLAT_BACKDROP)
-    row:SetBackdropColor(
-        AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2],
-        AURA_UI_THEME.panelDeep[3], AURA_UI_THEME.panelDeep[4]
-    )
-    row:SetBackdropBorderColor(
-        AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.10
-    )
+    row:SetBackdropColor(unpack(COLOR.Surface.Card))
+    row:SetBackdropBorderColor(unpack(COLOR.Border.Default))
     row.check = ExwindTools.UI:CreateCheckbox(row, "", false, function(checked)
         local drawer = row._auraSoundCategoryDrawer
         local actionID = row._auraSoundCategoryActionID
@@ -1888,24 +1788,18 @@ function Common.CreateAuraSoundCategoryDrawerRow(parent)
     row.detail:SetPoint("RIGHT", row, "RIGHT", -190, 1)
     row.detail:SetJustifyH("LEFT")
     row.detail:SetWordWrap(false)
-    SetAuraThemeText(row.detail, AURA_UI_THEME.muted)
+    SetAuraThemeText(row.detail, COLOR.Text.Secondary)
     row.sound = ExwindTools.UI:CreateVisualFontString(row, EXFONTFRAME, "GameFontNormalSmall")
     row.sound:SetPoint("RIGHT", row, "RIGHT", -10, 0)
     row.sound:SetWidth(170)
     row.sound:SetJustifyH("RIGHT")
     row.sound:SetWordWrap(false)
-    SetAuraThemeText(row.sound, AURA_UI_THEME.ink)
+    SetAuraThemeText(row.sound, COLOR.Text.Primary)
     row:SetScript("OnEnter", function(frame)
-        frame:SetBackdropColor(
-            AURA_UI_THEME.panelHover[1], AURA_UI_THEME.panelHover[2],
-            AURA_UI_THEME.panelHover[3], AURA_UI_THEME.panelHover[4]
-        )
+        frame:SetBackdropColor(unpack(COLOR.Surface.PanelHeaderHover))
     end)
     row:SetScript("OnLeave", function(frame)
-        frame:SetBackdropColor(
-            AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2],
-            AURA_UI_THEME.panelDeep[3], AURA_UI_THEME.panelDeep[4]
-        )
+        frame:SetBackdropColor(unpack(COLOR.Surface.Card))
     end)
     return row
 end
@@ -2006,14 +1900,8 @@ function Common.EnsureAuraSoundCategoryDrawer(parent)
     local drawer = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     drawer:SetSize(680, 550)
     drawer:SetBackdrop(AURA_FLAT_BACKDROP)
-    drawer:SetBackdropColor(
-        AURA_UI_THEME.panel[1], AURA_UI_THEME.panel[2],
-        AURA_UI_THEME.panel[3], 0.99
-    )
-    drawer:SetBackdropBorderColor(
-        AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-        AURA_UI_THEME.lineStrong[3], 0.72
-    )
+    drawer:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    drawer:SetBackdropBorderColor(unpack(COLOR.Border.Interactive))
     drawer:Hide()
     drawer:SetScript("OnHide", function(frame)
         frame.actionIDs = nil
@@ -2025,11 +1913,11 @@ function Common.EnsureAuraSoundCategoryDrawer(parent)
     end)
     drawer.title = ExwindTools.UI:CreateVisualFontString(drawer, EXFONTFRAME, "GameFontNormalLarge")
     drawer.title:SetPoint("TOPLEFT", 18, -16)
-    SetAuraThemeText(drawer.title, AURA_UI_THEME.ink)
+    SetAuraThemeText(drawer.title, COLOR.Text.Primary)
     drawer.subtitle = ExwindTools.UI:CreateVisualFontString(drawer, EXFONTFRAME, "GameFontNormalSmall")
     drawer.subtitle:SetPoint("TOPLEFT", drawer.title, "BOTTOMLEFT", 0, -2)
     drawer.subtitle:SetText(L["勾选 action 归入此分类；音效仅在上方卡片设置。"])
-    SetAuraThemeText(drawer.subtitle, AURA_UI_THEME.muted)
+    SetAuraThemeText(drawer.subtitle, COLOR.Text.Secondary)
     drawer.close = CreateFrame("Button", nil, drawer, "UIPanelCloseButton")
     drawer.close:SetSize(28, 28)
     drawer.close:SetPoint("TOPRIGHT", -5, -5)
@@ -2041,18 +1929,15 @@ function Common.EnsureAuraSoundCategoryDrawer(parent)
             Common.RefreshAuraSoundCategoryDrawerList(drawer)
         end,
     })
-    if drawer.search.SetBackdropColor then drawer.search:SetBackdropColor(0.035, 0.048, 0.070, 0.98) end
+    if drawer.search.SetBackdropColor then drawer.search:SetBackdropColor(unpack(COLOR.Control.Input.Fill)) end
     if drawer.search.SetBackdropBorderColor then
-        drawer.search:SetBackdropBorderColor(
-            AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-            AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-        )
+        drawer.search:SetBackdropBorderColor(unpack(COLOR.Control.Input.Border))
     end
     drawer.search:SetPoint("TOPRIGHT", drawer, "TOPRIGHT", -18, -57)
     drawer.selectionSummary = ExwindTools.UI:CreateVisualFontString(drawer, EXFONTFRAME, "GameFontHighlight")
     drawer.selectionSummary:SetPoint("TOPRIGHT", drawer, "TOPRIGHT", -18, -94)
     drawer.selectionSummary:SetJustifyH("RIGHT")
-    SetAuraThemeText(drawer.selectionSummary, AURA_UI_THEME.muted)
+    SetAuraThemeText(drawer.selectionSummary, COLOR.Text.Secondary)
     drawer.listHost = CreateFrame("Frame", nil, drawer)
     drawer.listHost:SetPoint("TOPLEFT", drawer, "TOPLEFT", 18, -122)
     drawer.listHost:SetPoint("BOTTOMRIGHT", drawer, "BOTTOMRIGHT", -18, 57)
@@ -2072,7 +1957,7 @@ function Common.EnsureAuraSoundCategoryDrawer(parent)
     drawer.save:SetPoint("LEFT", drawer.cancel, "RIGHT", 10, 0)
     drawer.error = ExwindTools.UI:CreateVisualFontString(drawer, EXFONTFRAME, "GameFontNormalSmall")
     drawer.error:SetPoint("BOTTOM", drawer, "BOTTOM", 0, 25)
-    drawer.error:SetTextColor(1.00, 0.35, 0.35)
+    drawer.error:SetTextColor(unpack(COLOR.Status.Error))
     PositionAuraSoundCategoryDrawer(drawer, parent)
     UI.auraSoundCategoryDrawer = drawer
     return drawer
@@ -2118,7 +2003,7 @@ function Common.RefreshEncounterVoiceHost(host, context)
     host.enable:SetChecked(row.enabled ~= false)
     host.title:SetText(string.format(L["第%d断语音"], index))
     host.summary:SetText(Common.BuildEncounterVoiceSummary(row))
-    host.summary:SetTextColor(row.enabled ~= false and 0.75 or 0.45, row.enabled ~= false and 0.86 or 0.45, row.enabled ~= false and 1 or 0.45, 1)
+    host.summary:SetTextColor(unpack(row.enabled ~= false and COLOR.Text.Primary or COLOR.Text.Disabled))
     host.enable:Show()
     host.title:Show()
     host.summary:Show()
@@ -2181,12 +2066,12 @@ function Common.EnsureEncounterVoiceEditor(parent)
     local editor = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     editor:SetSize(510, 250)
     editor:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
-    editor:SetBackdropColor(0.025, 0.035, 0.065, 0.98)
-    editor:SetBackdropBorderColor(0.48, 0.84, 1.00, 0.95)
+    editor:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    editor:SetBackdropBorderColor(unpack(COLOR.Border.Interactive))
     editor:Hide()
     editor.title = ExwindTools.UI:CreateVisualFontString(editor, EXFONTFRAME, "GameFontNormalLarge")
     editor.title:SetPoint("TOPLEFT", 18, -16)
-    editor.title:SetTextColor(0.48, 0.84, 1.00)
+    editor.title:SetTextColor(unpack(COLOR.Accent.Primary))
     editor.close = CreateFrame("Button", nil, editor, "UIPanelCloseButton")
     editor.close:SetSize(28, 28)
     editor.close:SetPoint("TOPRIGHT", -5, -5)
@@ -2296,9 +2181,7 @@ function Common.EnsureFrames(host)
         -- 新页面必须完全取代旧的 Boss 法术 Grid，不能只在其上透明叠层。
         UI.root = CreateFrame("Frame", nil, host, "BackdropTemplate")
         UI.root:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
-        UI.root:SetBackdropColor(
-            AURA_UI_THEME.canvas[1], AURA_UI_THEME.canvas[2], AURA_UI_THEME.canvas[3], AURA_UI_THEME.canvas[4]
-        )
+        UI.root:SetBackdropColor(unpack(COLOR.Surface.Page))
         UI.gridHost = CreateFrame("Frame", nil, UI.root)
         created = true
     end
@@ -2339,7 +2222,7 @@ function Common.RefreshAuraSoundEditorFields(editor)
     local isCatalogAction = editor.isCatalogAction == true
     local name, icon, spellID = GetAuraSpellInfo(row)
     editor.icon:SetTexture(icon)
-    editor.spellSummary:SetText(string.format("%s |cff888888[%d]|r", name, spellID))
+    editor.spellSummary:SetText(string.format("%s %s", name, COLOR.WrapText(COLOR.Text.Secondary, string.format("[%d]", spellID))))
     editor.spellIDInput:SetShown(not isCatalogAction)
     editor.scope:SetShown(not isCatalogAction)
     editor.auraType:SetShown(not isCatalogAction)
@@ -2514,8 +2397,8 @@ function Common.EnsureAuraSoundEditor(parent)
     local editor = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     editor:SetSize(540, 420)
     editor:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
-    editor:SetBackdropColor(0.025, 0.035, 0.065, 0.98)
-    editor:SetBackdropBorderColor(0.48, 0.84, 1.00, 0.95)
+    editor:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    editor:SetBackdropBorderColor(unpack(COLOR.Border.Interactive))
     editor:Hide()
     -- 关闭按钮、取消、父页面 Hide 甚至外部 Hide 都走同一释放语义。不能让
     -- Frame 在 RegisteredLayouts/父级存活时继续抓住上一条 action 草稿。
@@ -2529,7 +2412,7 @@ function Common.EnsureAuraSoundEditor(parent)
     end)
     editor.title = ExwindTools.UI:CreateVisualFontString(editor, EXFONTFRAME, "GameFontNormalLarge")
     editor.title:SetPoint("TOPLEFT", 18, -16)
-    editor.title:SetTextColor(0.48, 0.84, 1.00)
+    editor.title:SetTextColor(unpack(COLOR.Accent.Primary))
     editor.title:SetText(L["光环声音"])
     editor.icon = ExwindTools.UI:CreateVisualTexture(editor, EXBASEFRAME)
     editor.icon:SetSize(26, 26)
@@ -2573,7 +2456,7 @@ function Common.EnsureAuraSoundEditor(parent)
     editor.valueLabel:SetText(L["语音包标签"])
     editor.error = ExwindTools.UI:CreateVisualFontString(editor, EXFONTFRAME, "GameFontNormalSmall")
     editor.error:SetPoint("BOTTOM", editor, "BOTTOM", 0, 54)
-    editor.error:SetTextColor(1.00, 0.35, 0.35)
+    editor.error:SetTextColor(unpack(COLOR.Status.Error))
     editor.pack = EXUI:CreateDropdown(editor, 300, "", {}, "", function(value)
         Common.CommitAuraSoundEditor(editor, "label", tostring(value or ""))
     end, true)
@@ -2676,27 +2559,20 @@ function Common.EnsureAuraSoundToolbarRenderer()
                     edgeSize = 1,
                     insets = { left = 1, right = 1, top = 1, bottom = 1 },
                 })
-                toolbar:SetBackdropColor(
-                    AURA_UI_THEME.panelDeep[1], AURA_UI_THEME.panelDeep[2],
-                    AURA_UI_THEME.panelDeep[3], 0.96
-                )
-                toolbar:SetBackdropBorderColor(
-                    AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.18
-                )
+                toolbar:SetBackdropColor(unpack(COLOR.Surface.Card))
+                toolbar:SetBackdropBorderColor(unpack(COLOR.Border.Default))
                 toolbar.rail = toolbar:CreateTexture(nil, "ARTWORK")
                 toolbar.rail:SetPoint("BOTTOMLEFT", toolbar, "BOTTOMLEFT", 0, 0)
                 toolbar.rail:SetPoint("BOTTOMRIGHT", toolbar, "BOTTOMRIGHT", 0, 0)
                 toolbar.rail:SetHeight(1)
-                toolbar.rail:SetColorTexture(
-                    AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.12
-                )
+                toolbar.rail:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
                 toolbar.title = ExwindTools.UI:CreateVisualFontString(toolbar, EXFONTFRAME, "GameFontHighlight")
                 toolbar.title:SetPoint("LEFT", toolbar, "LEFT", 14, 0)
                 toolbar.title:SetText(L["筛选结果"])
-                SetAuraThemeText(toolbar.title, AURA_UI_THEME.ink)
+                SetAuraThemeText(toolbar.title, COLOR.Text.Primary)
                 toolbar.count = ExwindTools.UI:CreateVisualFontString(toolbar, EXFONTFRAME, "GameFontNormalSmall")
                 toolbar.count:SetPoint("LEFT", toolbar.title, "RIGHT", 8, 0)
-                SetAuraThemeText(toolbar.count, AURA_UI_THEME.muted)
+                SetAuraThemeText(toolbar.count, COLOR.Text.Secondary)
                 toolbar.search = ExwindTools.UI:CreateEditBox(toolbar, "", 310, 26, nil, {
                     placeholder = L["搜索法术、ID、单位、声音..."],
                     onChanged = function(text)
@@ -2704,12 +2580,9 @@ function Common.EnsureAuraSoundToolbarRenderer()
                         Common:RefreshAuraSoundFilteredList()
                     end,
                 })
-                if toolbar.search.SetBackdropColor then toolbar.search:SetBackdropColor(0.035, 0.048, 0.070, 0.98) end
+                if toolbar.search.SetBackdropColor then toolbar.search:SetBackdropColor(unpack(COLOR.Control.Input.Fill)) end
                 if toolbar.search.SetBackdropBorderColor then
-                    toolbar.search:SetBackdropBorderColor(
-                        AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-                        AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-                    )
+                    toolbar.search:SetBackdropBorderColor(unpack(COLOR.Control.Input.Border))
                 end
                 toolbar.search:SetPoint("LEFT", toolbar, "LEFT", 190, 0)
                 toolbar.add = CreateAuraPrototypeButton(toolbar, 104, 26, L["+ 添加声音"], function()

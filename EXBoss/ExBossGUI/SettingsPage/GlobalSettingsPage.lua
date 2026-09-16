@@ -3,6 +3,7 @@
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 
 ExBoss.UI.Panel.GlobalSettingsPage = ExBoss.UI.Panel.GlobalSettingsPage or {}
 local Page = ExBoss.UI.Panel.GlobalSettingsPage
@@ -170,19 +171,6 @@ local function GetBarModeOptions()
     }
 end
 
-local FALLBACK_SCHEME_ORDER = { "tank", "heal", "target", "cooldown", "mechanic" }
-local FALLBACK_SCHEME_KEYS = {
-    tank     = "坦克方案",
-    heal     = "治疗方案",
-    target   = "点名方案",
-    cooldown = "减伤方案",
-    mechanic = "机制方案",
-}
-local function GetFallbackSchemeName(key)
-    local k = FALLBACK_SCHEME_KEYS[key]
-    return k and L[k] or tostring(key or "")
-end
-local EXTRA_CUSTOM_COUNT_FALLBACK = 3
 local EnsureColorDB
 local GetSchemeOrder
 local GetSchemeDisplayName
@@ -439,13 +427,13 @@ local function CreateOverviewSection(parent, anchor, exui)
         edgeSize = 10,
         insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    overviewSection:SetBackdropColor(0.03, 0.04, 0.06, 0.82)
-    overviewSection:SetBackdropBorderColor(0.2, 0.2, 0.25, 0.95)
+    overviewSection:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    overviewSection:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     local overviewTitle = EXUI:CreateVisualFontString(overviewSection, EXFONTFRAME, "GameFontNormal")
     overviewTitle:SetPoint("TOPLEFT", 10, -8)
     overviewTitle:SetText(L["全局条显示模式"])
-    overviewTitle:SetTextColor(1, 0.82, 0.45)
+    overviewTitle:SetTextColor(unpack(COLOR.Accent.Primary))
 
     if exui and exui.CreateDropdown then
         barModeDropdown = exui:CreateDropdown(
@@ -540,7 +528,7 @@ local function CreateOverviewSection(parent, anchor, exui)
     overviewDesc:SetPoint("TOPLEFT", 10, -346)
     overviewDesc:SetPoint("RIGHT", overviewSection, "RIGHT", -10, 0)
     overviewDesc:SetJustifyH("LEFT")
-    overviewDesc:SetTextColor(0.85, 0.85, 0.9)
+    overviewDesc:SetTextColor(unpack(COLOR.Text.Secondary))
     overviewDesc:SetText(L["控制全局显示：仅计时条 / 仅束状条 / 两者都启用 / 两者都隐藏。\n可分别关闭大秘境或团本首领提示；关闭后将整体禁用对应场景的 Boss 计时、中央文字、语音与颜色覆盖。\n可按当前职责过滤坦克类 Boss 技能提示。\n可选：首领战中自动将战斗音频预警分类音量静音（0），脱战恢复原值。"])
     overviewSection:Hide()
 end
@@ -557,13 +545,13 @@ local function CreateVoiceSection(parent, anchor, exui)
         edgeSize = 10,
         insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    voiceSection:SetBackdropColor(0.03, 0.04, 0.06, 0.82)
-    voiceSection:SetBackdropBorderColor(0.2, 0.2, 0.25, 0.95)
+    voiceSection:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    voiceSection:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     local voiceTitle = EXUI:CreateVisualFontString(voiceSection, EXFONTFRAME, "GameFontNormal")
     voiceTitle:SetPoint("TOPLEFT", 10, -8)
     voiceTitle:SetText(L["全局语音输出"])
-    voiceTitle:SetTextColor(1, 0.82, 0.45)
+    voiceTitle:SetTextColor(unpack(COLOR.Accent.Primary))
 
     if exui and exui.CreateDropdown then
         voiceChannelDrop = exui:CreateDropdown(
@@ -616,19 +604,19 @@ local function CreateColorSection(parent, anchor, exui)
         edgeSize = 10,
         insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    colorSection:SetBackdropColor(0.03, 0.04, 0.06, 0.82)
-    colorSection:SetBackdropBorderColor(0.2, 0.2, 0.25, 0.95)
+    colorSection:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    colorSection:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     local colorTitle = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontNormal")
     colorTitle:SetPoint("TOPLEFT", 10, -8)
     colorTitle:SetText(L["通用颜色方案"])
-    colorTitle:SetTextColor(1, 0.82, 0.45)
+    colorTitle:SetTextColor(unpack(COLOR.Accent.Primary))
 
     local colorDesc = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontHighlightSmall")
     colorDesc:SetPoint("TOPLEFT", 10, -28)
     colorDesc:SetPoint("RIGHT", colorSection, "RIGHT", -10, 0)
     colorDesc:SetText(L["Boss技能页面可选择下列方案；选择“自定义颜色”时使用“自定义方案”。勾选启用的额外方案会出现在技能页下拉。"])
-    colorDesc:SetTextColor(0.85, 0.85, 0.9)
+    colorDesc:SetTextColor(unpack(COLOR.Text.Secondary))
     colorDesc:SetJustifyH("LEFT")
 
     local _, schemes, custom, extraSlots = EnsureColorDB()
@@ -639,11 +627,11 @@ local function CreateColorSection(parent, anchor, exui)
         local nameFS = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontHighlight")
         nameFS:SetPoint("TOPLEFT", 12, rowY)
         nameFS:SetText(GetSchemeDisplayName(key))
-        nameFS:SetTextColor(0.95, 0.95, 0.95)
+        nameFS:SetTextColor(unpack(COLOR.Text.Primary))
         fixedColorLabels[key] = nameFS
 
         if exui and exui.CreateColorButton then
-            local btn = exui:CreateColorButton(colorSection, L["颜色"], row or { r = 1, g = 1, b = 1 }, "", false, function()
+            local btn = exui:CreateColorButton(colorSection, L["颜色"], assert(row, "missing fixed color scheme"), "", false, function()
                 ApplyVoiceOverrides()
             end)
             btn:SetPoint("TOPLEFT", 180, rowY + 8)
@@ -677,7 +665,7 @@ local function CreateColorSection(parent, anchor, exui)
     end
 
     if exui and exui.CreateColorButton then
-        customColorButton = exui:CreateColorButton(colorSection, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
+        customColorButton = exui:CreateColorButton(colorSection, L["自定义方案颜色"], assert(custom, "missing custom color scheme"), "", false,
             function()
                 ApplyVoiceOverrides()
             end
@@ -690,24 +678,19 @@ local function CreateColorSection(parent, anchor, exui)
     local extraTitle = EXUI:CreateVisualFontString(colorSection, EXFONTFRAME, "GameFontHighlight")
     extraTitle:SetPoint("TOPLEFT", 12, rowY)
     extraTitle:SetText(L["额外方案（最多3个）"])
-    extraTitle:SetTextColor(0.95, 0.95, 0.95)
+    extraTitle:SetTextColor(unpack(COLOR.Text.Primary))
 
     rowY = rowY - 24
     for i = 1, GetExtraCustomCount() do
         local slot = type(extraSlots) == "table" and extraSlots[i] or nil
-        if type(slot) ~= "table" then
-            slot = { enabled = false, name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25 }
-        end
+        assert(type(slot) == "table", "missing extra custom color scheme")
 
         if exui and exui.CreateCheckbox then
             local cb = exui:CreateCheckbox(colorSection, L["启用"], slot.enabled == true, function(checked)
                 local _, _, _, slots = EnsureColorDB()
                 if type(slots) ~= "table" then return end
                 local row = slots and slots[i]
-                if type(row) ~= "table" then
-                    row = { name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25, enabled = false }
-                    slots[i] = row
-                end
+                if type(row) ~= "table" then return end
                 row.enabled = (checked == true)
                 RefreshColorControls()
                 ApplyVoiceOverrides()
@@ -728,10 +711,7 @@ local function CreateColorSection(parent, anchor, exui)
                         local _, _, _, slots = EnsureColorDB()
                         if type(slots) ~= "table" then return end
                         local row = slots and slots[i]
-                        if type(row) ~= "table" then
-                            row = { enabled = false, r = 1, g = 0.82, b = 0.25 }
-                            slots[i] = row
-                        end
+                        if type(row) ~= "table" then return end
                         row.name = TrimOptionalText(text)
                         RefreshColorControls()
                     end,
@@ -739,10 +719,7 @@ local function CreateColorSection(parent, anchor, exui)
                         local _, _, _, slots = EnsureColorDB()
                         if type(slots) ~= "table" then return end
                         local row = slots and slots[i]
-                        if type(row) ~= "table" then
-                            row = { enabled = false, r = 1, g = 0.82, b = 0.25 }
-                            slots[i] = row
-                        end
+                        if type(row) ~= "table" then return end
                         row.name = TrimOptionalText(text)
                         RefreshColorControls()
                     end,
@@ -779,19 +756,19 @@ local function CreateResetSection(parent, anchor)
         edgeSize = 10,
         insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    resetSection:SetBackdropColor(0.12, 0.03, 0.03, 0.85)
-    resetSection:SetBackdropBorderColor(0.6, 0.15, 0.15, 0.95)
+    resetSection:SetBackdropColor(unpack(COLOR.Control.Button.Danger.HoverFill))
+    resetSection:SetBackdropBorderColor(unpack(COLOR.Control.Button.Danger.Border))
 
     local resetTitle = EXUI:CreateVisualFontString(resetSection, EXFONTFRAME, "GameFontNormal")
     resetTitle:SetPoint("TOPLEFT", 10, -10)
-    resetTitle:SetText("|cffff4444" .. L["重置设置"] .. "|r")
+    resetTitle:SetText(COLOR.WrapText(COLOR.Status.Error, L["重置设置"]))
 
     local resetDesc = EXUI:CreateVisualFontString(resetSection, EXFONTFRAME, "GameFontHighlightSmall")
     resetDesc:SetPoint("TOPLEFT", 10, -30)
     resetDesc:SetPoint("RIGHT", resetSection, "RIGHT", -10, 0)
     resetDesc:SetJustifyH("LEFT")
     resetDesc:SetText(L["推荐先使用针对性重置：外观问题用“仅重置外观设置”，小怪CD异常用“重置小怪内置CD设置”。\n“重置所有配置（不包含外观）”会清空通用设置、语音配置、技能配置与时间轴设置，但保留外观。\n“清除全部设置”会把 EXBoss 的全部配置都恢复到初始状态。"])
-    resetDesc:SetTextColor(0.9, 0.7, 0.7)
+    resetDesc:SetTextColor(unpack(COLOR.Text.Danger))
 
     local resetStyleBtn = CreateFrame("Button", nil, resetSection, "UIPanelButtonTemplate")
     resetStyleBtn:SetSize(220, 28)
@@ -825,7 +802,11 @@ local function CreateResetSection(parent, anchor)
         local popupID = "EXBOSS_RESET_CONFIG_ONLY_CONFIRM"
         if not StaticPopupDialogs[popupID] then
             StaticPopupDialogs[popupID] = {
-                text = L["|cffffcc00将清空 EXBoss 的通用设置、语音配置、技能配置与时间轴设置，但保留外观样式。|r\n确认继续？"],
+                -- The dependency locale addon still keys this sentence by its legacy
+                -- colorized source. Strip that translated markup before applying the
+                -- central semantic color.
+                text = COLOR.WrapText(COLOR.Status.Warning,
+                    L["将清空 EXBoss 的通用设置、语音配置、技能配置与时间轴设置，但保留外观样式。\n确认继续？"]),
                 button1 = L["确定重置"],
                 button2 = L["取消"],
                 timeout = 0,
@@ -849,7 +830,8 @@ local function CreateResetSection(parent, anchor)
         local popupID = "EXBOSS_RESET_ALL_CONFIRM"
         if not StaticPopupDialogs[popupID] then
             StaticPopupDialogs[popupID] = {
-                text = L["|cffff4444危险：将清空 EXBoss 的全部设置（包含外观）并重载。此操作不可撤销。|r\n确认继续？"],
+                text = COLOR.WrapText(COLOR.Status.Error,
+                    L["危险：将清空 EXBoss 的全部设置（包含外观）并重载。此操作不可撤销。\n确认继续？"]),
                 button1 = L["确定清空"],
                 button2 = L["取消"],
                 timeout = 0,
@@ -913,78 +895,25 @@ local function ApplyBarModeChange()
 end
 
 EnsureColorDB = function()
-    local CS = GetColorModule()
-    if CS and CS.EnsureDB then
-        local db = CS.EnsureDB()
-        local custom = (db.customColors and db.customColors[1]) or {}
-        return db, db.colorSchemes or {}, custom, db.extraCustomColors or {}
-    end
-
-    EXBOSS12S2 = EXBOSS12S2 or {}
-    EXBOSS12S2.voice = EXBOSS12S2.voice or {}
-    EXBOSS12S2.voice.colorSchemes = EXBOSS12S2.voice.colorSchemes or {}
-    EXBOSS12S2.voice.customColors = EXBOSS12S2.voice.customColors or {}
-    EXBOSS12S2.voice.extraCustomColors = EXBOSS12S2.voice.extraCustomColors or {}
-    EXBOSS12S2.voice.customColors[1] = EXBOSS12S2.voice.customColors[1] or { name = L["自定义方案"], r = 1, g = 0.82, b = 0.25 }
-
-    for i = 1, EXTRA_CUSTOM_COUNT_FALLBACK do
-        local row = EXBOSS12S2.voice.extraCustomColors[i]
-        if type(row) ~= "table" then
-            EXBOSS12S2.voice.extraCustomColors[i] = {
-                enabled = false,
-                name = L["额外方案"] .. tostring(i),
-                r = 1,
-                g = 0.82,
-                b = 0.25,
-            }
-        else
-            if row.enabled == nil then row.enabled = false end
-            if type(row.name) ~= "string" then
-                row.name = L["额外方案"] .. tostring(i)
-            end
-            row.r = tonumber(row.r) or 1
-            row.g = tonumber(row.g) or 0.82
-            row.b = tonumber(row.b) or 0.25
-        end
-    end
-
-    for _, key in ipairs(FALLBACK_SCHEME_ORDER) do
-        local row = EXBOSS12S2.voice.colorSchemes[key]
-        if type(row) ~= "table" then
-            EXBOSS12S2.voice.colorSchemes[key] = {
-                name = GetFallbackSchemeName(key),
-                r = 1,
-                g = 1,
-                b = 1,
-            }
-        end
-    end
-
-    return EXBOSS12S2.voice, EXBOSS12S2.voice.colorSchemes, EXBOSS12S2.voice.customColors[1], EXBOSS12S2.voice.extraCustomColors
+    local CS = assert(GetColorModule(), "ExBoss.Voice.ColorSchemes is not loaded")
+    local db = assert(CS.EnsureDB and CS.EnsureDB(), "ExBoss color scheme DB is unavailable")
+    local custom = assert(db.customColors and db.customColors[1], "ExBoss custom color scheme is unavailable")
+    return db, db.colorSchemes or {}, custom, db.extraCustomColors or {}
 end
 
 GetSchemeOrder = function()
-    local CS = GetColorModule()
-    if CS and CS.GetFixedOrder then
-        return CS.GetFixedOrder()
-    end
-    return FALLBACK_SCHEME_ORDER
+    local CS = assert(GetColorModule(), "ExBoss.Voice.ColorSchemes is not loaded")
+    return CS.GetFixedOrder()
 end
 
 GetSchemeDisplayName = function(key)
-    local CS = GetColorModule()
-    if CS and CS.GetSchemeDisplayName then
-        return CS.GetSchemeDisplayName(key)
-    end
-    return GetFallbackSchemeName(key)
+    local CS = assert(GetColorModule(), "ExBoss.Voice.ColorSchemes is not loaded")
+    return CS.GetSchemeDisplayName(key)
 end
 
 GetExtraCustomCount = function()
-    local CS = GetColorModule()
-    if CS and CS.GetExtraCustomCount then
-        return tonumber(CS.GetExtraCustomCount()) or EXTRA_CUSTOM_COUNT_FALLBACK
-    end
-    return EXTRA_CUSTOM_COUNT_FALLBACK
+    local CS = assert(GetColorModule(), "ExBoss.Voice.ColorSchemes is not loaded")
+    return tonumber(CS.GetExtraCustomCount()) or 0
 end
 
 ApplyVoiceOverrides = function()
@@ -1508,7 +1437,7 @@ local function RefreshList()
         if ExBoss.UI and ExBoss.UI.ApplySidebarModuleButtonState and empty.label then
             ExBoss.UI.ApplySidebarModuleButtonState(empty, false, false)
         else
-            label:SetTextColor(0.45, 0.48, 0.55, 1)
+            label:SetTextColor(unpack(COLOR.Text.Disabled))
         end
         empty:Show()
         activeButtons[#activeButtons + 1] = empty
@@ -1529,7 +1458,7 @@ local function EnsureUI(leftFrame, contentFrame)
     sidebarDivider:SetWidth(1)
     sidebarDivider:SetPoint("TOPRIGHT", leftRoot, "TOPRIGHT", -2, -2)
     sidebarDivider:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -2, 2)
-    sidebarDivider:SetColorTexture(0.12, 0.15, 0.20, 0.9)
+    sidebarDivider:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
 
     if ExBoss.UI and ExBoss.UI.CreateSidebarSearchBox then
         searchBox = ExBoss.UI.CreateSidebarSearchBox(leftRoot, searchText, {
@@ -1572,13 +1501,13 @@ local function EnsureUI(leftFrame, contentFrame)
 
     titleText = EXUI:CreateVisualFontString(rightRoot, EXFONTFRAME, "GameFontNormalLarge")
     titleText:SetPoint("TOPLEFT", 14, -14)
-    titleText:SetTextColor(1, 0.82, 0.45)
+    titleText:SetTextColor(unpack(COLOR.Accent.Primary))
 
     local sep = EXUI:CreateVisualTexture(rightRoot, EXBORDERFRAME)
     sep:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -8)
     sep:SetPoint("TOPRIGHT", rightRoot, "TOPRIGHT", -12, -8)
     sep:SetHeight(1)
-    sep:SetColorTexture(1, 1, 1, 0.18)
+    sep:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
     titleSep = sep
 
     descText = EXUI:CreateVisualFontString(rightRoot, EXFONTFRAME, "GameFontHighlight")
@@ -1587,13 +1516,13 @@ local function EnsureUI(leftFrame, contentFrame)
     descText:SetJustifyH("LEFT")
     descText:SetJustifyV("TOP")
     descText:SetWordWrap(true)
-    descText:SetTextColor(0.88, 0.88, 0.9)
+    descText:SetTextColor(unpack(COLOR.Text.Primary))
 
     embedPlaceholder = EXUI:CreateVisualFontString(rightRoot, EXFONTFRAME, "GameFontHighlight")
     embedPlaceholder:SetPoint("TOPLEFT", descText, "BOTTOMLEFT", 0, -14)
     embedPlaceholder:SetPoint("RIGHT", rightRoot, "RIGHT", -14, 0)
     embedPlaceholder:SetJustifyH("LEFT")
-    embedPlaceholder:SetTextColor(0.75, 0.75, 0.8, 1)
+    embedPlaceholder:SetTextColor(unpack(COLOR.Text.Secondary))
     embedPlaceholder:Hide()
 
     local EXUI = ExwindTools.UI

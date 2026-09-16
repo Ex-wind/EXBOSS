@@ -5,10 +5,15 @@ local Page = ExBoss.UI.Panel.TrashCDPage
 
 local ExwindTools = _G.ExwindTools
 local EXUI = ExwindTools and ExwindTools.UI
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local TrashStore = ExBoss.TrashCD and ExBoss.TrashCD.Store or nil
 local TrashData = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
 local TrashCore = ExBoss.TrashCD and ExBoss.TrashCD.Core or nil
+
+local function NewColorRecord(token)
+    return { r = token[1], g = token[2], b = token[3], a = token[4] }
+end
 
 local function LocalizeDynamicText(v)
     if ExBoss and ExBoss.Locale and type(ExBoss.Locale.TranslateBossDynamicText) == "function" then
@@ -176,8 +181,8 @@ local function CreateSectionBackdrop(parent)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    frame:SetBackdropColor(0.03, 0.03, 0.04, 0.90)
-    frame:SetBackdropBorderColor(0.22, 0.22, 0.25, 0.95)
+    frame:SetBackdropColor(unpack(COLOR.Surface.Panel))
+    frame:SetBackdropBorderColor(unpack(COLOR.Border.Default))
     return frame
 end
 
@@ -481,10 +486,7 @@ local function WrapColorText(text, color)
     if body == "" or type(color) ~= "table" then
         return body
     end
-    local r = math.floor((tonumber(color.r) or 1) * 255 + 0.5)
-    local g = math.floor((tonumber(color.g) or 1) * 255 + 0.5)
-    local b = math.floor((tonumber(color.b) or 1) * 255 + 0.5)
-    return string.format("|cff%02x%02x%02x%s|r", r, g, b, body)
+    return COLOR.WrapDynamicRGB(color.r, color.g, color.b, body)
 end
 
 local function GetSpellNameAndIcon(spellID)
@@ -865,7 +867,7 @@ local function GetSpellEditorDefaults()
             g = tonumber(defaults.eventColor.g) or 1,
             b = tonumber(defaults.eventColor.b) or 1,
             a = tonumber(defaults.eventColor.a) or 1,
-        } or { r = 1, g = 1, b = 1, a = 1 },
+        } or NewColorRecord(COLOR.White),
         centralEnabled = defaults.centralEnabled == true,
         centralLead = tonumber(defaults.centralLead) or 0,
         centralText = tostring(defaults.centralText or ""),
@@ -977,27 +979,27 @@ local function BuildSettingsLayout()
         { key = "eventColorEnabled", type = "checkbox", x = 6, y = 16, w = 20, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 31, y = 16, w = 37, h = 5, label = "", items = EVENT_COLOR_ITEMS_FUNC, labelPos = "left", search = true },
         { key = "eventColor", type = "color", x = 70, y = 16, w = 30, h = 5, label = L["自定义颜色"] },
-        { key = "card_text", type = "card", x = 3, y = 8, w = 99, h = 62, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 0.95 } },
-        { key = "description_trash_text_1", type = "description", x = 6, y = 23, w = 35, h = 5, label = "|cffffd637" .. L["中央文本"] .. "|r" },
+        { key = "card_text", type = "card", x = 3, y = 8, w = 99, h = 62, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png" },
+        { key = "description_trash_text_1", type = "description", x = 6, y = 23, w = 35, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["中央文本"]) },
         { key = "centralEnabled", type = "checkbox", x = 6, y = 28, w = 25, h = 5, label = L["启用"] },
         { key = "centralLead", type = "input", x = 31, y = 28, w = 17, h = 5, label = L["提前(秒)"], labelPos = "right" },
         { key = "centralText", type = "input", x = 31, y = 33, w = 54, h = 5, label = "" },
-        { key = "description_trash_text_2", type = "description", x = 6, y = 41, w = 44, h = 5, label = "|cffffd637" .. L["倒数文本"] .. "|r" },
+        { key = "description_trash_text_2", type = "description", x = 6, y = 41, w = 44, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["倒数文本"]) },
         { key = "countdownEnabled", type = "checkbox", x = 6, y = 45, w = 25, h = 5, label = L["启用"] },
         { key = "preAlertText", type = "input", x = 31, y = 45, w = 54, h = 5, label = "" },
-        { key = "description_trash_text_3", type = "description", x = 6, y = 55, w = 44, h = 5, label = "|cffffd637" .. L["计时条改名"] .. "|r" },
+        { key = "description_trash_text_3", type = "description", x = 6, y = 55, w = 44, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["计时条改名"]) },
         { key = "timerBarRenameEnabled", type = "checkbox", x = 6, y = 60, w = 25, h = 5, label = L["启用"] },
         { key = "timerBarRenameText", type = "input", x = 31, y = 60, w = 54, h = 5, label = "" },
 
-        { key = "card_voice", type = "card", x = 3, y = 73, w = 99, h = 62, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", accentColor = { r = 0.28, g = 0.84, b = 1.00, a = 0.95 } },
-        { key = "description_trash_voice_1", type = "description", x = 6, y = 80, w = 44, h = 5, label = "|cffffd637" .. L["施法开始"] .. "|r" },
+        { key = "card_voice", type = "card", x = 3, y = 73, w = 99, h = 62, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png" },
+        { key = "description_trash_voice_1", type = "description", x = 6, y = 80, w = 44, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["施法开始"]) },
         { key = "tr1Enabled", type = "checkbox", x = 6, y = 85, w = 20, h = 5, label = L["启用"] },
         { key = "tr1Source", type = "dropdown", x = 31, y = 85, w = 25, h = 5, label = "", items = TRIGGER_SOURCE_ITEMS, search = true },
         { key = "tr1Label", type = "dropdown", x = 58, y = 85, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
         { key = "tr1LSM", type = "lsm_sound", x = 58, y = 85, w = 30, h = 5, label = "", search = true },
         { key = "tr1Path", type = "input", x = 58, y = 85, w = 30, h = 5, label = "" },
         { key = "tr1ValueTest", type = "button", x = 90, y = 85, w = 10, h = 5, label = L["试听"] },
-        { key = "description_trash_voice_2", type = "description", x = 6, y = 97, w = 44, h = 5, label = "|cffffd637" .. L["倒数提示"] .. "|r" },
+        { key = "description_trash_voice_2", type = "description", x = 6, y = 97, w = 44, h = 5, label = COLOR.WrapText(COLOR.Accent.Primary, L["倒数提示"]) },
         { key = "tr2Enabled", type = "checkbox", x = 6, y = 102, w = 20, h = 5, label = L["启用"] },
         { key = "tr2CountdownLead", type = "dropdown", x = 31, y = 102, w = 25, h = 5, label = "", items = COUNTDOWN_LEAD_ITEMS, search = true },
         { key = "tr2PlayTextEnabled", type = "checkbox", x = 6, y = 110, w = 22, h = 5, label = L["播放文字"] },
@@ -1011,13 +1013,13 @@ local function BuildSettingsLayout()
         { key = "showTimerBar", type = "checkbox", x = 134, y = 1, w = 20, h = 5, label = L["计时条"] },
         { key = "showNameplate", type = "checkbox", x = 166, y = 1, w = 20, h = 5, label = L["姓名版"] },
 
-        { key = "card_cast", type = "card", x = 105, y = 8, w = 96, h = 62, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", accentColor = { r = 0.50, g = 0.74, b = 1.00, a = 0.95 } },
+        { key = "card_cast", type = "card", x = 105, y = 8, w = 96, h = 62, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png" },
         { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["BOSS施法时显示圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["BOSS施法时显示读条"] },
         { key = "castProgressBarRenameEnabled", type = "checkbox", x = 107, y = 28, w = 20, h = 5, label = L["改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 132, y = 28, w = 54, h = 5, label = "" },
         { key = "ringCastCheckEnabled", type = "checkbox", x = 107, y = 36, w = 30, h = 5, label = L["施法检测"] },
-        { key = "card_target_alert", type = "card", x = 105, y = 73, w = 96, h = 62, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", accentColor = { r = 0.40, g = 1.00, b = 0.62, a = 0.95 } },
+        { key = "card_target_alert", type = "card", x = 105, y = 73, w = 96, h = 62, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png" },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 107, y = 85, w = 35, h = 5, label = L["启用"] },
         { key = "targetAlertStartLSM", type = "lsm_sound", x = 144, y = 85, w = 42, h = 5, label = "", labelPos = "left", search = true },
         { key = "targetAlertStartValueTest", type = "button", x = 189, y = 85, w = 10, h = 5, label = L["试听"] },
@@ -1240,7 +1242,7 @@ local function LoadSelectedSpellToEditor()
             g = tonumber(cfg.eventColor.g) or 1,
             b = tonumber(cfg.eventColor.b) or 1,
             a = tonumber(cfg.eventColor.a) or 1,
-        } or { r = 1, g = 1, b = 1, a = 1 }
+        } or NewColorRecord(COLOR.White)
         db.centralEnabled = cfg.centralEnabled == true
         db.centralLead = tonumber(cfg.centralLead) or 0
         db.centralText = LocalizeDynamicText(cfg.centralText or "")
@@ -1309,7 +1311,7 @@ local function PersistEditorToSelectedSpell(changedKey)
         enabled = { "enabled", db.enabled == true }, showBunBar = { "showBunBar", db.showBunBar == true },
         showTimerBar = { "showTimerBar", db.showTimerBar == true }, showNameplate = { "showNameplate", db.showNameplate == true },
         eventColorEnabled = { "eventColorEnabled", db.eventColorEnabled == true }, eventColorMode = { "eventColorMode", tostring(db.eventColorMode or "none") },
-        eventColor = { "eventColor", type(db.eventColor) == "table" and db.eventColor or { r = 1, g = 1, b = 1, a = 1 } },
+        eventColor = { "eventColor", type(db.eventColor) == "table" and db.eventColor or NewColorRecord(COLOR.White) },
         centralEnabled = { "centralEnabled", db.centralEnabled == true }, centralLead = { "centralLead", tonumber(db.centralLead) or 0 },
         centralText = { "centralText", tostring(db.centralText or "") }, countdownEnabled = { "countdownEnabled", db.countdownEnabled == true },
         countdownLead = { "countdownLead", NormalizeCountdownLeadSeconds(db.countdownLead) }, tr2CountdownLead = { "countdownLead", NormalizeCountdownLeadSeconds(db.tr2CountdownLead) },
@@ -1339,23 +1341,23 @@ local function RefreshDungeonButtonVisuals()
             local active = btn.mapID == selectedMapID
             local hovered = btn._hovered == true
             -- 与 Boss 页面左上副本切换完全同一视觉：外按钮透明，状态只作用于图标框。
-            btn:SetBackdropColor(0, 0, 0, 0)
-            btn:SetBackdropBorderColor(0, 0, 0, 0)
+            btn:SetBackdropColor(unpack(COLOR.Transparent))
+            btn:SetBackdropBorderColor(unpack(COLOR.Border.Transparent))
             if active then
-                btn.iconFrame:SetBackdropColor(0.20, 0.43, 0.75, 0.95)
-                btn.iconFrame:SetBackdropBorderColor(0.76, 0.80, 0.90, 1)
+                btn.iconFrame:SetBackdropColor(unpack(COLOR.Accent.CheckboxSelected))
+                btn.iconFrame:SetBackdropBorderColor(unpack(COLOR.Accent.Primary))
                 btn.icon:SetDesaturated(false)
-                btn.text:SetTextColor(1, 0.85, 0.35)
+                btn.text:SetTextColor(unpack(COLOR.Text.Primary))
             elseif hovered then
-                btn.iconFrame:SetBackdropColor(0.18, 0.21, 0.32, 0.95)
-                btn.iconFrame:SetBackdropBorderColor(0.82, 0.86, 0.96, 1)
+                btn.iconFrame:SetBackdropColor(unpack(COLOR.Surface.PanelHeaderHover))
+                btn.iconFrame:SetBackdropBorderColor(unpack(COLOR.Border.Hover))
                 btn.icon:SetDesaturated(false)
-                btn.text:SetTextColor(0.95, 0.95, 0.95)
+                btn.text:SetTextColor(unpack(COLOR.Text.PanelTitleHover))
             else
-                btn.iconFrame:SetBackdropColor(0.15, 0.18, 0.28, 0.95)
-                btn.iconFrame:SetBackdropBorderColor(0.76, 0.80, 0.90, 1)
+                btn.iconFrame:SetBackdropColor(unpack(COLOR.Surface.Card))
+                btn.iconFrame:SetBackdropBorderColor(unpack(COLOR.Border.Default))
                 btn.icon:SetDesaturated(true)
-                btn.text:SetTextColor(0.75, 0.75, 0.78)
+                btn.text:SetTextColor(unpack(COLOR.Text.Secondary))
             end
         end
     end
@@ -1453,8 +1455,8 @@ local function AcquireSpellRow()
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    row:SetBackdropColor(0.02, 0.02, 0.03, 0.86)
-    row:SetBackdropBorderColor(0.25, 0.25, 0.28, 0.90)
+    row:SetBackdropColor(unpack(COLOR.Surface.Card))
+    row:SetBackdropBorderColor(unpack(COLOR.Border.Default))
 
     row.leftBar = EXUI:CreateVisualTexture(row, EXBACKGROUNDFRAME)
     row.leftBar:SetWidth(4)
@@ -1530,7 +1532,7 @@ local function AcquireSpellRow()
     meta:SetJustifyV("TOP")
     meta:SetWordWrap(false)
     meta:SetFont(ExwindTools.MAIN_FONT, 13, "")
-    meta:SetTextColor(0.72, 0.76, 0.82)
+    meta:SetTextColor(unpack(COLOR.Text.Secondary))
     row.meta = meta
 
     row:SetScript("OnEnter", function(self)
@@ -1585,8 +1587,8 @@ local function UpdateDetailCard()
     detailIcon:Show()
     detailIcon:SetTexture(icon or 134400)
     detailTitle:SetText(displayName)
-    detailMeta:SetText(string.format("%s  |cff7f8794spell:%s|r", tostring(row.mobName or "-"),
-        tostring(row.spellID or "-")))
+    detailMeta:SetText(string.format("%s  %s", tostring(row.mobName or "-"),
+        COLOR.WrapText(COLOR.Text.Secondary, "spell:" .. tostring(row.spellID or "-"))))
     detailCast:SetText((castLine ~= "" and tostring(castLine)) or L["暂无施法信息"])
     detailBody:SetText((bodyText ~= "" and tostring(bodyText)) or L["暂无描述。"])
     detailInfo:SetText(table.concat(infoLines, "\n"))
@@ -1732,8 +1734,8 @@ function Page:RefreshSpellList()
         else
             row.testAtlasHolder:Hide()
         end
-        row.meta:SetText(string.format("%s  |cff7f8794spell:%s|r", tostring(rowData.mobName or ""),
-            tostring(rowData.spellID or "-")))
+        row.meta:SetText(string.format("%s  %s", tostring(rowData.mobName or ""),
+            COLOR.WrapText(COLOR.Text.Secondary, "spell:" .. tostring(rowData.spellID or "-"))))
         row._selected = (rowData.npcID == selectedNPCID and rowData.spellID == selectedSpellID)
         row._hovered = false
         row._applyVisual = function(self)
@@ -1741,27 +1743,26 @@ function Page:RefreshSpellList()
             local bg = Clamp01(self._borderG, 0.38)
             local bb = Clamp01(self._borderB, 0.38)
             if self._selected then
-                self:SetBackdropColor(0.08, 0.18, 0.30, 0.95)
+                self:SetBackdropColor(unpack(COLOR.Control.Menu.Selected))
                 self:SetBackdropBorderColor(Clamp01(br * 1.15, 1), Clamp01(bg * 1.15, 1), Clamp01(bb * 1.15, 1), 1)
                 self.leftBar:SetColorTexture(Clamp01(br * 1.15, 1), Clamp01(bg * 1.15, 1), Clamp01(bb * 1.15, 1), 1)
             elseif self._hovered then
-                self:SetBackdropColor(0.08, 0.08, 0.08, 0.88)
+                self:SetBackdropColor(unpack(COLOR.Control.Menu.Hover))
                 self:SetBackdropBorderColor(Clamp01(br * 1.08, 1), Clamp01(bg * 1.08, 1), Clamp01(bb * 1.08, 1), 1)
                 self.leftBar:SetColorTexture(Clamp01(br * 1.08, 1), Clamp01(bg * 1.08, 1), Clamp01(bb * 1.08, 1), 1)
             else
-                self:SetBackdropColor(0.04, 0.04, 0.04, 0.8)
+                self:SetBackdropColor(unpack(COLOR.Surface.Card))
                 self:SetBackdropBorderColor(br, bg, bb, 0.95)
                 self.leftBar:SetColorTexture(br, bg, bb, 0.95)
             end
             if self._enabled == true then
-                self.icon:SetVertexColor(1, 1, 1)
-                self.label:SetTextColor(self._selected and 1 or 0.95, self._selected and 0.86 or 0.95,
-                    self._selected and 0.48 or 0.95)
-                self.meta:SetTextColor(0.72, 0.76, 0.82)
+                self.icon:SetVertexColor(unpack(COLOR.White))
+                self.label:SetTextColor(unpack(self._selected and COLOR.Text.Primary or COLOR.Text.PanelTitleHover))
+                self.meta:SetTextColor(unpack(COLOR.Text.Secondary))
             else
-                self.icon:SetVertexColor(0.55, 0.55, 0.55)
-                self.label:SetTextColor(0.62, 0.62, 0.64)
-                self.meta:SetTextColor(0.48, 0.48, 0.52)
+                self.icon:SetVertexColor(unpack(COLOR.Text.Disabled))
+                self.label:SetTextColor(unpack(COLOR.Text.Disabled))
+                self.meta:SetTextColor(unpack(COLOR.Text.Disabled))
             end
         end
 
@@ -1976,7 +1977,7 @@ local function EnsureUI(parent)
 
     detailPlaceholder = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontDisableSmall")
     detailPlaceholder:SetPoint("CENTER", 0, 0)
-    detailPlaceholder:SetTextColor(0.55, 0.55, 0.6)
+    detailPlaceholder:SetTextColor(unpack(COLOR.Text.Secondary))
     detailPlaceholder:SetText(L["点击左侧法术后，可在此查看法术描述。"])
 
     detailIcon = EXUI:CreateVisualTexture(detailPane, EXBASEFRAME)
@@ -1989,21 +1990,21 @@ local function EnsureUI(parent)
     detailTitle:SetJustifyH("LEFT")
     detailTitle:SetWordWrap(false)
     detailTitle:SetFont(ExwindTools.MAIN_FONT, 23, "OUTLINE")
-    detailTitle:SetTextColor(1, 0.95, 0.55)
+    detailTitle:SetTextColor(unpack(COLOR.Text.Primary))
 
     detailMeta = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
     detailMeta:SetPoint("LEFT", detailTitle, "RIGHT", 10, 0)
     detailMeta:SetJustifyH("LEFT")
     detailMeta:SetWordWrap(false)
     detailMeta:SetFont(ExwindTools.MAIN_FONT, 16, "")
-    detailMeta:SetTextColor(0.55, 0.57, 0.62)
+    detailMeta:SetTextColor(unpack(COLOR.Text.Secondary))
 
     detailCast = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontNormal")
     detailCast:SetPoint("TOPLEFT", detailTitle, "BOTTOMLEFT", 0, -2)
     detailCast:SetPoint("RIGHT", detailPane, "RIGHT", -18, 0)
     detailCast:SetJustifyH("LEFT")
     detailCast:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
-    detailCast:SetTextColor(0.92, 0.92, 0.95)
+    detailCast:SetTextColor(unpack(COLOR.Text.Primary))
 
     detailBody = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
     detailBody:SetPoint("TOPLEFT", detailCast, "BOTTOMLEFT", 0, -8)
@@ -2013,13 +2014,13 @@ local function EnsureUI(parent)
     detailBody:SetWordWrap(true)
     detailBody:SetSpacing(2)
     detailBody:SetFont(ExwindTools.MAIN_FONT, 16, "OUTLINE")
-    detailBody:SetTextColor(1, 0.82, 0.2)
+    detailBody:SetTextColor(unpack(COLOR.Accent.Primary))
 
     detailDivider = EXUI:CreateVisualTexture(detailPane, EXBORDERFRAME)
     detailDivider:SetPoint("BOTTOMLEFT", detailPane, "BOTTOMLEFT", 14, 10)
     detailDivider:SetPoint("BOTTOMRIGHT", detailPane, "BOTTOMRIGHT", -14, 10)
     detailDivider:SetHeight(1)
-    detailDivider:SetColorTexture(1, 1, 1, 0.14)
+    detailDivider:SetColorTexture(unpack(COLOR.Surface.PanelDivider))
     detailDivider:Hide()
 
     detailInfo = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlightSmall")
@@ -2028,12 +2029,12 @@ local function EnsureUI(parent)
     detailInfo:SetJustifyH("LEFT")
     detailInfo:SetJustifyV("BOTTOM")
     detailInfo:SetWordWrap(true)
-    detailInfo:SetTextColor(0.82, 0.86, 0.92)
+    detailInfo:SetTextColor(unpack(COLOR.Text.Primary))
 
     local settingsTitle = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormal")
     settingsTitle:SetPoint("TOPLEFT", 10, -8)
     settingsTitle:SetText(L["当前法术设置"])
-    settingsTitle:SetTextColor(1, 0.82, 0.45)
+    settingsTitle:SetTextColor(unpack(COLOR.Accent.Primary))
     settingsTitle:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
 
     settingsVoiceDisabledNote = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormalSmall")
@@ -2041,7 +2042,7 @@ local function EnsureUI(parent)
     settingsVoiceDisabledNote:SetPoint("RIGHT", settingsPane, "RIGHT", -28, 0)
     settingsVoiceDisabledNote:SetJustifyH("LEFT")
     settingsVoiceDisabledNote:SetWordWrap(true)
-    settingsVoiceDisabledNote:SetTextColor(1, 0.82, 0.25)
+    settingsVoiceDisabledNote:SetTextColor(unpack(COLOR.Status.Warning))
     settingsVoiceDisabledNote:Hide()
 
     settingsScrollFrame = CreateFrame("ScrollFrame", nil, settingsPane, "ScrollFrameTemplate")

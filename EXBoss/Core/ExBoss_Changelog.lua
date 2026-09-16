@@ -9,6 +9,7 @@ if not ExBoss then return end
 local ExwindTools = _G.ExwindTools
 local Viewer = ExwindTools and ExwindTools.ChangelogViewer
 if not Viewer then return end
+local COLOR = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 
@@ -85,21 +86,21 @@ local function ResolveSpellToken(idText)
     local iconMarkup = icon and string.format("|T%s:0|t ", tostring(icon)) or ""
     local link = C_Spell and C_Spell.GetSpellLink and C_Spell.GetSpellLink(spellID)
     if type(link) == "string" and link ~= "" then return iconMarkup .. link end
-    return string.format("%s|cffff7d0a[spell:%d]|r", iconMarkup, spellID)
+    return iconMarkup .. COLOR.WrapText(COLOR.Gameplay.SpellLink, string.format("[spell:%d]", spellID))
 end
 
 local function ResolveInstanceToken(idText)
     local mapID = tonumber(idText)
     if not mapID then return "%i:" .. tostring(idText or "") end
     local entry = FindSourceEntry("InstanceNoteInstanceSource", "mapID", mapID)
-    return string.format("|cffffb84d%s|r", ResolveLocalizedName(entry, "%i:" .. idText))
+    return COLOR.WrapText(COLOR.Status.Warning, ResolveLocalizedName(entry, "%i:" .. idText))
 end
 
 local function ResolveEncounterToken(idText)
     local encounterID = tonumber(idText)
     if not encounterID then return "%e:" .. tostring(idText or "") end
     local entry = FindSourceEntry("InstanceNoteEncounterSource", "encounterID", encounterID)
-    return string.format("|cffffb84d%s|r", ResolveLocalizedName(entry, "%e:" .. idText))
+    return COLOR.WrapText(COLOR.Status.Warning, ResolveLocalizedName(entry, "%e:" .. idText))
 end
 
 local function ResolveNPCToken(idText)
@@ -108,7 +109,7 @@ local function ResolveNPCToken(idText)
     local database = rawget(_G, "EXDB")
     local source = database and database.NPCNameSource
     local entry = type(source) == "table" and source[npcID] or nil
-    return string.format("|cffffb84d%s|r", ResolveLocalizedName(entry, "%n:" .. idText))
+    return COLOR.WrapText(COLOR.Status.Warning, ResolveLocalizedName(entry, "%n:" .. idText))
 end
 
 local function TransformLine(line)

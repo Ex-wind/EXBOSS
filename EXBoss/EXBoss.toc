@@ -1,5 +1,5 @@
 ## Interface: 120100
-## Title: |cffff4400Ex|r|cff00ccffBoss|r
+## Title: ExBoss
 ## Notes: BOSS 技能计时 + 语音提醒
 ## Author: Exwind
 ## Version: 1.0.0

@@ -7,6 +7,7 @@
 ExBoss.UI.Panel.VoicePackPage             = ExBoss.UI.Panel.VoicePackPage or {}
 local Page                                = ExBoss.UI.Panel.VoicePackPage
 local EXUI                                = _G.ExwindTools and _G.ExwindTools.UI
+local COLOR                               = assert(_G.ExwindGUIColor, "ExBoss requires ExwindGUIColor")
 local L                                   = (ExBoss and ExBoss.L) or
     setmetatable({}, { __index = function(_, k) return k end })
 
@@ -18,59 +19,6 @@ local RefreshPage                         = nil
 local UpdateConfigurationManagerButtonState = nil
 local DEFAULT_VOICE_PACK                  = "EXWIND(默认)"
 local ENGLISH_VOICE_PACK                  = "英文(ENG)"
-
-local THEME                               = {
-    accent = { 1.00, 0.82, 0.22 },
-    cyan   = { 0.24, 0.78, 1.00 },
-    ok     = { 0.20, 0.95, 0.50 },
-    muted  = { 0.55, 0.60, 0.68 },
-    border = { 0.18, 0.22, 0.28 },
-    cardBg = { 0.03, 0.04, 0.07 },
-}
-
--- ─── 帮助函数 ─────────────────────────────────────────────────
-
-local function Bg(parent, r, g, b, a)
-    local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    f:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 10,
-        insets   = { left = 2, right = 2, top = 2, bottom = 2 },
-    })
-    f:SetBackdropColor(r or 0.03, g or 0.04, b or 0.07, a or 0.92)
-    f:SetBackdropBorderColor(
-        THEME.border[1], THEME.border[2], THEME.border[3], 0.95)
-    return f
-end
-
-local function TopBar(parent, r, g, b)
-    local t = EXUI:CreateVisualTexture(parent, EXBORDERFRAME)
-    t:SetColorTexture(r, g, b, 0.95)
-    t:SetHeight(2)
-    t:SetPoint("TOPLEFT", parent, "TOPLEFT", 6, -6)
-    t:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -6, -6)
-    return t
-end
-
-local function Divider(parent, anchor, offY)
-    local t = EXUI:CreateVisualTexture(parent, EXBORDERFRAME)
-    t:SetHeight(1)
-    t:SetColorTexture(0.22, 0.26, 0.32, 0.85)
-    t:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, offY or -10)
-    t:SetPoint("TOPRIGHT", parent, "RIGHT", -16, 0)
-    return t
-end
-
-local function Chip(parent, r, g, b)
-    local chip = Bg(parent, r * 0.18, g * 0.18, b * 0.18, 0.88)
-    chip:SetBackdropBorderColor(r * 0.6, g * 0.6, b * 0.6, 0.90)
-    local fs = EXUI:CreateVisualFontString(chip, EXFONTFRAME, "GameFontNormalSmall")
-    fs:SetPoint("CENTER")
-    fs:SetTextColor(r, g, b)
-    chip.label = fs
-    return chip
-end
 
 -- ─── DB / 语音包工具 ──────────────────────────────────────────
 
@@ -577,12 +525,12 @@ local function ApplyStatusColor(text, ok, isError)
         return ""
     end
     if isError == true or ok == false then
-        return "|cffff6666" .. value .. "|r"
+        return COLOR.WrapText(COLOR.Status.Error, value)
     end
     if ok == true then
-        return "|cff33ee77" .. value .. "|r"
+        return COLOR.WrapText(COLOR.Status.Success, value)
     end
-    return "|cffbfc8d6" .. value .. "|r"
+    return COLOR.WrapText(COLOR.Text.Secondary, value)
 end
 
 local function BuildPackItemsForGrid()
@@ -611,12 +559,12 @@ end
 local function BuildMissingVoiceText()
     local missing, err = GetMissingLabelsForPack(GetCurrentPackName())
     if err then
-        return string.format("|cffff6666%s|r\n%s", L["缺少语音：?"], tostring(err))
+        return string.format("%s\n%s", COLOR.WrapText(COLOR.Status.Error, L["缺少语音：?"]), tostring(err))
     end
     if type(missing) == "table" and #missing > 0 then
-        return string.format("|cffffaa55%s|r\n%s", string.format(L["缺少语音：%d"], #missing), table.concat(missing, L["、"]))
+        return string.format("%s\n%s", COLOR.WrapText(COLOR.Status.Warning, string.format(L["缺少语音：%d"], #missing)), table.concat(missing, L["、"]))
     end
-    return "|cff33dd88" .. L["缺少语音：0"] .. "|r\n" .. L["已覆盖默认语音标签"]
+    return COLOR.WrapText(COLOR.Status.Success, L["缺少语音：0"]) .. "\n" .. L["已覆盖默认语音标签"]
 end
 
 local function BuildDefaultConfigStatusText()
@@ -916,11 +864,11 @@ end
 local function BuildVoicePackInfoBody()
     local info = GetCurrentPackInfo()
     local lines = {
-        string.format("|cff66d0ff%s|r", tostring(info.description or "")),
+        COLOR.WrapText(COLOR.Status.Info, tostring(info.description or "")),
         "",
-        string.format("|cffffd16d%s|r  %s", L["标签"], string.format(L["%d 标签"], tonumber(info.labelCount) or 0)),
-        string.format("|cffffd16d%s|r  %s", L["作者"], tostring(info.author or L["—"])),
-        string.format("|cffffd16d%s|r  %s", L["版本"], tostring(info.version or L["—"])),
+        string.format("%s  %s", COLOR.WrapText(COLOR.Status.Warning, L["标签"]), string.format(L["%d 标签"], tonumber(info.labelCount) or 0)),
+        string.format("%s  %s", COLOR.WrapText(COLOR.Status.Warning, L["作者"]), tostring(info.author or L["—"])),
+        string.format("%s  %s", COLOR.WrapText(COLOR.Status.Warning, L["版本"]), tostring(info.version or L["—"])),
         "",
         BuildMissingVoiceText(),
     }
@@ -968,14 +916,14 @@ local function BuildConfigurationLayout()
         },
 
         -- 左栏：语音包保持现状，后续单独调整。
-        { key = "card_pack_picker", type = "card", x = 3, y = 11, w = 60, h = 40, title = L["语音包"], desc = L["选择当前生效的语音包。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } },
+        { key = "card_pack_picker", type = "card", x = 3, y = 11, w = 60, h = 40, title = L["语音包"], desc = L["选择当前生效的语音包。"], accentAlign = "left" },
         { key = "selectedVoicePack", type = "dropdown", x = 5, y = 23, w = 50, h = 4, label = L["当前语音包"], items = BuildPackItemsForGrid(), labelPos = "top", labelWrap = true, labelMaxLines = 2, search = true },
-        { key = "card_pack_details", type = "card", x = 3, y = 57, w = 60, h = 40, title = tostring(info.displayName or ""), desc = tostring(info.subtitle or ""), accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } },
+        { key = "card_pack_details", type = "card", x = 3, y = 57, w = 60, h = 40, title = tostring(info.displayName or ""), desc = tostring(info.subtitle or ""), accentAlign = "left" },
         { key = "desc_pack_info", type = "description", x = 5, y = 65, w = 50, h = 30, label = BuildVoicePackInfoBody() },
 
         -- All active configuration choices live together.  User overrides
         -- remain internal and automatically follow their selected Author.
-        { key = "card_active_configurations", type = "card", x = 69, y = 11, w = 60, h = 116, title = L["当前配置选择"], desc = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"], accentAlign = "left", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
+        { key = "card_active_configurations", type = "card", x = 69, y = 11, w = 60, h = 116, title = L["当前配置选择"], desc = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"], accentAlign = "left" },
         { key = "appearanceProfileID", type = "dropdown", x = 71, y = 22, w = 54, h = 4, label = L["外观配置"], items = BuildAppearanceProfileItems(), labelPos = "top", search = true },
         { key = "author_mplus_tank", type = "dropdown", x = 71, y = 36, w = 54, h = 4, label = L["大秘境坦克 Author"], items = BuildAuthorPresetItems("mplus_tank"), labelPos = "top", search = true },
         { key = "author_mplus_dps", type = "dropdown", x = 71, y = 48, w = 54, h = 4, label = L["大秘境 DPS Author"], items = BuildAuthorPresetItems("mplus_dps"), labelPos = "top", search = true },
@@ -989,7 +937,7 @@ local function BuildConfigurationLayout()
     local managedConfiguration = FindConfigurationRow(db.selectedConfiguration)
     local builtInDeleteHint = managedConfiguration and managedConfiguration.builtIn == true
         and ApplyStatusColor(L["内置 Author 无法重命名或删除"], false, true) or ""
-    layout[#layout + 1] = { key = "card_configuration_manager", type = "card", x = 135, y = manageTop, w = 60, h = 52, title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } }
+    layout[#layout + 1] = { key = "card_configuration_manager", type = "card", x = 135, y = manageTop, w = 60, h = 52, title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], accentAlign = "left" }
     layout[#layout + 1] = { key = "selectedConfiguration", type = "dropdown", x = 137, y = 23, w = 56, h = 4, label = L["选择 Author 配置"], items = allConfigurations, labelPos = "top", search = true }
     layout[#layout + 1] = { key = "configurationName", type = "input", x = 137, y = 35, w = 56, h = 4, label = L["Author 名称"], labelPos = "top" }
     layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", x = 137, y = 45, w = 18, h = 4, label = L["复制配置"], func = CopyManagedConfiguration }
@@ -1150,7 +1098,7 @@ RefreshPage = function(resetScroll)
             missingDepsText:SetPoint("TOPLEFT", 24, -24)
             missingDepsText:SetPoint("RIGHT", contentFrame, "RIGHT", -24, 0)
             missingDepsText:SetJustifyH("LEFT")
-            missingDepsText:SetTextColor(1, 0.4, 0.4)
+            missingDepsText:SetTextColor(unpack(COLOR.Status.Error))
         end
         missingDepsText:SetText(L["语音/配置页面依赖 ExwindTools.UI 与 ExwindGrid，当前未就绪。请确认 ExwindCore 已正确加载后重开面板。"])
         missingDepsText:Show()
