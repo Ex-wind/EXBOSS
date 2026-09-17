@@ -52,21 +52,36 @@ local COMMON_OPTS = {
 -- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
 -- modulecommonsettings/anchorgroup/icongroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["束状条设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 96, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 108, w = 200, h = 22, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 133, w = 200, h = 50, label = L["主图标外观"], opts = {} },
-    { key = "alertIcons", type = "icongroup", x = 1, y = 186, w = 200, h = 50, label = L["业务提示 Atlas"], opts = { enableOffset = true } },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 239, w = 200, h = 50, label = L["法术名称"], labelSize = 20, opts = {} },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 292, w = 200, h = 50, label = L["图标倒数时间"], labelSize = 20, opts = {} },
+    version = 1,
+    title = L["束状条设置"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+        { id = "main-icon", title = L["主图标外观"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "icongroup", key = "icon", opts = {} } },
+        { id = "alert-icons", title = L["业务提示 Atlas"], collapsible = true,
+            placement = { target = "main-icon", side = "below", align = "start" },
+            content = { kind = "composite", component = "icongroup", key = "alertIcons", opts = { enableOffset = true } } },
+        { id = "spell-font", title = L["法术名称"], collapsible = true,
+            placement = { target = "alert-icons", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {} } },
+        { id = "timer-font", title = L["图标倒数时间"], collapsible = true,
+            placement = { target = "spell-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {} } },
+    },
 }
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 local function RebindModuleCommon(context)
     -- state.widgets 的 moduleCommon key 是组合控件身份；迁移后仍按同 key 查找，不能按视觉位置推断。
-    local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
-    local common = state and state.widgets and state.widgets.moduleCommon
+    local common = context.grid and context.grid.FindMountedWidget
+        and context.grid:FindMountedWidget(context.scrollChild, "moduleCommon")
     if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
 end
 

@@ -22,14 +22,29 @@ local COMMON_OPTS = {
 -- 禁止：修改业务开关 path/key、增长方向、StandardConfigBinding、预览或释放合同。
 -- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用；风火图业务样式不并入血量条卡片。
 local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["副本额外设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 64, label = L["已接管的副本提示"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 76, w = 200, h = 20, measure = true, label = L["统一锚点"], opts = Mod:GetStandardAnchorGroupOptions() },
-    { key = "layout", type = "widgetlayout", x = 1, y = 99, w = 200, h = 23, measure = true, label = L["血量条排列"],
-        opts = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = false, maxVisibleMin = 1, maxVisibleMax = 6, defaultMaxVisible = 6 } },
-    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 125, w = 200, h = 52, label = L["血量条外观"] },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 180, w = 200, h = 50, label = L["单位名称"] },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 233, w = 200, h = 50, label = L["血量百分比"] },
+    version = 1,
+    title = L["副本额外设置"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["统一锚点"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = Mod:GetStandardAnchorGroupOptions() } },
+        { id = "layout", title = L["血量条排列"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout",
+                opts = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = false, maxVisibleMin = 1, maxVisibleMax = 6, defaultMaxVisible = 6 } } },
+        { id = "timer-bar", title = L["血量条外观"], collapsible = true,
+            placement = { target = "layout", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
+        { id = "spell-font", title = L["单位名称"], collapsible = true,
+            placement = { target = "timer-bar", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+        { id = "timer-font", title = L["血量百分比"], collapsible = true,
+            placement = { target = "spell-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+    },
 }
 Tools:RegisterModuleLayout(KEY, LAYOUT)
 -- [生命周期边界] StandardModulePage 继续拥有 Scroll、preview 与 release；布局迁移不得另建页面生命周期。

@@ -91,14 +91,31 @@ local SLIDER_GROUP_PATHS = {
 -- 禁止：修改 key/type/path/opts、字段业务次序、ScaleLayout 语义、预览或 Slider/释放合同。
 -- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用；旧背景/标题项不等于内容容器。
 local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["计时条设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 11, w = 200, h = 29, label = L["模块通用设置"], opts = TIMER_BAR_COMMON_OPTS },
-    { key = "extraTexture", type = "modulecommonsettings", x = 1, y = 42, w = 200, h = 50, label = L["额外子元素－材质"], opts = TIMER_BAR_EXTRA_TEXTURE_OPTS },
-    { key = "anchorGroup", type = "anchorgroup", x = 1, y = 94, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = TIMER_BAR_ANCHOR_OPTS },
-    { key = "layout", type = "widgetlayout", x = 1, y = 116, w = 200, h = 20, measure = true, label = L["排列设置"], opts = TIMER_BAR_LAYOUT_OPTS },
-    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 139, w = 200, h = 50, label = L["计时条外观"], labelSize = 20 },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 193, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 246, w = 200, h = 50, label = L["时间文本"], labelSize = 20 },
+    version = 1,
+    title = L["计时条设置"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = TIMER_BAR_COMMON_OPTS } },
+        { id = "extra-texture", title = L["额外子元素－材质"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "extraTexture", opts = TIMER_BAR_EXTRA_TEXTURE_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "extra-texture", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = TIMER_BAR_ANCHOR_OPTS } },
+        { id = "layout", title = L["排列设置"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = TIMER_BAR_LAYOUT_OPTS } },
+        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
+            placement = { target = "layout", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
+        { id = "spell-font", title = L["法术名称"], collapsible = true,
+            placement = { target = "timer-bar", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+        { id = "timer-font", title = L["时间文本"], collapsible = true,
+            placement = { target = "spell-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+    },
 }
 
 
@@ -172,10 +189,8 @@ end
 
 local function RebindTimerBarModuleCommon(grid, container, db)
     -- state.widgets 的既有 key 是组合控件身份；迁移后不得改名或改为按位置查找。
-    local state = grid and grid.ContainerStates and grid.ContainerStates[container]
-    local widgets = state and state.widgets
     for _, key in ipairs({ "moduleCommon", "extraTexture" }) do
-        local group = widgets and widgets[key]
+        local group = grid and grid.FindMountedWidget and grid:FindMountedWidget(container, key)
         if group and type(group.RebindDB) == "function" then
             group:RebindDB(db)
         end
@@ -200,12 +215,8 @@ end
 local StandardPage = ExwindTools.UI:CreateStandardModulePage({
     moduleKey = MODULE_KEY,
     page = Page,
-    layout = function(context)
-        return ScaleLayout(LAYOUT, ResolveGridCols(context.scrollChild:GetWidth()))
-    end,
-    getColumns = function(context)
-        return ResolveGridCols(context.scrollChild:GetWidth())
-    end,
+    layout = LAYOUT,
+    getColumns = 200,
     preview = {
         -- 模块合同下限：TimerBar 预览至少显示两条，不能从 1px Dock 开始。
         height = 120,

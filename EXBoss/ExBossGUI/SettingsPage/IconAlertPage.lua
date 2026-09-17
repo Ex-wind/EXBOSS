@@ -53,15 +53,34 @@ local LAYOUT_OPTS = {
 -- 禁止：修改 key/type/path/opts、允许增长方向、预览、Slider 或释放合同。
 -- modulecommonsettings/anchorgroup/widgetlayout/icongroup/fontgroup/glow_settings 必须整体引用，不能拆开重拼。
 local GRID_LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["图标设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 11, w = 200, h = 22, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchorGroup", type = "anchorgroup", x = 1, y = 33, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "layout", type = "widgetlayout", x = 1, y = 55, w = 200, h = 20, measure = true, label = L["排列设置"], opts = LAYOUT_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 77, w = 200, h = 50, label = L["图标本体"], labelSize = 20 },
-    { key = "font_text", type = "fontgroup", x = 1, y = 129, w = 200, h = 50, label = L["名称子元素"], labelSize = 20 },
-    { key = "font_time", type = "fontgroup", x = 1, y = 181, w = 200, h = 50, label = L["倒数文本"], labelSize = 20 },
-    { key = "font_stacks", type = "fontgroup", x = 1, y = 233, w = 200, h = 50, label = L["层数文本"], labelSize = 20 },
-    { key = "glow", type = "glow_settings", x = 1, y = 285, w = 200, h = 50, measure = true, label = L["发光子元素"] },
+    version = 1,
+    title = L["图标设置"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = ANCHOR_OPTS } },
+        { id = "layout", title = L["排列设置"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
+        { id = "icon", title = L["图标本体"], collapsible = true,
+            placement = { target = "layout", side = "below", align = "start" },
+            content = { kind = "composite", component = "icongroup", key = "icon" } },
+        { id = "name-font", title = L["名称子元素"], collapsible = true,
+            placement = { target = "icon", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_text" } },
+        { id = "time-font", title = L["倒数文本"], collapsible = true,
+            placement = { target = "name-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_time" } },
+        { id = "stacks-font", title = L["层数文本"], collapsible = true,
+            placement = { target = "time-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_stacks" } },
+        { id = "glow", title = L["发光子元素"], collapsible = true,
+            placement = { target = "stacks-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "glow_settings", key = "glow" } },
+    },
 }
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, GRID_LAYOUT)

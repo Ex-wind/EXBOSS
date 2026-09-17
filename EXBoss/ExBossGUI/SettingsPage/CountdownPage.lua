@@ -70,20 +70,32 @@ local COMMON_OPTS = {
 -- 禁止：修改 key/type/path/opts、测试回调、Secret-safe 固定样本、预览或释放合同。
 -- modulecommonsettings/anchorgroup/icongroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["屏幕倒计时"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 64, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 77, w = 200, h = 25, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "icon", type = "icongroup", x = 1, y = 105, w = 200, h = 50, label = L["图标外观"] },
-    { key = "font_text", type = "fontgroup", x = 1, y = 158, w = 200, h = 50, label = L["提示文字"], labelSize = 20 },
-    { key = "font_time", type = "fontgroup", x = 1, y = 211, w = 200, h = 50, label = L["倒计时数字"], labelSize = 20 },
+    version = 1,
+    title = L["屏幕倒计时"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+        { id = "icon", title = L["图标外观"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "icongroup", key = "icon" } },
+        { id = "text-font", title = L["提示文字"], collapsible = true,
+            placement = { target = "icon", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_text" } },
+        { id = "time-font", title = L["倒计时数字"], collapsible = true,
+            placement = { target = "text-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_time" } },
+    },
 }
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
 local function RebindCountdownModuleCommon(grid, container, db)
     -- state.widgets.moduleCommon 是稳定组合控件入口，迁移后必须保留 key 查找语义。
-    local state = grid and grid.ContainerStates and grid.ContainerStates[container]
-    local common = state and state.widgets and state.widgets.moduleCommon
+    local common = grid and grid.FindMountedWidget and grid:FindMountedWidget(container, "moduleCommon")
     if common and type(common.RebindDB) == "function" then common:RebindDB(db) end
 end
 

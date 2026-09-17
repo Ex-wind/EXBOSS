@@ -38,11 +38,19 @@ end
 -- 禁止：修改 key/type/path/opts、测试按钮回调、预览、Slider 或释放合同。
 -- modulecommonsettings/anchorgroup/fontgroup 是完整组合，不能拆成原子控件重拼。
 local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["文字公告(中)"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 30, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 43, w = 200, h = 25, measure = true, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "font_text", type = "fontgroup", x = 1, y = 71, w = 200, h = 50, label = L["文字公告(中)"], labelSize = 20,
-        opts = { unboundedWidth = true } },
+    version = 1,
+    title = L["文字公告(中)"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+        { id = "text-font", title = L["文字公告(中)"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_text", opts = { unboundedWidth = true } } },
+    },
 }
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 

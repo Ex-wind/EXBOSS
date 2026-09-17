@@ -67,20 +67,33 @@ local COMMON_OPTS = {
 -- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
 -- modulecommonsettings/anchorgroup/timerBarGroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local GRID_LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["施法进度条设置"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 48, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 61, w = 200, h = 20, measure = true, label = L["锚点设置"], opts = ANCHOR_GROUP_OPTS },
-    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 84, w = 200, h = 50, label = L["施法条外观"], labelSize = 20 },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 137, w = 200, h = 50, label = L["法术名称"], labelSize = 20 },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 190, w = 200, h = 50, label = L["时间文本"], labelSize = 20 },
+    version = 1,
+    title = L["施法进度条设置"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_GROUP_OPTS } },
+        { id = "timer-bar", title = L["施法条外观"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
+        { id = "spell-font", title = L["法术名称"], collapsible = true,
+            placement = { target = "timer-bar", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+        { id = "timer-font", title = L["时间文本"], collapsible = true,
+            placement = { target = "spell-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+    },
 }
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, GRID_LAYOUT)
 
 local function RebindModuleCommon(context)
     -- state.widgets.moduleCommon 是稳定组合控件入口，迁移后必须保留 key 查找语义。
-    local state = context.grid and context.grid.ContainerStates and context.grid.ContainerStates[context.scrollChild]
-    local common = state and state.widgets and state.widgets.moduleCommon
+    local common = context.grid and context.grid.FindMountedWidget
+        and context.grid:FindMountedWidget(context.scrollChild, "moduleCommon")
     if common and type(common.RebindDB) == "function" then common:RebindDB(context.config) end
 end
 

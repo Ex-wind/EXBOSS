@@ -142,14 +142,31 @@ local LAYOUT_OPTS = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = f
 -- 禁止：修改队伍/施法业务事件与排序、key/path/opts、StandardConfigBinding、collection、预览或释放链。
 -- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用，不能拆成原子控件重拼。
 local EX_LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["打断监控"], labelSize = 25 },
-    { key = "moduleCommon", type = "modulecommonsettings", x = 1, y = 10, w = 200, h = 50, label = L["模块通用设置"], opts = COMMON_OPTS },
-    { key = "raidMarkerExtra", type = "modulecommonsettings", x = 1, y = 62, w = 200, h = 50, label = L["额外子元素－团队标记"], opts = RAID_MARKER_EXTRA_OPTS },
-    { key = "anchor", type = "anchorgroup", x = 1, y = 114, w = 200, h = 20, label = L["锚点设置"], opts = ANCHOR_OPTS },
-    { key = "layout", type = "widgetlayout", x = 1, y = 136, w = 200, h = 20, measure = true, label = L["排列设置"], opts = LAYOUT_OPTS },
-    { key = "timerGroup", type = "timerBarGroup", x = 1, y = 158, w = 200, h = 52, label = L["计时条外观"] },
-    { key = "font_spell", type = "fontgroup", x = 1, y = 212, w = 200, h = 50, label = L["玩家名字"] },
-    { key = "font_timer", type = "fontgroup", x = 1, y = 264, w = 200, h = 50, label = L["冷却时间"] },
+    version = 1,
+    title = L["打断监控"],
+    cards = {
+        { id = "module-common", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+        { id = "raid-marker", title = L["额外子元素－团队标记"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "raid-marker", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+        { id = "layout", title = L["排列设置"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
+        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
+            placement = { target = "layout", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
+        { id = "spell-font", title = L["玩家名字"], collapsible = true,
+            placement = { target = "timer-bar", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+        { id = "timer-font", title = L["冷却时间"], collapsible = true,
+            placement = { target = "spell-font", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+    },
 }
 ExwindTools:RegisterModuleLayout(EXWIND_MODULE_KEY, EX_LAYOUT)
 
