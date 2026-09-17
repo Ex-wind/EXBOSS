@@ -9,12 +9,13 @@ ExBoss.UI.Panel.DungeonExtrasPage = Page
 
 local COMMON_OPTS = {
     bindRoot = true, poolType = "DungeonExtrasCommonSettingsGroup",
+    presentation = "settings-list",
     fixedLayout = { logicalWidth = 200, controlW = 190, controlH = 6, slotX = { 3 }, firstY = 0, rowStep = 14 },
     fields = {
-        { path = "enabled", type = "checkbox", label = L["启用副本额外提示"], row = 1 },
-        { path = "rubyWindFire", type = "checkbox", label = L["红玉新生法池：尾王风火图"], row = 2 },
-        { path = "altarTrashHealth", type = "checkbox", label = L["毒牙祭坛：指定小怪血量"], row = 3 },
-        { path = "healthColor", type = "checkbox", label = L["血量条随剩余血量染色"], row = 4 },
+        { path = "enabled", type = "checkbox", label = L["启用副本额外提示"], row = 1, presentation = "switch" },
+        { path = "rubyWindFire", type = "checkbox", label = L["红玉新生法池：尾王风火图"], row = 2, presentation = "switch" },
+        { path = "altarTrashHealth", type = "checkbox", label = L["毒牙祭坛：指定小怪血量"], row = 3, presentation = "switch" },
+        { path = "healthColor", type = "checkbox", label = L["血量条随剩余血量染色"], row = 4, presentation = "switch" },
     },
 }
 -- [卡片/Grid 迁移边界：DungeonExtras 设置页]
@@ -27,23 +28,41 @@ local LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+            settingsList = { preserveHeader = true, title = L["通用"], rows = {
+                { key = "moduleCommon", fullWidth = true },
+            } } },
         { id = "anchor", title = L["统一锚点"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = Mod:GetStandardAnchorGroupOptions() } },
-        { id = "layout", title = L["血量条排列"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "widgetlayout", key = "layout",
-                opts = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = false, maxVisibleMin = 1, maxVisibleMax = 6, defaultMaxVisible = 6 } } },
-        { id = "timer-bar", title = L["血量条外观"], collapsible = true,
             placement = { target = "layout", side = "below", align = "start" },
-            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = Mod:GetStandardAnchorGroupOptions() },
+            settingsList = { preserveHeader = true, title = L["锚点"], rows = {
+                { key = "anchor", fullWidth = true },
+            } } },
+        { id = "layout", title = L["血量条排列"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout",
+                opts = { allowedDirections = { "UP", "DOWN" }, includeMaxPerRow = false, maxVisibleMin = 1, maxVisibleMax = 6, defaultMaxVisible = 6 } },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "layout", fullWidth = true },
+            } } },
+        { id = "timer-bar", title = L["血量条外观"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = {
+                { key = "timerGroup", fullWidth = true },
+            } } },
         { id = "spell-font", title = L["单位名称"], collapsible = true,
             placement = { target = "timer-bar", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_spell", fullWidth = true },
+            } } },
         { id = "timer-font", title = L["血量百分比"], collapsible = true,
             placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_timer", fullWidth = true },
+            } } },
     },
 }
 Tools:RegisterModuleLayout(KEY, LAYOUT)

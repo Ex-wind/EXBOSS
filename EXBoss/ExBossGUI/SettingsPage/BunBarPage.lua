@@ -23,7 +23,7 @@ end
 local ANCHOR_OPTS = bunBar:GetStandardAnchorGroupOptions()
 
 local COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"], row = 1 },
+    { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
     { path = "moveDir", type = "dropdown", label = L["移动方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } }, row = 2 },
     { path = "font_spell.side", type = "dropdown", label = L["名称位置"], items = { { L["图标左边"], "LEFT" }, { L["图标右边"], "RIGHT" } }, row = 2 },
     { path = "hideLongTimersSeconds", type = "slider", label = L["隐藏几秒以上的"], min = 1, max = 60, step = 1, row = 2, column = 4 },
@@ -33,7 +33,7 @@ local COMMON_FIELDS = {
     { path = "fiveSecLineColor", type = "color", label = L["5秒线颜色"], row = 3 },
     { path = "bgSettings.texture", type = "lsm_background", label = L["背景材质"], row = 4 },
     { path = "bgSettings.bgColor", type = "color", label = L["背景颜色"], row = 4 },
-    { path = "bgSettings.showBorder", type = "checkbox", label = L["启用轨道边框"], row = 4, column = 3 },
+    { path = "bgSettings.showBorder", type = "checkbox", label = L["启用轨道边框"], row = 4, column = 3, presentation = "switch" },
     { path = "bgSettings.borderTexture", type = "lsm_border", label = L["边框材质"], row = 5 },
     { path = "bgSettings.borderColor", type = "color", label = L["边框颜色"], row = 5 },
     { path = "bgSettings.edgeSize", type = "slider", label = L["边框粗细"], min = 1, max = 32, step = 1, row = 5 },
@@ -45,6 +45,7 @@ local COMMON_OPTS = {
     poolType = "BunBarModuleCommonSettingsGroup",
     fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = COMMON_FIELDS,
+    presentation = "settings-list",
 }
 
 -- [卡片/Grid 迁移边界：BunBar 设置页]
@@ -57,22 +58,28 @@ local LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
         { id = "anchor", title = L["锚点设置"], collapsible = true,
             placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "anchor", fullWidth = true } } } },
         { id = "main-icon", title = L["主图标外观"], collapsible = true,
             placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "icon", opts = {} } },
+            content = { kind = "composite", component = "icongroup", key = "icon", opts = {} },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "icon", fullWidth = true } } } },
         { id = "alert-icons", title = L["业务提示 Atlas"], collapsible = true,
             placement = { target = "main-icon", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "alertIcons", opts = { enableOffset = true } } },
+            content = { kind = "composite", component = "icongroup", key = "alertIcons", opts = { enableOffset = true } },
+            settingsList = { preserveHeader = true, rows = { { key = "alertIcons", fullWidth = true } } } },
         { id = "spell-font", title = L["法术名称"], collapsible = true,
             placement = { target = "alert-icons", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {} } },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {} },
+            settingsList = { preserveHeader = true, rows = { { key = "font_spell", fullWidth = true } } } },
         { id = "timer-font", title = L["图标倒数时间"], collapsible = true,
             placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {} } },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {} },
+            settingsList = { preserveHeader = true, rows = { { key = "font_timer", fullWidth = true } } } },
     },
 }
 

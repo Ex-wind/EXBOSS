@@ -37,10 +37,28 @@ local LAYOUT = {
             content = { kind = "grid", items = {
                 { key = "pullCountdownEnabled", type = "checkbox", x = 1, y = 1, w = 96, h = 6, label = L["启用开怪倒数"] },
                 { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 101, y = 1, w = 96, h = 6, label = L["为开怪倒数播放语音"] },
-            } } },
+            } },
+            settingsList = {
+                preserveHeader = true,
+                rows = {
+                    { key = "pullCountdownEnabled", label = L["启用开怪倒数"], presentation = "switch" },
+                    { key = "pullCountdownVoiceEnabled", label = L["为开怪倒数播放语音"], presentation = "switch" },
+                },
+            } },
         { id = "digit-voice", title = L["数字语音"], collapsible = true,
             placement = { target = "pull-countdown", side = "below", align = "start" },
-            content = { kind = "grid", items = {} } },
+            content = { kind = "grid", items = {} },
+            settingsList = {
+                preserveHeader = true,
+                columns = {
+                    { title = L["数字"], width = 72 },
+                    { title = L["启用"], width = 72 },
+                    { title = L["来源"], weight = 1 },
+                    { title = L["音效选择"], weight = 1.6 },
+                    { title = L["试听"], width = 96 },
+                },
+                rows = {},
+            } },
     },
 }
 
@@ -120,6 +138,19 @@ local function BuildLayout()
             w = 24,
             h = 5,
             label = L["试听"],
+        }
+    end
+    local settingsRows = layout.cards[2].settingsList.rows
+    for i = 1, MAX_COUNTDOWN_DIGIT do
+        local suffix = tostring(i)
+        settingsRows[#settingsRows + 1] = {
+            cells = {
+                { text = string.format(L["数字 %d"], i) },
+                { key = "digitEnabled" .. suffix },
+                { key = "digitSource" .. suffix },
+                { key = "digitLSM" .. suffix },
+                { key = "preview" .. suffix },
+            },
         }
     end
     return layout

@@ -23,8 +23,9 @@ end
 local COMMON_OPTS = {
     bindRoot = true, poolType = "FlashTextMediumModuleCommonSettingsGroup",
     fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
+    presentation = "settings-list",
     fields = {
-        { path = "enabled", type = "checkbox", label = L["启用"], row = 1 },
+        { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
         { path = "flashDuration", type = "slider", label = L["持续时间(秒)"], min = 0.5, max = 6, step = 0.5, row = 2 },
         { key = "test", type = "button", label = L["测试文字公告"], onClick = TestFlashText, row = 2 },
     },
@@ -43,13 +44,16 @@ local LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
         { id = "anchor", title = L["锚点设置"], collapsible = true,
             placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "anchor", fullWidth = true } } } },
         { id = "text-font", title = L["文字公告(中)"], collapsible = true,
             placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_text", opts = { unboundedWidth = true } } },
+            content = { kind = "composite", component = "fontgroup", key = "font_text", opts = { unboundedWidth = true } },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "font_text", fullWidth = true } } } },
     },
 }
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)

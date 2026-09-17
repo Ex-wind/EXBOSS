@@ -106,6 +106,10 @@ local LAYOUT = {
                 { key = "scope", type = "dropdown", x = 1, y = 1, w = 62, h = 6, label = T("作用范围"), items = SCOPE_ITEMS },
                 { key = "targetFilter", type = "dropdown", x = 69, y = 1, w = 62, h = 6, label = T("目标筛选"), items = FILTER_ITEMS },
                 { key = "field1", type = "dropdown", x = 137, y = 1, w = 62, h = 6, label = T("批量动作"), items = FIELD_ITEMS },
+            } }, settingsList = { title = T("通用"), preserveHeader = true, rows = {
+                { key = "scope", label = T("作用范围") },
+                { key = "targetFilter", label = T("目标筛选") },
+                { key = "field1", label = T("批量动作") },
             } } },
         { id = "target", title = T("变更为"), collapsible = true,
             placement = { target = "source", side = "below", align = "start" }, content = { kind = "grid", items = {

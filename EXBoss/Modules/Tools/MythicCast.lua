@@ -300,9 +300,9 @@ local disabledBossEncounterSet = nil
 
 -- 模块通用卡只包含模块本身的通用业务开关；两个额外材质各自有独立卡片。
 local COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"] },
-    { path = "hideLevel91Casts", type = "checkbox", label = L["隐藏 91 级读条"] },
-    { path = "hideLevel92Casts", type = "checkbox", label = L["隐藏 92 级读条"] },
+    { path = "enabled", type = "checkbox", label = L["启用"], presentation = "switch" },
+    { path = "hideLevel91Casts", type = "checkbox", label = L["隐藏 91 级读条"], presentation = "switch" },
+    { path = "hideLevel92Casts", type = "checkbox", label = L["隐藏 92 级读条"], presentation = "switch" },
     { path = "disabledBossEncounterIDs", type = "input", label = L["首领战禁用 ID"] },
     { path = "nonInterruptColor", type = "color", label = L["不可打断颜色"] },
 }
@@ -311,6 +311,7 @@ local COMMON_POOL_TYPE = "MythicCastModuleCommonSettingsGroup"
 local COMMON_OPTS = {
     bindRoot = true,
     poolType = COMMON_POOL_TYPE,
+    presentation = "settings-list",
     columns = 4,
     fields = COMMON_FIELDS,
 }
@@ -331,6 +332,7 @@ local RAID_MARKER_EXTRA_OPTS = ExwindTools:BuildStandardTimerBarAlertIconsGroupO
         x = { min = -1000, max = 1000, step = 1 }, y = { min = -1000, max = 1000, step = 1 },
     },
 })
+RAID_MARKER_EXTRA_OPTS.presentation = "settings-list"
 local PLAYER_TARGET_INDICATOR_EXTRA_OPTS = ExwindTools:BuildStandardTimerBarAlertIconsGroupOptions({
     timerBarKey = "timerGroup",
 }, {
@@ -346,6 +348,7 @@ local PLAYER_TARGET_INDICATOR_EXTRA_OPTS = ExwindTools:BuildStandardTimerBarAler
         x = { min = -1000, max = 1000, step = 1 }, y = { min = -1000, max = 1000, step = 1 },
     },
 })
+PLAYER_TARGET_INDICATOR_EXTRA_OPTS.presentation = "settings-list"
 -- 整体位置只有这个标准 Anchor 声明：运行时 AnchorController 和 Grid 的
 -- anchorgroup 必须使用同一次 CreateStandardModuleAnchor 的返回合同，不能各自
 -- 复制 posX/posY 或 frame picker。
@@ -407,39 +410,66 @@ local EX_LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+            settingsList = { preserveHeader = true, title = L["通用"], rows = {
+                { key = "moduleCommon", fullWidth = true },
+            } } },
         { id = "raid-marker", title = L["额外子元素－团队标记"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS } },
+            placement = { target = "timer-bar", side = "below", align = "start" },
+            content = { kind = "composite", component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "raidMarkerExtra", fullWidth = true },
+            } } },
         { id = "player-target", title = L["额外子元素－玩家目标提示"], collapsible = true,
             placement = { target = "raid-marker", side = "below", align = "start" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "playerTargetIndicatorExtra", opts = PLAYER_TARGET_INDICATOR_EXTRA_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "playerTargetIndicatorExtra", opts = PLAYER_TARGET_INDICATOR_EXTRA_OPTS },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "playerTargetIndicatorExtra", fullWidth = true },
+            } } },
         { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "player-target", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS } },
-        { id = "layout", title = L["排列设置"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
-        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
             placement = { target = "layout", side = "below", align = "start" },
-            content = { kind = "composite", component = "timerbargroup", key = "timerGroup", opts = TIMER_BAR_OPTS } },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+            settingsList = { preserveHeader = true, title = L["锚点"], rows = {
+                { key = "anchor", fullWidth = true },
+            } } },
+        { id = "layout", title = L["排列设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "layout", fullWidth = true },
+            } } },
+        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup", opts = TIMER_BAR_OPTS },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = {
+                { key = "timerGroup", fullWidth = true },
+            } } },
         { id = "spell-font", title = L["法术名称"], collapsible = true,
-            placement = { target = "timer-bar", side = "below", align = "start" },
+            placement = { target = "player-target", side = "below", align = "start" },
             content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {
                 offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
                 shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
+            } },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_spell", fullWidth = true },
             } } },
         { id = "target-font", title = L["施法目标"], collapsible = true,
             placement = { target = "spell-font", side = "below", align = "start" },
             content = { kind = "composite", component = "fontgroup", key = "font_target", opts = {
                 offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
                 shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
+            } },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_target", fullWidth = true },
             } } },
         { id = "timer-font", title = L["时间文字"], collapsible = true,
             placement = { target = "target-font", side = "below", align = "start" },
             content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {
                 offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
                 shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
+            } },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_timer", fullWidth = true },
             } } },
     },
 }

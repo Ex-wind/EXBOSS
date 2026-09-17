@@ -28,7 +28,7 @@ local LAYOUT_CACHE = {}
 -- 模块控件规格
 -- =============================================================
 local TIMER_BAR_COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"], row = 1 },
+    { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
     { path = "hideLongTimersSeconds", type = "slider", label = L["只显示最后几秒"], min = 1, max = 60, step = 1, row = 2 },
 }
 
@@ -37,6 +37,7 @@ local TIMER_BAR_COMMON_OPTS = {
     poolType = "TimerBarModuleCommonSettingsGroup",
     fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = TIMER_BAR_COMMON_FIELDS,
+    presentation = "settings-list",
 }
 
 local TIMER_BAR_EXTRA_TEXTURE_OPTS = ExwindTools:BuildStandardTimerBarAlertIconsGroupOptions({
@@ -54,6 +55,7 @@ local TIMER_BAR_EXTRA_TEXTURE_OPTS = ExwindTools:BuildStandardTimerBarAlertIcons
         x = { min = -1000, max = 1000, step = 1 }, y = { min = -1000, max = 1000, step = 1 },
     },
 })
+TIMER_BAR_EXTRA_TEXTURE_OPTS.presentation = "settings-list"
 
 -- 此对象由 TimerBar View 的唯一 ANCHOR_SCHEMA 创建。Page 不得复制 key、默认
 -- 位置或 picker 映射；否则世界整体拖动与 AnchorGroup 会再次变成两份合同。
@@ -96,25 +98,32 @@ local LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = TIMER_BAR_COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = TIMER_BAR_COMMON_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
         { id = "extra-texture", title = L["额外子元素－材质"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "extraTexture", opts = TIMER_BAR_EXTRA_TEXTURE_OPTS } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "extra-texture", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = TIMER_BAR_ANCHOR_OPTS } },
-        { id = "layout", title = L["排列设置"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = TIMER_BAR_LAYOUT_OPTS } },
-        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
-            placement = { target = "layout", side = "below", align = "start" },
-            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
-        { id = "spell-font", title = L["法术名称"], collapsible = true,
             placement = { target = "timer-bar", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "extraTexture", opts = TIMER_BAR_EXTRA_TEXTURE_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "extraTexture", fullWidth = true } } } },
+        { id = "anchor", title = L["锚点设置"], collapsible = true,
+            placement = { target = "layout", side = "below", align = "start" },
+            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = TIMER_BAR_ANCHOR_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "anchorGroup", fullWidth = true } } } },
+        { id = "layout", title = L["排列设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = TIMER_BAR_LAYOUT_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "layout", fullWidth = true } } } },
+        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "timerGroup", fullWidth = true } } } },
+        { id = "spell-font", title = L["法术名称"], collapsible = true,
+            placement = { target = "extra-texture", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" },
+            settingsList = { preserveHeader = true, rows = { { key = "font_spell", fullWidth = true } } } },
         { id = "timer-font", title = L["时间文本"], collapsible = true,
             placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" },
+            settingsList = { preserveHeader = true, rows = { { key = "font_timer", fullWidth = true } } } },
     },
 }
 

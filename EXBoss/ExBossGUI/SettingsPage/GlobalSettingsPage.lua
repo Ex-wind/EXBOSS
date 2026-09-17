@@ -28,6 +28,7 @@ local voiceSection
 local voiceChannelDrop
 local voiceVolumeSlider
 local colorSection
+local refreshColorPresentation
 local embedPlaceholder
 local activeButtons = {}
 local buttonPool = {}
@@ -607,17 +608,19 @@ end
 -- [卡片/Grid 迁移边界：内置颜色页]
 -- 允许：替换外层视觉容器与控件几何；禁止：修改方案顺序、DB 字段、写回/刷新回调或启用条件。
 local function CreateColorSection(parent, anchor, exui)
+    local Grid = _G.ExwindGrid
     colorSection = CreateFrame("Frame", nil, parent)
     colorSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
-    colorSection:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -14, 0)
+    local rawAvailableWidth = math.max(1, (parent:GetWidth() or 1) - 14)
+    colorSection:SetWidth(rawAvailableWidth)
     colorSection:SetHeight(650)
-    local fixedCard = EXUI:CreateSettingsCard(colorSection, { title = L["通用颜色方案"], collapsible = true })
+    local fixedCard = EXUI:CreateSettingsCard(colorSection, { title = L["通用颜色方案"], collapsible = false })
     fixedCard:SetPoint("TOPLEFT", colorSection, "TOPLEFT", 0, 0); fixedCard:SetPoint("TOPRIGHT", colorSection, "TOPRIGHT", 0, 0); fixedCard:SetContentHeight(220)
     local fixedBody = fixedCard:GetBody()
-    local customCard = EXUI:CreateSettingsCard(colorSection, { title = L["自定义方案"], collapsible = true })
+    local customCard = EXUI:CreateSettingsCard(colorSection, { title = L["自定义方案"], collapsible = false })
     customCard:SetPoint("TOPLEFT", fixedCard, "BOTTOMLEFT", 0, -10); customCard:SetPoint("TOPRIGHT", fixedCard, "BOTTOMRIGHT", 0, -10); customCard:SetContentHeight(74)
     local customBody = customCard:GetBody()
-    local extraCard = EXUI:CreateSettingsCard(colorSection, { title = L["额外方案（最多3个）"], collapsible = true })
+    local extraCard = EXUI:CreateSettingsCard(colorSection, { title = L["额外方案（最多3个）"], collapsible = false })
     extraCard:SetPoint("TOPLEFT", customCard, "BOTTOMLEFT", 0, -10); extraCard:SetPoint("TOPRIGHT", customCard, "BOTTOMRIGHT", 0, -10); extraCard:SetContentHeight(150)
     local extraBody = extraCard:GetBody()
 
@@ -754,6 +757,102 @@ local function CreateColorSection(parent, anchor, exui)
         end
 
         rowY = rowY - 38
+    end
+
+    if Grid and Grid.MountSettingsList then
+        local fixedRows = {}
+        for _, key in ipairs(GetSchemeOrder()) do
+            fixedRows[#fixedRows + 1] = {
+                controls = {
+                    { widget = fixedColorLabels[key], role = "label" },
+                    { widget = fixedColorButtons[key], width = 240, align = "right" },
+                },
+            }
+        end
+        local fixedSection = EXUI:CreateSettingsSection(colorSection, {
+            title = L["通用颜色方案"],
+            descriptionWidgets = { colorDesc },
+        })
+        local customSection = EXUI:CreateSettingsSection(colorSection, {
+            title = L["自定义方案"],
+        })
+        local extraSection = EXUI:CreateSettingsSection(colorSection, {
+            title = L["额外方案（最多3个）"],
+        })
+
+        EXUI:PrepareSettingsListCard(fixedCard, { preserveHeader = false })
+        local fixedList = Grid:MountSettingsList(fixedBody, {
+            externalDescriptionWidgets = { colorDesc },
+            sections = {{ rows = fixedRows }},
+        })
+        fixedList.card = fixedCard
+
+        EXUI:PrepareSettingsListCard(customCard, { preserveHeader = false })
+        local customList = Grid:MountSettingsList(customBody, {
+            sections = {{ rows = {
+                { controls = {
+                    { widget = customNameInput },
+                    { widget = customColorButton, width = 240, align = "right" },
+                } },
+            } }},
+        })
+        customList.card = customCard
+
+        local extraRows = {}
+        for i = 1, GetExtraCustomCount() do
+            extraRows[#extraRows + 1] = { cells = {
+                { widget = extraCustomEnableChecks[i] },
+                { widget = extraCustomNameInputs[i] },
+                { widget = extraCustomColorButtons[i] },
+            } }
+        end
+        EXUI:PrepareSettingsListCard(extraCard, { preserveHeader = false })
+        local extraList = Grid:MountSettingsList(extraBody, {
+            columns = {
+                { title = L["启用"], width = 88 },
+                { title = L["名称"], weight = 1.4 },
+                { title = L["颜色"], weight = 1 },
+            },
+            sections = {{ rows = extraRows }},
+        })
+        extraList.card = extraCard
+
+        refreshColorPresentation = function()
+            local rawWidth = math.max(1, (parent:GetWidth() or 1) - 14)
+            local width = Grid:ResolveSettingsListWidth(rawWidth)
+            colorSection:SetWidth(width)
+
+            local fixedSectionHeight = EXUI:UpdateSettingsSectionLayout(fixedSection, width)
+            fixedSection:ClearAllPoints()
+            fixedSection:SetPoint("TOPLEFT", colorSection, "TOPLEFT", 0, 0)
+            fixedCard:ClearAllPoints()
+            fixedCard:SetPoint("TOPLEFT", fixedSection, "BOTTOMLEFT", 0, 0)
+            fixedCard:SetPoint("TOPRIGHT", fixedSection, "BOTTOMRIGHT", 0, 0)
+            local fixedHeight = fixedList:Relayout(width)
+            fixedCard:SetContentHeight(fixedHeight)
+
+            local customSectionHeight = EXUI:UpdateSettingsSectionLayout(customSection, width)
+            customSection:ClearAllPoints()
+            customSection:SetPoint("TOPLEFT", fixedCard, "BOTTOMLEFT", 0, 0)
+            customCard:ClearAllPoints()
+            customCard:SetPoint("TOPLEFT", customSection, "BOTTOMLEFT", 0, 0)
+            customCard:SetPoint("TOPRIGHT", customSection, "BOTTOMRIGHT", 0, 0)
+            local customHeight = customList:Relayout(width)
+            customCard:SetContentHeight(customHeight)
+
+            local extraSectionHeight = EXUI:UpdateSettingsSectionLayout(extraSection, width)
+            extraSection:ClearAllPoints()
+            extraSection:SetPoint("TOPLEFT", customCard, "BOTTOMLEFT", 0, 0)
+            extraCard:ClearAllPoints()
+            extraCard:SetPoint("TOPLEFT", extraSection, "BOTTOMLEFT", 0, 0)
+            extraCard:SetPoint("TOPRIGHT", extraSection, "BOTTOMRIGHT", 0, 0)
+            local extraHeight = extraList:Relayout(width)
+            extraCard:SetContentHeight(extraHeight)
+            colorSection:SetHeight(fixedSectionHeight + fixedCard:GetPreferredHeight()
+                + customSectionHeight + customCard:GetPreferredHeight()
+                + extraSectionHeight + extraCard:GetPreferredHeight())
+        end
+        refreshColorPresentation()
     end
     colorSection:Hide()
 end
@@ -1415,6 +1514,20 @@ local function RefreshRight()
     if descText then
         descText:SetText(item and GetDesc(item) or "")
     end
+    if titleSep and descText then
+        titleSep:ClearAllPoints()
+        titleSep:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -8)
+        descText:ClearAllPoints()
+        descText:SetPoint("TOPLEFT", titleSep, "BOTTOMLEFT", 0, -10)
+        if key == "color" and colorSection then
+            local width = colorSection:GetWidth()
+            titleSep:SetWidth(width)
+            descText:SetWidth(width)
+        else
+            titleSep:SetPoint("TOPRIGHT", rightRoot, "TOPRIGHT", -12, -8)
+            descText:SetPoint("RIGHT", rightRoot, "RIGHT", -14, 0)
+        end
+    end
 
     if key == "overview" then
         if overviewSection then overviewSection:Show() end
@@ -1608,6 +1721,7 @@ function Page:Render(leftFrame, contentFrame)
     rightScrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     rightScrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24, 0)
     rightRoot:SetWidth(math.max((contentFrame:GetWidth() or 0) - 28, 760))
+    if refreshColorPresentation then refreshColorPresentation() end
 
     RefreshList()
     RefreshGeneralControls()

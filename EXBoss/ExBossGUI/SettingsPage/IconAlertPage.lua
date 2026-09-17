@@ -20,12 +20,13 @@ local function GetIconAlert()
 end
 
 local ICON_COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"], row = 1 },
+    { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
 }
 
 local COMMON_OPTS = {
     bindRoot = true,
     poolType = "IconAlertModuleCommonSettingsGroup",
+    presentation = "settings-list",
     fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = ICON_COMMON_FIELDS,
 }
@@ -58,28 +59,52 @@ local GRID_LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+            settingsList = { preserveHeader = true, title = L["通用"], rows = {
+                { key = "moduleCommon", fullWidth = true },
+            } } },
         { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = ANCHOR_OPTS } },
-        { id = "layout", title = L["排列设置"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS } },
-        { id = "icon", title = L["图标本体"], collapsible = true,
             placement = { target = "layout", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "icon" } },
+            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = ANCHOR_OPTS },
+            settingsList = { preserveHeader = true, title = L["锚点"], rows = {
+                { key = "anchorGroup", fullWidth = true },
+            } } },
+        { id = "layout", title = L["排列设置"], collapsible = true,
+            placement = { target = "module-common", side = "below", align = "start" },
+            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "layout", fullWidth = true },
+            } } },
+        { id = "icon", title = L["图标本体"], collapsible = true,
+            placement = { target = "anchor", side = "below", align = "start" },
+            content = { kind = "composite", component = "icongroup", key = "icon" },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = {
+                { key = "icon", fullWidth = true },
+            } } },
         { id = "name-font", title = L["名称子元素"], collapsible = true,
-            placement = { target = "icon", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_text" } },
+            placement = { target = "glow", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "font_text" },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_text", fullWidth = true },
+            } } },
         { id = "time-font", title = L["倒数文本"], collapsible = true,
             placement = { target = "name-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_time" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_time" },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_time", fullWidth = true },
+            } } },
         { id = "stacks-font", title = L["层数文本"], collapsible = true,
             placement = { target = "time-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_stacks" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_stacks" },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "font_stacks", fullWidth = true },
+            } } },
         { id = "glow", title = L["发光子元素"], collapsible = true,
-            placement = { target = "stacks-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "glow_settings", key = "glow" } },
+            placement = { target = "icon", side = "below", align = "start" },
+            content = { kind = "composite", component = "glow_settings", key = "glow" },
+            settingsList = { preserveHeader = true, rows = {
+                { key = "glow", fullWidth = true },
+            } } },
     },
 }
 

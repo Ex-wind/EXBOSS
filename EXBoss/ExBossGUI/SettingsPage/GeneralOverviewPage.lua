@@ -132,14 +132,38 @@ local LAYOUT = {
                 { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 25, w = 98, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
                 { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 101, y = 25, w = 97, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
                 { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 33, w = 76, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
-            } } },
+            } },
+            settingsList = {
+                preserveHeader = true,
+                rows = {
+                    { key = "barDisplayMode", label = L["时间轴样式选择"] },
+                    { key = "bunBarSources", label = L["束状条显示"] },
+                    { key = "timerBarSources", label = L["计时条显示"] },
+                    { key = "disableBlizzardEncounterTimeline", label = L["关闭暴雪原生计时条"], presentation = "switch" },
+                    { key = "disableEXBossInRaid", label = L["团本中禁用 EXBoss"], presentation = "switch" },
+                    { key = "disableAuraSoundRegistration", label = L["关闭光环语音注册（重载后生效）"], presentation = "switch" },
+                    { key = "hideTankBossAlertsForDps", label = L["DPS职责下不提示坦克技能"], presentation = "switch" },
+                    { key = "hideTankBossAlertsForHeal", label = L["治疗职责下不提示坦克技能"], presentation = "switch" },
+                    { key = "showSpellOccurrenceCount", label = L["法术名称显示次数"], presentation = "switch" },
+                    { key = "encounterWarningsEnabled", label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], presentation = "switch" },
+                    { key = "encounterWarningSoundsEnabled", label = L["开启中央文字预警提示音（预设叮一声）"], presentation = "switch" },
+                    { key = "enableBlizzardHintCountdown", label = L["暴雪时间轴模式启用5秒倒数"], presentation = "switch" },
+                },
+            } },
         { id = "audio", title = L["音频输出选项"], collapsible = true,
             placement = { target = "general", side = "below", align = "start" },
             content = { kind = "grid", items = {
                 { key = "channel", type = "dropdown", x = 1, y = 1, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
                 { key = "volume", type = "slider", x = 55, y = 1, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
                 { key = "label_5567", type = "label", x = 1, y = 10, w = 196, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
-            } } },
+            } },
+            settingsList = {
+                preserveHeader = true,
+                rows = {
+                    { key = "channel", label = L["输出通道"] },
+                    { key = "volume", label = L["全局音量"], descriptionKey = "label_5567" },
+                },
+            } },
         { id = "auto-gossip", title = L["自动对话"], collapsible = true,
             placement = { target = "audio", side = "below", align = "start" },
             content = { kind = "grid", items = {
@@ -148,7 +172,17 @@ local LAYOUT = {
                 { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 9, w = 96, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
                 { key = "autoGossipPosRescue", type = "checkbox", x = 101, y = 9, w = 96, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
                 { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 17, w = 96, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
-            } } },
+            } },
+            settingsList = {
+                preserveHeader = true,
+                rows = {
+                    { key = "autoGossipEnabled", label = L["启用自动对话"], presentation = "switch" },
+                    { key = "autoGossipAcademyBuff", label = L["[大秘境] 自动对话学院(AA)BUFF"], presentation = "switch" },
+                    { key = "autoGossipCaveCauldron", label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], presentation = "switch" },
+                    { key = "autoGossipPosRescue", label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], presentation = "switch" },
+                    { key = "autoGossipNpxBuff", label = L["[大秘境] 自动对话节点(NPX)BUFF"], presentation = "switch" },
+                },
+            } },
     },
 }
 

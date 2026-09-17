@@ -27,8 +27,9 @@ local SHIELD_COMMON_OPTS = {
     bindRoot = true,
     poolType = "ExtraShieldBarModuleCommonSettingsGroup",
     fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
+    presentation = "settings-list",
     fields = {
-        { path = "enabled", type = "checkbox", label = L["启用"], row = 1 },
+        { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
     },
 }
 
@@ -49,20 +50,25 @@ local LAYOUT = {
     cards = {
         { id = "module-common", title = L["通用设置"], collapsible = true,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = SHIELD_COMMON_OPTS } },
+            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = SHIELD_COMMON_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
         { id = "anchor", title = L["锚点设置"], collapsible = true,
             placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = SHIELD_ANCHOR_OPTS } },
+            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = SHIELD_ANCHOR_OPTS },
+            settingsList = { preserveHeader = true, rows = { { key = "anchor", fullWidth = true } } } },
         -- ExtraShield 是固定单条 Body；没有第二条可排列，故不凭空显示 layout 卡。
         { id = "timer-bar", title = L["计时条外观"], collapsible = true,
             placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" } },
+            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" },
+            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "timerGroup", fullWidth = true } } } },
         { id = "spell-font", title = L["法术名称"], collapsible = true,
             placement = { target = "timer-bar", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_spell" },
+            settingsList = { preserveHeader = true, rows = { { key = "font_spell", fullWidth = true } } } },
         { id = "timer-font", title = L["数值文本"], collapsible = true,
             placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer" } },
+            content = { kind = "composite", component = "fontgroup", key = "font_timer" },
+            settingsList = { preserveHeader = true, rows = { { key = "font_timer", fullWidth = true } } } },
     },
 }
 
