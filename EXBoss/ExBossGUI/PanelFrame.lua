@@ -10,6 +10,7 @@
 local Panel = ExBoss.UI.Panel
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local EXUI = _G.ExwindTools and _G.ExwindTools.UI
+local GC = _G.ExwindTools and _G.ExwindTools.GUIColors
 
 -- =============================================================
 -- 常量
@@ -237,7 +238,7 @@ local function CreateSidebarSearchBox(parent, initialText, opts)
         edit:SetFont(GetSidebarFontPath(), 13, "")
     end
     if edit.SetTextColor then
-        edit:SetTextColor(0.90, 0.93, 0.98, 1)
+        edit:SetTextColor(unpack(GC.text))
     end
     if edit.SetCursorColor then
         edit:SetCursorColor(0.0, 0.72, 1.0)
@@ -251,15 +252,15 @@ local function CreateSidebarSearchBox(parent, initialText, opts)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    edit:SetBackdropColor(0.06, 0.07, 0.09, 0.96)
-    edit:SetBackdropBorderColor(0.20, 0.22, 0.28, 1)
+    edit:SetBackdropColor(unpack(GC.input))
+    edit:SetBackdropBorderColor(unpack(GC.inputHoverBorder))
 
     local placeholder = EXUI:CreateVisualFontString(edit, EXFONTFRAME)
     placeholder:SetPoint("LEFT", 10, 0)
     placeholder:SetPoint("RIGHT", -10, 0)
     placeholder:SetJustifyH("LEFT")
     placeholder:SetFont(GetSidebarFontPath(), 13, "")
-    placeholder:SetTextColor(0.45, 0.50, 0.58, 1)
+    placeholder:SetTextColor(unpack(GC.textPlaceholder))
     placeholder:SetText(config.placeholder or L["搜索..."])
     edit._placeholder = placeholder
 
@@ -278,11 +279,11 @@ local function CreateSidebarSearchBox(parent, initialText, opts)
         self:ClearFocus()
     end)
     edit:SetScript("OnEditFocusGained", function(self)
-        self:SetBackdropBorderColor(0.00, 0.72, 1.00, 0.95)
+        self:SetBackdropBorderColor(unpack(GC.accent))
         RefreshPlaceholder(self)
     end)
     edit:SetScript("OnEditFocusLost", function(self)
-        self:SetBackdropBorderColor(0.20, 0.22, 0.28, 1)
+        self:SetBackdropBorderColor(unpack(GC.inputHoverBorder))
         RefreshPlaceholder(self)
     end)
     edit:SetScript("OnTextChanged", function(self, userInput)
@@ -306,13 +307,13 @@ local function CreateSidebarCategoryHeader(parent)
     btn.label:SetPoint("RIGHT", 0, 0)
     btn.label:SetJustifyH("LEFT")
     btn.label:SetFont(GetSidebarFontPath(), 18, "OUTLINE")
-    btn.label:SetTextColor(0.97, 0.98, 1.0, 0.98)
+    btn.label:SetTextColor(unpack(GC.text))
 
     btn:SetScript("OnEnter", function(self)
-        self.label:SetTextColor(1, 1, 1, 1)
+        self.label:SetTextColor(unpack(GC.white))
     end)
     btn:SetScript("OnLeave", function(self)
-        self.label:SetTextColor(0.97, 0.98, 1.0, 0.98)
+        self.label:SetTextColor(unpack(GC.text))
     end)
 
     return btn
@@ -327,27 +328,27 @@ local function CreateSidebarModuleButton(parent)
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 },
     })
-    btn:SetBackdropColor(0, 0, 0, 0)
-    btn:SetBackdropBorderColor(0, 0, 0, 0)
+    btn:SetBackdropColor(unpack(GC.transparent))
+    btn:SetBackdropBorderColor(unpack(GC.transparent))
 
     btn.rail = EXUI:CreateVisualTexture(btn, EXBACKGROUNDFRAME)
     btn.rail:SetPoint("TOPLEFT", 10, -2)
     btn.rail:SetPoint("BOTTOMLEFT", 10, 2)
     btn.rail:SetWidth(1)
-    btn.rail:SetColorTexture(0.24, 0.29, 0.38, 0.55)
+    btn.rail:SetColorTexture(unpack(GC.panelBorder))
 
     btn.accent = EXUI:CreateVisualTexture(btn, EXBORDERFRAME)
     btn.accent:SetPoint("TOPLEFT", 10, -2)
     btn.accent:SetPoint("BOTTOMLEFT", 10, 2)
     btn.accent:SetWidth(1)
-    btn.accent:SetColorTexture(0.0, 0.72, 1.0, 1.0)
+    btn.accent:SetColorTexture(unpack(GC.accent))
     btn.accent:SetAlpha(0)
 
     btn.dot = EXUI:CreateVisualFontString(btn, EXFONTFRAME)
     btn.dot:SetPoint("CENTER", btn, "LEFT", 10, 0)
     btn.dot:SetFont(GetSidebarFontPath(), 15, "OUTLINE")
     btn.dot:SetText("")
-    btn.dot:SetTextColor(0.0, 0.72, 1.0, 0.0)
+    btn.dot:SetTextColor(GC.accent[1], GC.accent[2], GC.accent[3], 0)
 
     btn.label = EXUI:CreateVisualFontString(btn, EXFONTFRAME)
     btn.label:SetPoint("LEFT", 26, 0)
@@ -355,7 +356,7 @@ local function CreateSidebarModuleButton(parent)
     btn.label:SetJustifyH("LEFT")
     btn.label:SetWordWrap(false)
     btn.label:SetFont(GetSidebarFontPath(), 15, "")
-    btn.label:SetTextColor(0.57, 0.63, 0.75, 1)
+    btn.label:SetTextColor(unpack(GC.textDim))
 
     btn:SetScript("OnEnter", function(self)
         self._hovered = true
@@ -381,30 +382,30 @@ local function ApplySidebarModuleButtonState(btn, isActive, isEnabled)
     btn.isEnabledState = (isEnabled ~= false)
 
     if btn.isEnabledState == false then
-        btn.label:SetTextColor(0.38, 0.42, 0.50, 1)
-        btn.rail:SetColorTexture(0.18, 0.20, 0.24, 0.35)
+        btn.label:SetTextColor(unpack(GC.textDisabled))
+        btn.rail:SetColorTexture(unpack(GC.inputDisabledBorder))
         btn.accent:SetAlpha(0)
-        btn.dot:SetTextColor(0.0, 0.72, 1.0, 0.0)
+        btn.dot:SetTextColor(GC.accent[1], GC.accent[2], GC.accent[3], 0)
         return
     end
 
     if btn.isActive then
-        btn.label:SetTextColor(0.92, 0.96, 1.00, 1)
-        btn.rail:SetColorTexture(0.24, 0.29, 0.38, 0.25)
+        btn.label:SetTextColor(unpack(GC.selectedText))
+        btn.rail:SetColorTexture(unpack(GC.panelBorder))
         btn.accent:SetAlpha(1)
-        btn.dot:SetTextColor(0.0, 0.72, 1.0, 1.0)
+        btn.dot:SetTextColor(unpack(GC.accent))
         return
     end
 
     if btn._hovered then
-        btn.label:SetTextColor(0.83, 0.88, 0.97, 1)
-        btn.rail:SetColorTexture(0.34, 0.40, 0.52, 0.8)
+        btn.label:SetTextColor(unpack(GC.text))
+        btn.rail:SetColorTexture(unpack(GC.inputHoverBorder))
     else
-        btn.label:SetTextColor(0.57, 0.63, 0.75, 1)
-        btn.rail:SetColorTexture(0.24, 0.29, 0.38, 0.55)
+        btn.label:SetTextColor(unpack(GC.textDim))
+        btn.rail:SetColorTexture(unpack(GC.panelBorder))
     end
     btn.accent:SetAlpha(0)
-    btn.dot:SetTextColor(0.0, 0.72, 1.0, 0.0)
+    btn.dot:SetTextColor(GC.accent[1], GC.accent[2], GC.accent[3], 0)
 end
 
 ExBoss.UI.NormalizeSidebarSearchText = NormalizeSidebarSearchText
@@ -447,12 +448,12 @@ local function EnsureEmbedHost()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    embedHost:SetBackdropColor(0.07, 0.07, 0.09, 1)
-    embedHost:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    embedHost:SetBackdropColor(unpack(GC.page))
+    embedHost:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     local placeholder = EXUI:CreateVisualFontString(embedHost, EXFONTFRAME, "GameFontNormal")
     placeholder:SetPoint("CENTER")
-    placeholder:SetTextColor(0.5, 0.5, 0.5, 1)
+    placeholder:SetTextColor(unpack(GC.textDim))
     placeholder:SetJustifyH("CENTER")
     placeholder:SetText("")
     embedHost._placeholder = placeholder
@@ -794,17 +795,17 @@ local function CreateUnifiedPanel()
     leftFrame = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     leftFrame:SetAllPoints(unifiedHosts.navHost)
     leftFrame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    leftFrame:SetBackdropColor(0.06, 0.06, 0.08, 1)
-    leftFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    leftFrame:SetBackdropColor(unpack(GC.panel))
+    leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
     Panel.leftFrame = leftFrame
 
     contentFrame = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     contentFrame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    contentFrame:SetBackdropColor(0.07, 0.07, 0.09, 1)
-    contentFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    contentFrame:SetBackdropColor(unpack(GC.page))
+    contentFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
     local placeholder = EXUI:CreateVisualFontString(contentFrame, EXFONTFRAME, "GameFontNormal")
     placeholder:SetPoint("CENTER")
-    placeholder:SetTextColor(0.5, 0.5, 0.5, 1)
+    placeholder:SetTextColor(unpack(GC.textDim))
     contentFrame._placeholder = placeholder
     Panel.contentFrame = contentFrame
     Panel._frame = mainFrame
@@ -848,15 +849,15 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left=1, right=1, top=1, bottom=1 },
     })
-    mainFrame:SetBackdropColor(0.08, 0.08, 0.10, 0.97)
-    mainFrame:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    mainFrame:SetBackdropColor(unpack(GC.page))
+    mainFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     -- ── 标题栏 ────────────────────────────────────────────────
     local titleBar = EXUI:CreateVisualTexture(mainFrame, EXBACKGROUNDFRAME)
     titleBar:SetPoint("TOPLEFT",  mainFrame, "TOPLEFT",  4, -4)
     titleBar:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -4, -4)
     titleBar:SetHeight(28)
-    titleBar:SetColorTexture(0.12, 0.12, 0.16, 1)
+    titleBar:SetColorTexture(unpack(GC.header))
 
     local titleText = EXUI:CreateVisualFontString(mainFrame, EXFONTFRAME, "GameFontNormal")
     titleText:SetPoint("LEFT", titleBar, "LEFT", 10, 0)
@@ -866,7 +867,7 @@ local function CreatePanel()
     local scaleLabel = EXUI:CreateVisualFontString(mainFrame, EXFONTFRAME, "GameFontNormalSmall")
     scaleLabel:SetPoint("LEFT", titleText, "RIGHT", 16, 0)
     scaleLabel:SetText(L["缩放"])
-    scaleLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+    scaleLabel:SetTextColor(unpack(GC.textDim))
 
     local scaleDropdown = CreateFrame("DropdownButton", nil, mainFrame, "WowStyle1DropdownTemplate")
     scaleDropdown:SetWidth(100)
@@ -952,8 +953,8 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    outerStrip:SetBackdropColor(0.08, 0.08, 0.10, 0.97)
-    outerStrip:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    outerStrip:SetBackdropColor(unpack(GC.page))
+    outerStrip:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     local function MakeStripButton(label, onClick)
         local btn = CreateFrame("Button", nil, outerStrip, "UIPanelButtonTemplate")
@@ -1027,12 +1028,12 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left=1, right=1, top=1, bottom=1 },
     })
-    leftFrame:SetBackdropColor(0.06, 0.06, 0.08, 1)
-    leftFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    leftFrame:SetBackdropColor(unpack(GC.panel))
+    leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     local leftLabel = EXUI:CreateVisualFontString(leftFrame, EXFONTFRAME, "GameFontNormalSmall")
     leftLabel:SetPoint("TOP", leftFrame, "TOP", 0, -10)
-    leftLabel:SetTextColor(0.5, 0.5, 0.5, 1)
+    leftLabel:SetTextColor(unpack(GC.textDim))
     leftLabel:SetText(L["副本 / BOSS 导航\n(待开发)"])
     leftFrame._placeholderLabel = leftLabel
 
@@ -1048,14 +1049,14 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left=1, right=1, top=1, bottom=1 },
     })
-    contentFrame:SetBackdropColor(0.07, 0.07, 0.09, 1)
-    contentFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    contentFrame:SetBackdropColor(unpack(GC.page))
+    contentFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
     Panel.contentFrame = contentFrame
 
     -- 占位文字
     local placeholder = EXUI:CreateVisualFontString(contentFrame, EXFONTFRAME, "GameFontNormal")
     placeholder:SetPoint("CENTER")
-    placeholder:SetTextColor(0.5, 0.5, 0.5, 1)
+    placeholder:SetTextColor(unpack(GC.textDim))
     placeholder:SetJustifyH("CENTER")
     placeholder:SetText("")
     contentFrame._placeholder = placeholder
@@ -1063,7 +1064,7 @@ local function CreatePanel()
     -- ── 底部状态栏 ────────────────────────────────────────────
     local statusText = EXUI:CreateVisualFontString(mainFrame, EXFONTFRAME, "GameFontHighlightSmall")
     statusText:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 12, 8)
-    statusText:SetTextColor(0.5, 0.5, 0.5, 1)
+    statusText:SetTextColor(unpack(GC.textDim))
     statusText:SetText(L["/exb  打开/关闭    |    /exb edit  编辑模式"])
     Panel.statusText = statusText
 

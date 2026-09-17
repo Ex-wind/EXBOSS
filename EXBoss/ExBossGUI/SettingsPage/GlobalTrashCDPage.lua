@@ -101,61 +101,26 @@ local NAMEPLATE_ICON_STRATA_ITEMS = {
 -- 允许：只按共享规范调整下列声明的 x/y/w/h、三组自然卡片与实际可见高度。
 -- 禁止：修改 key/type/path、页面 draft→Store 提交、live slider、姓名版预览或字段业务次序。
 -- icongroup/fontgroup 必须整体引用；顶部 panel preview 与屏幕姓名版 preview 是两套独立生命周期。
-local LAYOUT                      = {
-    { key = "header_main", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["小怪内置CD姓名版图标"], labelSize = 22 },
-    {
-        key = "nameplateIcon",
-        type = "icongroup",
-        x = 1,
-        y = 11,
-        w = 200,
-        h = 50,
-        label = L["图标位置与外观"],
-        opts = { enableOffset = true, hideIconID = true }
+local LAYOUT = {
+    version = 1,
+    title = L["小怪内置CD姓名版图标"],
+    cards = {
+        { id = "icon", title = L["图标位置与外观"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "composite", component = "icongroup", key = "nameplateIcon", opts = { enableOffset = true, hideIconID = true } } },
+        { id = "placement", title = L["姓名版排列"], collapsible = true,
+            placement = { target = "icon", side = "below", align = "start" },
+            content = { kind = "grid", items = {
+                { key = "nameplateIconSpacing", subKey = "spacing", parentKey = "nameplateIcon", type = "slider", x = 1, y = 1, w = 96, h = 6, min = 0, max = 50, step = 1, label = L["图标间距"], labelPos = "top" },
+                { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 1, w = 96, h = 6, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" },
+                { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 10, w = 96, h = 6, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" },
+                { key = "hideNameplateIconAboveSeconds", type = "input", x = 103, y = 10, w = 96, h = 6, label = L["隐藏剩余超过 X 秒的图标（0=关闭）"], labelPos = "top" },
+                { key = "screenNameplatePreview", type = "button", x = 1, y = 19, w = 198, h = 6, label = L["屏幕敌方姓名版预览 开/关"], func = function() ToggleScreenNameplatePreview() end },
+            } } },
+        { id = "text", title = L["倒数时间文本"], collapsible = true,
+            placement = { target = "placement", side = "below", align = "start" },
+            content = { kind = "composite", component = "fontgroup", key = "nameplateIconText" } },
     },
-
-    -- IconGroup never implemented enableSpacing.  Keep this as a real field
-    -- under nameplateIcon, with its own lifecycle below, so the value reaches
-    -- the same runtime and panel positioning formula.
-    {
-        key = "nameplateIconSpacing",
-        subKey = "spacing",
-        parentKey = "nameplateIcon",
-        type = "slider",
-        x = 1,
-        y = 65,
-        w = 96,
-        h = 5, -- 调整 y：63 → 65
-        min = 0,
-        max = 50,
-        step = 1,
-        label = L["图标间距"],
-        labelPos = "top"
-    },
-    { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 65, w = 96, h = 5, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" }, -- 调整 y：63 → 65
-    { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 75, w = 96, h = 5, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" }, -- 调整 y：69 → 75
-    {
-        key = "hideNameplateIconAboveSeconds",
-        type = "input",
-        x = 103,
-        y = 75,
-        w = 96,
-        h = 5, -- 调整 y：69 → 75
-        label = L["隐藏剩余超过 X 秒的图标（0=关闭）"],
-        labelPos = "top"
-    },
-    {
-        key = "screenNameplatePreview",
-        type = "button",
-        x = 1,
-        y = 84,
-        w = 200,
-        h = 5, -- 调整 y：75 → 84
-        label = L["屏幕敌方姓名版预览 开/关"],
-        func = function() ToggleScreenNameplatePreview() end
-    },
-
-    { key = "nameplateIconText", type = "fontgroup", x = 1, y = 91, w = 200, h = 50, label = L["倒数时间文本"] }, -- 调整 y：82 → 91
 }
 
 -- =============================================================
@@ -351,10 +316,10 @@ end
 
 local function InstallPageLiveSliders(draft)
     local Grid = _G.ExwindGrid
-    if not (Grid and type(Grid.Widgets) == "table") then return end
-    InstallLiveSliders(Grid.Widgets.nameplateIcon, "nameplateIcon", draft)
-    InstallLiveSliders(Grid.Widgets.nameplateIconText, "nameplateIconText", draft)
-    local spacing = Grid.Widgets.nameplateIconSpacing
+    if not (Grid and Grid.FindMountedWidget and Page._scrollChild) then return end
+    InstallLiveSliders(Grid:FindMountedWidget(Page._scrollChild, "nameplateIcon"), "nameplateIcon", draft)
+    InstallLiveSliders(Grid:FindMountedWidget(Page._scrollChild, "nameplateIconText"), "nameplateIconText", draft)
+    local spacing = Grid:FindMountedWidget(Page._scrollChild, "nameplateIconSpacing")
     if spacing and type(spacing.SetLifecycleCallbacks) == "function" then
         spacing._onValueChanged = nil
         spacing:SetLifecycleCallbacks({
@@ -563,11 +528,17 @@ function Page:Render(contentFrame)
             ExwindTools.UI.CurrentModule   = EDITOR_KEY
         end
         RefreshPanelPreview()
-        local cols = ResolveGridCols(sc:GetWidth())
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(sc, cols)
+        if Page._cardSession and type(Page._cardSession.Release) == "function" then
+            Page._cardSession:Release()
+            Page._cardSession = nil
         end
-        Grid:Render(sc, ScaleLayout(LAYOUT, cols), gridDB, EDITOR_KEY)
+        Page._cardSession = Grid:MountCards(sc, LAYOUT, {
+            pageId = EDITOR_KEY,
+            regionId = "global-trash-cd",
+            config = gridDB,
+            moduleKey = EDITOR_KEY,
+            scrollFrame = sf,
+        })
         InstallPageLiveSliders(gridDB)
     end)
 end

@@ -7,6 +7,7 @@
 ExBoss.UI.Panel.VoicePackPage             = ExBoss.UI.Panel.VoicePackPage or {}
 local Page                                = ExBoss.UI.Panel.VoicePackPage
 local EXUI                                = _G.ExwindTools and _G.ExwindTools.UI
+local GC                                  = _G.ExwindTools and _G.ExwindTools.GUIColors
 local L                                   = (ExBoss and ExBoss.L) or
     setmetatable({}, { __index = function(_, k) return k end })
 
@@ -56,7 +57,7 @@ end
 local function Divider(parent, anchor, offY)
     local t = EXUI:CreateVisualTexture(parent, EXBORDERFRAME)
     t:SetHeight(1)
-    t:SetColorTexture(0.22, 0.26, 0.32, 0.85)
+    t:SetColorTexture(unpack(GC.popupDivider))
     t:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, offY or -10)
     t:SetPoint("TOPRIGHT", parent, "RIGHT", -16, 0)
     return t
@@ -928,6 +929,14 @@ local function BuildVoicePackInfoBody()
 end
 
 local function FindLayoutEntry(items, key)
+    if type(items) == "table" and type(items.cards) == "table" then
+        for i = 1, #items.cards do
+            local card = items.cards[i]
+            if card and (card.key == key or card.id == key) then return card end
+            local found = card and card.content and FindLayoutEntry(card.content.items, key)
+            if found then return found end
+        end
+    end
     for i = 1, #(items or {}) do
         local item = items[i]
         if type(item) == "table" then
@@ -948,13 +957,12 @@ end
 -- [卡片/Grid 迁移边界：语音包与配置]
 -- 允许：只按共享规范调整语音包、包详情、当前配置、Author 管理四组的 x/y/w/h 与外层卡片。
 -- 禁止：修改职责槽/Author/外观的业务顺序、稳定 key、确认/重载/复制/改名/删除回调或页面 DB 投影。
--- type="card" 当前只是 Grid 背景项，不自动拥有相邻控件、回调或释放责任。
+-- 四组内容只使用共享 SettingsCard；卡片标题、折叠与 gutter 由 Core 统一拥有。
 local function BuildConfigurationLayout()
     local info = GetCurrentPackInfo()
     local db = GetPageDB()
     local allConfigurations = BuildAllConfigurationItems()
     local layout = {
-        { key = "header_main", type = "header", x = 1, y = 3, w = 104, h = 4, label = L["语音 / 配置"], labelSize = 24 },
         {
             key = "btn_toggle_grid_edit", type = "button", x = 88, y = 1, w = 11, h = 2,
             label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"],
@@ -968,14 +976,11 @@ local function BuildConfigurationLayout()
         },
 
         -- 左栏：语音包保持现状，后续单独调整。
-        { key = "card_pack_picker", type = "card", x = 3, y = 11, w = 60, h = 40, title = L["语音包"], desc = L["选择当前生效的语音包。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } },
         { key = "selectedVoicePack", type = "dropdown", x = 5, y = 23, w = 50, h = 4, label = L["当前语音包"], items = BuildPackItemsForGrid(), labelPos = "top", labelWrap = true, labelMaxLines = 2, search = true },
-        { key = "card_pack_details", type = "card", x = 3, y = 57, w = 60, h = 40, title = tostring(info.displayName or ""), desc = tostring(info.subtitle or ""), accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } },
         { key = "desc_pack_info", type = "description", x = 5, y = 65, w = 50, h = 30, label = BuildVoicePackInfoBody() },
 
         -- All active configuration choices live together.  User overrides
         -- remain internal and automatically follow their selected Author.
-        { key = "card_active_configurations", type = "card", x = 69, y = 11, w = 60, h = 116, title = L["当前配置选择"], desc = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"], accentAlign = "left", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
         { key = "appearanceProfileID", type = "dropdown", x = 71, y = 22, w = 54, h = 4, label = L["外观配置"], items = BuildAppearanceProfileItems(), labelPos = "top", search = true },
         { key = "author_mplus_tank", type = "dropdown", x = 71, y = 36, w = 54, h = 4, label = L["大秘境坦克 Author"], items = BuildAuthorPresetItems("mplus_tank"), labelPos = "top", search = true },
         { key = "author_mplus_dps", type = "dropdown", x = 71, y = 48, w = 54, h = 4, label = L["大秘境 DPS Author"], items = BuildAuthorPresetItems("mplus_dps"), labelPos = "top", search = true },
@@ -989,7 +994,6 @@ local function BuildConfigurationLayout()
     local managedConfiguration = FindConfigurationRow(db.selectedConfiguration)
     local builtInDeleteHint = managedConfiguration and managedConfiguration.builtIn == true
         and ApplyStatusColor(L["内置 Author 无法重命名或删除"], false, true) or ""
-    layout[#layout + 1] = { key = "card_configuration_manager", type = "card", x = 135, y = manageTop, w = 60, h = 52, title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], accentAlign = "left", accentColor = { r = THEME.accent[1], g = THEME.accent[2], b = THEME.accent[3], a = 1 } }
     layout[#layout + 1] = { key = "selectedConfiguration", type = "dropdown", x = 137, y = 23, w = 56, h = 4, label = L["选择 Author 配置"], items = allConfigurations, labelPos = "top", search = true }
     layout[#layout + 1] = { key = "configurationName", type = "input", x = 137, y = 35, w = 56, h = 4, label = L["Author 名称"], labelPos = "top" }
     layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", x = 137, y = 45, w = 18, h = 4, label = L["复制配置"], func = CopyManagedConfiguration }
@@ -997,7 +1001,29 @@ local function BuildConfigurationLayout()
     layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", x = 175, y = 45, w = 18, h = 4, label = L["删除"], func = DeleteManagedConfiguration }
     layout[#layout + 1] = { key = "desc_builtin_delete_hint", type = "description", x = 137, y = 51, w = 56, h = 3, label = builtInDeleteHint }
     layout[#layout + 1] = { key = "desc_config_status", type = "description", x = 137, y = 57, w = 56, h = 4, label = ApplyStatusColor(pageStatus.configText, pageStatus.configOk, pageStatus.configOk == false) }
-    return layout
+    local groups = { picker = {}, details = {}, active = {}, manager = {} }
+    for _, row in ipairs(layout) do
+        local group
+        if row.key == "desc_pack_info" then group = "details"
+        elseif (tonumber(row.x) or 0) >= 135 then group = "manager"
+        elseif (tonumber(row.x) or 0) >= 69 then group = "active"
+        else group = "picker" end
+        local xOffset = group == "manager" and 136 or group == "active" and 70 or 4
+        local yOffset = group == "details" and 64 or group == "manager" and 22 or group == "active" and 21 or 0
+        row.x = math.max(1, (tonumber(row.x) or 1) - xOffset)
+        row.y = math.max(1, (tonumber(row.y) or 1) - yOffset)
+        groups[group][#groups[group] + 1] = row
+    end
+    return { version = 1, title = L["语音 / 配置"], cards = {
+        { id = "pack-picker", key = "card_pack_picker", title = L["语音包"], desc = L["选择当前生效的语音包。"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" }, content = { kind = "grid", items = groups.picker } },
+        { id = "pack-details", key = "card_pack_details", title = tostring(info.displayName or ""), desc = tostring(info.subtitle or ""), collapsible = true,
+            placement = { target = "pack-picker", side = "below", align = "start" }, content = { kind = "grid", items = groups.details } },
+        { id = "active-configurations", key = "card_active_configurations", title = L["当前配置选择"], desc = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"], collapsible = true,
+            placement = { target = "pack-details", side = "below", align = "start" }, content = { kind = "grid", items = groups.active } },
+        { id = "configuration-manager", key = "card_configuration_manager", title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], collapsible = true,
+            placement = { target = "active-configurations", side = "below", align = "start" }, content = { kind = "grid", items = groups.manager } },
+    } }
 end
 
 local function BuildLayout()
@@ -1097,35 +1123,42 @@ local function RenderGrid(contentFrame, resetScroll)
             ExwindTools.UI.ActivePageFrame = scrollChild
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(scrollChild, GRID_COLS)
+        if Page._cardSession and type(Page._cardSession.Release) == "function" then
+            Page._cardSession:Release()
+            Page._cardSession = nil
         end
-        Grid:Render(scrollChild, layout, GetPageDB(), MODULE_KEY)
+        Page._cardSession = Grid:MountCards(scrollChild, layout, {
+            pageId = MODULE_KEY,
+            regionId = "voice-pack",
+            config = GetPageDB(),
+            moduleKey = MODULE_KEY,
+            scrollFrame = scrollFrame,
+        })
         UpdateConfigurationManagerButtonState(Grid)
     end)
 end
 
 UpdateConfigurationManagerButtonState = function(Grid)
-    if not Grid or type(Grid.Widgets) ~= "table" then
+    if not (Grid and Grid.FindMountedWidget and scrollChild) then
         return
     end
     -- Keep these controls clickable.  The action itself validates whether the
     -- selected Author was imported and shows the precise reason for built-ins.
     -- Grid's disabled-state handling was leaving the rename button inert even
     -- after an imported Author had been selected.
-    local copyButton = Grid.Widgets.btn_copy_configuration
+    local copyButton = Grid:FindMountedWidget(scrollChild, "btn_copy_configuration")
     if copyButton and copyButton.SetEnabled then
         copyButton:SetEnabled(true)
     elseif copyButton and copyButton.Enable then
         copyButton:Enable()
     end
-    local renameButton = Grid.Widgets.btn_rename_configuration
+    local renameButton = Grid:FindMountedWidget(scrollChild, "btn_rename_configuration")
     if renameButton and renameButton.SetEnabled then
         renameButton:SetEnabled(true)
     elseif renameButton and renameButton.Enable then
         renameButton:Enable()
     end
-    local deleteButton = Grid.Widgets.btn_delete_configuration
+    local deleteButton = Grid:FindMountedWidget(scrollChild, "btn_delete_configuration")
     if deleteButton and deleteButton.SetEnabled then
         deleteButton:SetEnabled(true)
     elseif deleteButton and deleteButton.Enable then

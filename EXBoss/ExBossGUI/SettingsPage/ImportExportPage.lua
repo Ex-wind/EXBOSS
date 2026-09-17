@@ -5,6 +5,7 @@
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI
+local GC = ExwindTools.GUIColors
 
 ExBoss.UI.Panel.ImportExportPage = ExBoss.UI.Panel.ImportExportPage or {}
 local Page = ExBoss.UI.Panel.ImportExportPage
@@ -28,7 +29,7 @@ local ROLE_ORDER = { "mplus_tank", "mplus_heal", "mplus_dps", "raid_tank", "raid
 
 local scrollFrame, scrollChild, exportPopup, uiBuilt
 local exportNameInput, exportAppearanceCheck, exportAppearanceDropdown, exportMplusCheck, exportRaidCheck, exportStatus
-local importInputBox, importSummary, importStatus, importAppearanceCheck, importLegacyCheck, importSection, importButton, apiImportButton
+local importInputBox, importSummary, importStatus, importAppearanceCheck, importLegacyCheck, exportSection, importSection, importButton, apiImportButton
 local importRoleChecks, parsedTransfer
 local importNameRows = {}
 
@@ -38,21 +39,21 @@ end
 
 local function CreateSmallButton(parent, text, onClick)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(0.2, 0.2, 0.25, 0.9)
+    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(unpack(GC.secondaryText))
     local label = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormal")
     label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(THEME.TextMain))
     button:SetScript("OnClick", onClick)
-    button:SetScript("OnEnter", function(self) self:SetBackdropColor(0.3, 0.3, 0.35, 0.95) end)
-    button:SetScript("OnLeave", function(self) self:SetBackdropColor(0.2, 0.2, 0.25, 0.9) end)
+    button:SetScript("OnEnter", function(self) self:SetBackdropColor(unpack(GC.accentHover)) end)
+    button:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(GC.secondaryText)) end)
     return button
 end
 
 local function CreateActionButton(parent, text, onClick, color)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
     local base = color or THEME.Primary
-    button:SetSize(180, 40); button:SetBackdrop(BACKDROP); button:SetBackdropColor(unpack(base)); button:SetBackdropBorderColor(0.5, 0.5, 0.55, 0.8)
+    button:SetSize(180, 40); button:SetBackdrop(BACKDROP); button:SetBackdropColor(unpack(base)); button:SetBackdropBorderColor(unpack(GC.secondaryBorder))
     local label = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormal")
-    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(1, 1, 1, 1)
+    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(GC.primaryText))
     button:SetScript("OnClick", onClick)
     button:SetScript("OnEnter", function(self)
         self:SetBackdropColor(math.min(1, base[1] * 1.3), math.min(1, base[2] * 1.3), math.min(1, base[3] * 1.3), 1)
@@ -70,12 +71,12 @@ end
 
 local function StyleInput(control)
     if control and control.SetBackdropColor then
-        control:SetBackdropColor(0.10, 0.11, 0.16, 0.96)
-        control:SetBackdropBorderColor(0.48, 0.52, 0.66, 0.95)
+        control:SetBackdropColor(unpack(GC.input))
+        control:SetBackdropBorderColor(unpack(GC.inputHoverBorder))
     end
     local edit = GetNativeEditBox(control)
     if edit and edit.SetTextColor then
-        edit:SetTextColor(0.92, 0.94, 0.99, 1)
+        edit:SetTextColor(unpack(GC.text))
     end
     return control
 end
@@ -124,13 +125,10 @@ local function ShowExportPopup(encoded, name)
 end
 
 local function SectionBg(parent, title, color)
-    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    frame:SetBackdrop(BACKDROP); frame:SetBackdropColor(unpack(THEME.Background)); frame:SetBackdropBorderColor(unpack(THEME.Border))
-    local bar = EXUI:CreateVisualTexture(frame, EXBORDERFRAME)
-    bar:SetColorTexture(color[1], color[2], color[3], 0.90); bar:SetHeight(2); bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6); bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
-    local heading = EXUI:CreateVisualFontString(frame, EXFONTFRAME)
-    heading:SetFont(ExwindTools.MAIN_FONT or "Fonts\\FRIZQT__.TTF", 16, "OUTLINE"); heading:SetPoint("TOPLEFT", 14, -14); heading:SetText(title); heading:SetTextColor(unpack(color))
-    return frame
+    local card = EXUI:CreateSettingsCard(parent, { title = title, collapsible = true })
+    local body = card:GetBody()
+    body._settingsCard = card
+    return body
 end
 
 local function MakeLabel(parent, text)
@@ -287,8 +285,14 @@ local function LayoutImportControls()
         importStatus:ClearAllPoints(); importStatus:SetPoint("TOPLEFT", 14, y); importStatus:SetPoint("TOPRIGHT", -14, y)
         y = y - 34
     end
-    importSection:SetHeight(math.max(700, -y + 18))
-    if scrollChild then scrollChild:SetHeight(math.max(740, importSection:GetHeight() + 36)) end
+    local height = math.max(700, -y + 18)
+    importSection:SetHeight(height)
+    if importSection._settingsCard then importSection._settingsCard:SetContentHeight(height) end
+    if scrollChild then
+        local exportHeight = exportSection and exportSection._settingsCard and exportSection._settingsCard:GetHeight() or 0
+        local importHeight = importSection._settingsCard and importSection._settingsCard:GetHeight() or height
+        scrollChild:SetHeight(math.max(740, exportHeight + importHeight + 48))
+    end
 end
 
 local function RefreshImportNameRows()
@@ -619,11 +623,13 @@ local function EnsureUI(contentFrame)
     scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4); scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -26, 4)
     scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild)
     local width = math.max(600, (contentFrame:GetWidth() or 1100) - 50)
-    local columnWidth = math.floor((width - 20) / 2) - 6
+    local columnWidth = width - 20
     local defaultMplus, defaultRaid = DefaultExportChecks()
 
-    local exportSection = SectionBg(scrollChild, L["导出"], THEME.Primary)
-    exportSection:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, -16); exportSection:SetWidth(columnWidth); exportSection:SetHeight(700)
+    exportSection = SectionBg(scrollChild, L["导出"], THEME.Primary)
+    exportSection._settingsCard:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, -16)
+    exportSection._settingsCard:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -10, -16)
+    exportSection:SetHeight(300); exportSection._settingsCard:SetContentHeight(300)
     local y = -42
     MakeLabel(exportSection, L["导出包名称（可选，供接收方识别）"]):SetPoint("TOPLEFT", 14, y); y = y - 20
     exportNameInput = CreateSingleLineEditBox(exportSection, columnWidth - 28)
@@ -645,7 +651,9 @@ local function EnsureUI(contentFrame)
     exportStatus:SetText(L["Boss 配置始终按「Author + 对应 User 覆盖」成对导出。相同 Author 只会导出一次，并附带职责启用映射。"])
 
     importSection = SectionBg(scrollChild, L["导入"], THEME.Success)
-    importSection:SetPoint("TOPLEFT", exportSection, "TOPRIGHT", 20, 0); importSection:SetWidth(columnWidth); importSection:SetHeight(700)
+    importSection._settingsCard:SetPoint("TOPLEFT", exportSection._settingsCard, "BOTTOMLEFT", 0, -10)
+    importSection._settingsCard:SetPoint("TOPRIGHT", exportSection._settingsCard, "BOTTOMRIGHT", 0, -10)
+    importSection:SetHeight(700); importSection._settingsCard:SetContentHeight(700)
     local iy = -42
     MakeLabel(importSection, L["粘贴导出字符串"]):SetPoint("TOPLEFT", 14, iy); iy = iy - 20
     importInputBox = CreateMultiLineEditBox(importSection, columnWidth - 28, 110)
@@ -673,7 +681,7 @@ local function EnsureUI(contentFrame)
     importStatus = EXUI:CreateVisualFontString(importSection, EXFONTFRAME, "GameFontHighlightSmall")
     importStatus:SetPoint("BOTTOMLEFT", 14, 16); importStatus:SetPoint("BOTTOMRIGHT", -14, 16); importStatus:SetJustifyH("LEFT"); importStatus:SetTextColor(unpack(THEME.TextSub)); importStatus:SetText("")
 
-    scrollChild:SetSize(width, 740)
+    scrollChild:SetSize(width, exportSection._settingsCard:GetHeight() + importSection._settingsCard:GetHeight() + 48)
     uiBuilt = true
     RefreshAppearanceDropdown()
     ClearImportChoices()

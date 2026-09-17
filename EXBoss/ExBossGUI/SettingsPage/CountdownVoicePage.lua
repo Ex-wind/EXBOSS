@@ -29,16 +29,25 @@ local SOURCE_ITEMS = {
 -- 允许：只按共享规范调整开怪倒数与数字语音两组的 x/y/w/h、外层卡片和可见高度。
 -- 禁止：修改 digit key 生成规则、数字业务顺序、Runtime↔页面 DB 投影、试听回调或来源显隐逻辑。
 local LAYOUT = {
-    { key = "header", type = "header", x = 1, y = 1, w = 200, h = 6, label = L["语音设置"], labelSize = 24 },
-    { key = "header_pull", type = "header", x = 1, y = 11, w = 200, h = 5, label = L["开怪倒数"], labelSize = 20 },
-    { key = "pullCountdownEnabled",      type = "checkbox", x = 4, y = 20, w = 70, h = 5, label = L["启用开怪倒数"] },
-    { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 4, y = 27, w = 70, h = 5, label = L["为开怪倒数播放语音"] },
-    { key = "header_digits", type = "header", x = 1, y = 37, w = 200, h = 5, label = L["数字语音"], labelSize = 20 },
+    version = 1,
+    title = L["语音设置"],
+    cards = {
+        { id = "pull-countdown", title = L["开怪倒数"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "grid", items = {
+                { key = "pullCountdownEnabled", type = "checkbox", x = 1, y = 1, w = 96, h = 6, label = L["启用开怪倒数"] },
+                { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 101, y = 1, w = 96, h = 6, label = L["为开怪倒数播放语音"] },
+            } } },
+        { id = "digit-voice", title = L["数字语音"], collapsible = true,
+            placement = { target = "pull-countdown", side = "below", align = "start" },
+            content = { kind = "grid", items = {} } },
+    },
 }
 
 local root
 local scrollFrame
 local scrollChild
+local cardSession
 
 local function DeepCopy(v)
     if type(v) ~= "table" then
@@ -69,13 +78,14 @@ end
 
 local function BuildLayout()
     -- 重复数字行的 i 顺序是业务顺序；组合迁移只能包裹/定位整行，不能重排或改变 key。
-    local rows = DeepCopy(LAYOUT)
-    local baseY = 47
+    local layout = DeepCopy(LAYOUT)
+    local rows = layout.cards[2].content.items
+    local baseY = 1
     for i = 1, MAX_COUNTDOWN_DIGIT do
         rows[#rows + 1] = {
             key = "digitEnabled" .. tostring(i),
             type = "checkbox",
-            x = 4,
+            x = 1,
             y = baseY + ((i - 1) * 8),
             w = 28,
             h = 5,
@@ -84,7 +94,7 @@ local function BuildLayout()
         rows[#rows + 1] = {
             key = "digitSource" .. tostring(i),
             type = "dropdown",
-            x = 40,
+            x = 31,
             y = baseY + ((i - 1) * 8),
             w = 38,
             h = 5,
@@ -95,7 +105,7 @@ local function BuildLayout()
         rows[#rows + 1] = {
             key = "digitLSM" .. tostring(i),
             type = "lsm_sound",
-            x = 88,
+            x = 71,
             y = baseY + ((i - 1) * 8),
             w = 72,
             h = 5,
@@ -105,14 +115,14 @@ local function BuildLayout()
         rows[#rows + 1] = {
             key = "preview" .. tostring(i),
             type = "button",
-            x = 168,
+            x = 151,
             y = baseY + ((i - 1) * 8),
             w = 24,
             h = 5,
             label = L["试听"],
         }
     end
-    return rows
+    return layout
 end
 
 local function NormalizeDigitSource(value)
@@ -161,8 +171,18 @@ end
 
 local function GetEditorWidgets()
     -- state.widgets 的 digit* key 是显隐与试听的稳定入口，迁移后必须保留 key 查找语义。
-    local state = Grid.ContainerStates and Grid.ContainerStates[scrollChild] or nil
-    return state and state.widgets or {}
+    local widgets = {}
+    if not (scrollChild and Grid.FindMountedWidget) then
+        return widgets
+    end
+    for i = 1, MAX_COUNTDOWN_DIGIT do
+        local suffix = tostring(i)
+        widgets["digitEnabled" .. suffix] = Grid:FindMountedWidget(scrollChild, "digitEnabled" .. suffix)
+        widgets["digitSource" .. suffix] = Grid:FindMountedWidget(scrollChild, "digitSource" .. suffix)
+        widgets["digitLSM" .. suffix] = Grid:FindMountedWidget(scrollChild, "digitLSM" .. suffix)
+        widgets["preview" .. suffix] = Grid:FindMountedWidget(scrollChild, "preview" .. suffix)
+    end
+    return widgets
 end
 
 local function SetWidgetShown(widget, shown)
@@ -252,10 +272,17 @@ function Page:Render(contentFrame)
             ExwindTools.UI.ActivePageFrame = scrollChild
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(scrollChild, GRID_COLS)
+        if cardSession and type(cardSession.Release) == "function" then
+            cardSession:Release()
+            cardSession = nil
         end
-        Grid:Render(scrollChild, BuildLayout(), GetPageDB(), MODULE_KEY)
+        cardSession = Grid:MountCards(scrollChild, BuildLayout(), {
+            pageId = MODULE_KEY,
+            regionId = "countdown-voice",
+            config = GetPageDB(),
+            moduleKey = MODULE_KEY,
+            scrollFrame = scrollFrame,
+        })
         RefreshDynamicWidgets()
     end)
 end

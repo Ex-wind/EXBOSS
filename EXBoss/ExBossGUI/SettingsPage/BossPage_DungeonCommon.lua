@@ -6,6 +6,7 @@ if not ExwindTools then return end
 local Page = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.BossPage
 if not Page then return end
 local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, k) return k end })
+local GC = ExwindTools.GUIColors
 
 -- 副本通用设置只管理副本级 options 与 AuraSound；不持有 BossPage 的选择状态。
 -- 当前副本/槽位解析仍由 BossPage 主文件通过公开方法提供。
@@ -54,7 +55,7 @@ local function CreateAuraPrototypeButton(parent, width, height, label, callback)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
     button:SetSize(width, height)
     button:SetBackdrop(AURA_FLAT_BACKDROP)
-    button:SetBackdropColor(0.050, 0.064, 0.090, 0.98)
+    button:SetBackdropColor(unpack(GC.input))
     button:SetBackdropBorderColor(
         AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
         AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
@@ -64,14 +65,14 @@ local function CreateAuraPrototypeButton(parent, width, height, label, callback)
     button.text:SetText(label or "")
     SetAuraThemeText(button.text, AURA_UI_THEME.ink)
     button:SetScript("OnEnter", function(frame)
-        frame:SetBackdropColor(0.090, 0.100, 0.120, 1.00)
+        frame:SetBackdropColor(unpack(GC.inputHoverBorder))
         frame:SetBackdropBorderColor(
             AURA_UI_THEME.gold[1], AURA_UI_THEME.gold[2], AURA_UI_THEME.gold[3], 0.72
         )
         SetAuraThemeText(frame.text, AURA_UI_THEME.gold)
     end)
     button:SetScript("OnLeave", function(frame)
-        frame:SetBackdropColor(0.050, 0.064, 0.090, 0.98)
+        frame:SetBackdropColor(unpack(GC.input))
         frame:SetBackdropBorderColor(
             AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
             AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
@@ -2041,7 +2042,7 @@ function Common.EnsureAuraSoundCategoryDrawer(parent)
             Common.RefreshAuraSoundCategoryDrawerList(drawer)
         end,
     })
-    if drawer.search.SetBackdropColor then drawer.search:SetBackdropColor(0.035, 0.048, 0.070, 0.98) end
+    if drawer.search.SetBackdropColor then drawer.search:SetBackdropColor(unpack(GC.popupSearch)) end
     if drawer.search.SetBackdropBorderColor then
         drawer.search:SetBackdropBorderColor(
             AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
@@ -2181,12 +2182,12 @@ function Common.EnsureEncounterVoiceEditor(parent)
     local editor = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     editor:SetSize(510, 250)
     editor:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
-    editor:SetBackdropColor(0.025, 0.035, 0.065, 0.98)
-    editor:SetBackdropBorderColor(0.48, 0.84, 1.00, 0.95)
+    editor:SetBackdropColor(unpack(GC.popup))
+    editor:SetBackdropBorderColor(unpack(GC.popupBorder))
     editor:Hide()
     editor.title = ExwindTools.UI:CreateVisualFontString(editor, EXFONTFRAME, "GameFontNormalLarge")
     editor.title:SetPoint("TOPLEFT", 18, -16)
-    editor.title:SetTextColor(0.48, 0.84, 1.00)
+    editor.title:SetTextColor(unpack(GC.text))
     editor.close = CreateFrame("Button", nil, editor, "UIPanelCloseButton")
     editor.close:SetSize(28, 28)
     editor.close:SetPoint("TOPRIGHT", -5, -5)
@@ -2514,8 +2515,8 @@ function Common.EnsureAuraSoundEditor(parent)
     local editor = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     editor:SetSize(540, 420)
     editor:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1, insets = { left = 1, right = 1, top = 1, bottom = 1 } })
-    editor:SetBackdropColor(0.025, 0.035, 0.065, 0.98)
-    editor:SetBackdropBorderColor(0.48, 0.84, 1.00, 0.95)
+    editor:SetBackdropColor(unpack(GC.popup))
+    editor:SetBackdropBorderColor(unpack(GC.popupBorder))
     editor:Hide()
     -- 关闭按钮、取消、父页面 Hide 甚至外部 Hide 都走同一释放语义。不能让
     -- Frame 在 RegisteredLayouts/父级存活时继续抓住上一条 action 草稿。
@@ -2529,7 +2530,7 @@ function Common.EnsureAuraSoundEditor(parent)
     end)
     editor.title = ExwindTools.UI:CreateVisualFontString(editor, EXFONTFRAME, "GameFontNormalLarge")
     editor.title:SetPoint("TOPLEFT", 18, -16)
-    editor.title:SetTextColor(0.48, 0.84, 1.00)
+    editor.title:SetTextColor(unpack(GC.text))
     editor.title:SetText(L["光环声音"])
     editor.icon = ExwindTools.UI:CreateVisualTexture(editor, EXBASEFRAME)
     editor.icon:SetSize(26, 26)
@@ -2704,7 +2705,7 @@ function Common.EnsureAuraSoundToolbarRenderer()
                         Common:RefreshAuraSoundFilteredList()
                     end,
                 })
-                if toolbar.search.SetBackdropColor then toolbar.search:SetBackdropColor(0.035, 0.048, 0.070, 0.98) end
+                if toolbar.search.SetBackdropColor then toolbar.search:SetBackdropColor(unpack(GC.popupSearch)) end
                 if toolbar.search.SetBackdropBorderColor then
                     toolbar.search:SetBackdropBorderColor(
                         AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
@@ -2752,14 +2753,32 @@ end
 -- [布局声明边界] 只可按共享规范调整 x/y/w/h 与外框；renderer key、分类顺序和固定虚拟列表视口必须保留。
 function Common:BuildPageLayout(dungeonKey)
     return {
-        { key = "aura_sound_category_floor", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 4, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "地板" },
-        { key = "aura_sound_category_error", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 70, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "错误" },
-        { key = "aura_sound_category_tank", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 136, y = 1, w = 60, h = 28, dungeonKey = dungeonKey, categoryKey = "坦克" },
-        { key = "aura_sound_category_filter", type = "custom", renderer = "exboss_dungeon_aura_sound_category_filter_cards", x = 4, y = 32, w = 192, h = 18, dungeonKey = dungeonKey },
-        { key = "aura_sound_toolbar", type = "custom", renderer = "exboss_dungeon_aura_sound_toolbar", x = 4, y = 50, w = 192, h = 8, dungeonKey = dungeonKey },
-        { key = "aura_sound_table_header", type = "custom", renderer = "exboss_dungeon_aura_sound_header", x = 4, y = 58, w = 192, h = 5, dungeonKey = dungeonKey },
-        { key = "dungeon_aura_sound_virtual_list", type = "custom", renderer = "exboss_dungeon_aura_sound_virtual_list", x = 4, y = 63, w = 192, h = 88, dungeonKey = dungeonKey },
+        version = 1,
+        title = L["副本通用设置"],
+        cards = {
+            { id = "categories", title = L["光环音效分类"], collapsible = true,
+                placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+                content = { kind = "grid", items = {
+                    { key = "aura_sound_category_floor", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 1, y = 1, w = 62, h = 28, dungeonKey = dungeonKey, categoryKey = "地板" },
+                    { key = "aura_sound_category_error", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 69, y = 1, w = 62, h = 28, dungeonKey = dungeonKey, categoryKey = "错误" },
+                    { key = "aura_sound_category_tank", type = "custom", renderer = "exboss_dungeon_aura_sound_category_card", x = 137, y = 1, w = 62, h = 28, dungeonKey = dungeonKey, categoryKey = "坦克" },
+                    { key = "aura_sound_category_filter", type = "custom", renderer = "exboss_dungeon_aura_sound_category_filter_cards", x = 1, y = 32, w = 198, h = 18, dungeonKey = dungeonKey },
+                } } },
+            { id = "rules", title = L["光环音效规则"], collapsible = true,
+                placement = { target = "categories", side = "below", align = "start" },
+                content = { kind = "grid", items = {
+                    { key = "aura_sound_toolbar", type = "custom", renderer = "exboss_dungeon_aura_sound_toolbar", x = 1, y = 1, w = 198, h = 8, dungeonKey = dungeonKey },
+                    { key = "aura_sound_table_header", type = "custom", renderer = "exboss_dungeon_aura_sound_header", x = 1, y = 9, w = 198, h = 5, dungeonKey = dungeonKey },
+                    { key = "dungeon_aura_sound_virtual_list", type = "custom", renderer = "exboss_dungeon_aura_sound_virtual_list", x = 1, y = 14, w = 198, h = 88, dungeonKey = dungeonKey },
+                } } },
+        },
     }
+end
+
+local function ForEachLayoutItem(layout, callback)
+    for _, card in ipairs((layout and layout.cards) or {}) do
+        for _, item in ipairs((card.content and card.content.items) or {}) do callback(item) end
+    end
 end
 
 function Common:HasContent()
@@ -2805,21 +2824,28 @@ function Common:Render(host)
     Common.EnsureAuraSoundCategoryCardRenderer()
     Common.EnsureAuraSoundCategoryFilterRenderer()
     LAYOUT = Common:BuildPageLayout(dungeonKey)
-    for i = 1, #LAYOUT do
-        if LAYOUT[i].renderer == "exboss_dungeon_aura_sound_virtual_list" then
-            LAYOUT[i].slotKey = slotKey
-        end
-    end
+    ForEachLayoutItem(LAYOUT, function(item)
+        if item.renderer == "exboss_dungeon_aura_sound_virtual_list" then item.slotKey = slotKey end
+    end)
     UI.slotKey = slotKey
     UI.dungeonKey = dungeonKey
     ExwindTools:RegisterModuleLayout(Common.MODULE_KEY, LAYOUT)
-    if Grid.SetContainerCols then Grid:SetContainerCols(UI.gridHost, 200) end
-    if Grid.SetContainerPadding then Grid:SetContainerPadding(UI.gridHost, { left = 0, right = 10, top = 0, bottom = 0 }) end
     if ExwindTools.UI then
         ExwindTools.UI.ActivePageFrame = UI.gridHost
         ExwindTools.UI.CurrentModule = Common.MODULE_KEY
     end
-    Grid:Render(UI.gridHost, LAYOUT, {}, Common.MODULE_KEY)
+    if UI.cardSession and type(UI.cardSession.Release) == "function" then UI.cardSession:Release() end
+    UI.cardSession = Grid:MountCards(UI.gridHost, LAYOUT, {
+        pageId = Common.MODULE_KEY,
+        regionId = "dungeon-common",
+        config = {},
+        moduleKey = Common.MODULE_KEY,
+        onContentHeightChanged = function(height)
+            height = math.max(1, tonumber(height) or 1)
+            UI.root:SetHeight(height)
+            host:SetHeight(height)
+        end,
+    })
     -- Grid 只会更新自身高度；必须同步到 ScrollFrame 的 scroll child，才能让
     -- 滚动、裁剪与鼠标命中覆盖完整内容区域。
     local contentHeight = math.max(1, UI.gridHost:GetHeight() or 1)
@@ -2844,9 +2870,9 @@ function Common:Hide()
     if UI.encounterVoiceEditor then UI.encounterVoiceEditor:Hide() end
     -- 与 Boss 页面共用右侧区域，但不共用 Grid 容器。离开通用页时同时释放
     -- 本页的独立 Grid，避免 BUFF 行控件停留在随后渲染的 Boss 页面上。
-    local Grid = _G.ExwindGrid
-    if Grid and Grid.ReleaseContainerWidgets and UI.gridHost then
-        Grid:ReleaseContainerWidgets(UI.gridHost)
+    if UI.cardSession and type(UI.cardSession.Release) == "function" then
+        UI.cardSession:Release()
+        UI.cardSession = nil
     end
     -- 离开页面后不保留上一副本的行绑定；下次 Mount 重新建立轻量上下文。
     UI.auraSoundVirtualContext = nil
@@ -2856,9 +2882,7 @@ function Common:Hide()
     UI.auraSoundCategoryOtherKeys = nil
     -- RegisterModuleLayout 持有 LAYOUT；清除 renderer 可能补入的当前值，保证
     -- 它永远只携带 layout 标量。
-    for i = 1, #LAYOUT do
-        LAYOUT[i].currentValue = nil
-    end
+    ForEachLayoutItem(LAYOUT, function(item) item.currentValue = nil end)
     UI.host = nil
     UI.slotKey = nil
     UI.dungeonKey = nil

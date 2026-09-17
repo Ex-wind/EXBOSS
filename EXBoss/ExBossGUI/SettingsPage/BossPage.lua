@@ -3,6 +3,7 @@
 local ExwindTools = _G.ExwindTools
 if not ExwindTools then return end
 local EXUI = ExwindTools.UI
+local GC = ExwindTools.GUIColors
 local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, k) return k end })
 
 ExBoss.UI.Panel.BossPage = ExBoss.UI.Panel.BossPage or {}
@@ -280,15 +281,14 @@ end
 
 local function GetSpellSettingsWidgets()
     local Grid = _G.ExwindGrid
-    if not Grid then
+    if not (Grid and Grid.FindMountedWidget and UI.spellSettingsGridChild) then
         return nil
     end
-    -- state.widgets 是复用后控件的权威 key 索引；迁移后必须保留，不能改成按屏幕位置或新建控件猜身份。
-    local state = UI.spellSettingsGridChild and Grid.ContainerStates and Grid.ContainerStates[UI.spellSettingsGridChild]
-    if type(state) == "table" and type(state.widgets) == "table" then
-        return state.widgets
-    end
-    return Grid.Widgets
+    return setmetatable({}, { __index = function(t, key)
+        local widget = Grid:FindMountedWidget(UI.spellSettingsGridChild, key)
+        rawset(t, key, widget)
+        return widget
+    end })
 end
 
 local function RegisterSpellSettingsGridAsActive(moduleKey)
@@ -2220,19 +2220,15 @@ end
 -- [卡片/Grid 迁移边界：普通技能设置]
 -- 允许：只按共享规范调整五组现有声明的 x/y/w/h 与外层卡片呈现。
 -- 禁止：修改 key/type/items、同槽来源显隐、字段/语音触发业务顺序、draft/Store 回调或试听行为。
--- type="card" 当前只是同一 Grid 中的背景项，不自动拥有相邻控件、回调或释放责任。
+-- 五组内容只使用共享 SettingsCard；原控件 key 与回调保持不变。
 local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spellIcon, iconFlags)
     for i = #SETTINGS_LAYOUT, 1, -1 do
         SETTINGS_LAYOUT[i] = nil
     end
 
     local rows = {
-        { key = "card_master", type = "card", x = 1, y = 1, w = 200, h = 6, label = "", padding = 6, keepBorderVisible = true,
-            bgColor = { r = 0.030, g = 0.038, b = 0.054, a = 0.98 }, borderColor = { r = 0.26, g = 0.30, b = 0.38, a = 0.82 }, accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 1.00 } },
         { key = "enabled", type = "checkbox", x = 3, y = 1, w = 36, h = 5, label = L["启用"], labelSize = 18 },
 
-        { key = "card_text", type = "card", x = 1, y = 8, w = 107, h = 40, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 1.00 } },
         { key = "eventColorEnabled", type = "checkbox", x = 4, y = 16, w = 26, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 33, y = 16, w = 35, h = 5, label = "", labelPos = "left", items = EVENT_COLOR_ITEMS_FUNC, search = true },
         { key = "eventColor", type = "color", x = 73, y = 16, w = 33, h = 5, label = L["自定义颜色"] },
@@ -2244,16 +2240,12 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "timerBarRenameEnabled", type = "checkbox", x = 4, y = 37, w = 26, h = 5, label = L["|cffffd637计时条改名|r"] },
         { key = "timerBarRenameText", type = "input", x = 34, y = 37, w = 72, h = 5, label = "" },
 
-        { key = "card_display", type = "card", x = 109, y = 8, w = 93, h = 40, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.50, g = 0.74, b = 1.00, a = 1.00 } },
         { key = "ringEnabled", type = "checkbox", x = 112, y = 16, w = 28, h = 5, label = L["施法圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 112, y = 23, w = 28, h = 5, label = L["施法读条"] },
         { key = "ringCastCheckEnabled", type = "checkbox", x = 112, y = 30, w = 28, h = 5, label = L["施法检测"] },
         { key = "castProgressBarRenameEnabled", type = "checkbox", x = 112, y = 37, w = 28, h = 5, label = L["读条改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 143, y = 37, w = 54, h = 5, label = "" },
 
-        { key = "card_voice", type = "card", x = 1, y = 50, w = 107, h = 40, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.28, g = 0.84, b = 1.00, a = 1.00 } },
         { key = "tr0Enabled", type = "checkbox", x = 4, y = 58, w = 26, h = 5, label = L["|cffffd637中央文本|r"] },
         { key = "tr0Source", type = "dropdown", x = 34, y = 58, w = 27, h = 5, label = "", items = C.TRIGGER_SOURCE_ITEMS, search = true },
         { key = "tr0Label", type = "dropdown", x = 61, y = 58, w = 33, h = 5, label = "", items = {}, search = true },
@@ -2278,8 +2270,6 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "tr2TtsText", type = "input", x = 61, y = 79, w = 33, h = 5, label = "" },
         { key = "tr2ValueTest", type = "button", x = 95, y = 79, w = 11, h = 6, label = L["试听"] },
 
-        { key = "card_target_alert", type = "card", x = 109, y = 50, w = 93, h = 40, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", titleSize = 17, keepBorderVisible = true,
-            bgColor = { r = 0.020, g = 0.027, b = 0.041, a = 0.98 }, borderColor = { r = 0.22, g = 0.26, b = 0.34, a = 0.84 }, accentColor = { r = 0.40, g = 1.00, b = 0.62, a = 1.00 } },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 112, y = 58, w = 28, h = 5, label = L["启用"] },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 112, y = 66, w = 25, h = 5, label = L["圆环"] },
         { key = "targetAlertTextEnabledV2", type = "checkbox", x = 142, y = 66, w = 25, h = 5, label = L["文本"] },
@@ -2294,9 +2284,25 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "targetAlertStartValueTest", type = "button", x = 190, y = 80, w = 9, h = 6, label = L["试听"] },
     }
 
+    local groups = { master = {}, text = {}, display = {}, voice = {}, target = {} }
     for _, row in ipairs(rows) do
-        SETTINGS_LAYOUT[#SETTINGS_LAYOUT + 1] = row
+        local group
+        if row.key == "enabled" then group = "master"
+        elseif (tonumber(row.x) or 0) >= 109 then group = (tonumber(row.y) or 0) < 50 and "display" or "target"
+        else group = (tonumber(row.y) or 0) < 50 and "text" or "voice" end
+        local xOffset = (group == "display" or group == "target") and 111 or (group == "text" or group == "voice") and 3 or 2
+        local yOffset = group == "text" and 15 or group == "display" and 15 or group == "voice" and 57 or group == "target" and 57 or 0
+        row.x = math.max(1, (tonumber(row.x) or 1) - xOffset)
+        row.y = math.max(1, (tonumber(row.y) or 1) - yOffset)
+        groups[group][#groups[group] + 1] = row
     end
+    SETTINGS_LAYOUT = { version = 1, title = tostring(spellName or L["技能设置"]), cards = {
+        { id = "master", title = L["通用设置"], collapsible = true, placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" }, content = { kind = "grid", items = groups.master } },
+        { id = "text", title = L["文本设置"], collapsible = true, placement = { target = "master", side = "below", align = "start" }, content = { kind = "grid", items = groups.text } },
+        { id = "display", title = L["施法设置"], collapsible = true, placement = { target = "text", side = "below", align = "start" }, content = { kind = "grid", items = groups.display } },
+        { id = "voice", title = L["语音设置"], collapsible = true, placement = { target = "display", side = "below", align = "start" }, content = { kind = "grid", items = groups.voice } },
+        { id = "target", title = L["被点名提示"], collapsible = true, placement = { target = "voice", side = "below", align = "start" }, content = { kind = "grid", items = groups.target } },
+    } }
     ExwindTools:RegisterModuleLayout(SETTINGS.EDITOR_KEY, SETTINGS_LAYOUT)
 end
 
@@ -3199,8 +3205,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellSettingsFrame:SetBackdropColor(0.03, 0.04, 0.06, 0.92)
-    UI.spellSettingsFrame:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+    UI.spellSettingsFrame:SetBackdropColor(unpack(GC.page))
+    UI.spellSettingsFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     UI.spellDetailHeader = CreateFrame("Frame", nil, UI.rightRoot, "BackdropTemplate")
     UI.spellDetailHeader:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 8, -(GetSpellListViewportHeight() + 10))
@@ -3214,8 +3220,8 @@ local function EnsureUI(leftFrame, contentFrame)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    UI.spellDetailHeader:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
-    UI.spellDetailHeader:SetBackdropBorderColor(0.22, 0.22, 0.28, 1)
+    UI.spellDetailHeader:SetBackdropColor(unpack(GC.card))
+    UI.spellDetailHeader:SetBackdropBorderColor(unpack(GC.panelBorder))
     UI.spellDetailHeader._exDetailLayoutWidth = 0
     UI.spellDetailHeader._exDetailLayoutPending = false
     UI.spellDetailHeader:SetScript("OnSizeChanged", function(self, width)
@@ -3249,7 +3255,7 @@ local function EnsureUI(leftFrame, contentFrame)
 
     UI.spellDetailPlaceholder = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontDisableSmall")
     UI.spellDetailPlaceholder:SetPoint("CENTER", 0, 0)
-    UI.spellDetailPlaceholder:SetTextColor(0.55, 0.55, 0.6)
+    UI.spellDetailPlaceholder:SetTextColor(unpack(GC.textPlaceholder))
     UI.spellDetailPlaceholder:SetText(L["点击上方法术卡片后，可在此查看法术描述。"])
 
     UI.spellDetailIcon = EXUI:CreateVisualTexture(UI.spellDetailHeader, EXBASEFRAME)
@@ -3262,21 +3268,21 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailTitle:SetJustifyH("LEFT")
     UI.spellDetailTitle:SetWordWrap(false)
     UI.spellDetailTitle:SetFont(ExwindTools.MAIN_FONT, 23, "OUTLINE")
-    UI.spellDetailTitle:SetTextColor(1, 0.95, 0.55)
+    UI.spellDetailTitle:SetTextColor(unpack(GC.text))
 
     UI.spellDetailMeta = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontHighlight")
     UI.spellDetailMeta:SetPoint("LEFT", UI.spellDetailTitle, "RIGHT", 10, 0)
     UI.spellDetailMeta:SetJustifyH("LEFT")
     UI.spellDetailMeta:SetWordWrap(false)
     UI.spellDetailMeta:SetFont(ExwindTools.MAIN_FONT, 16, "")
-    UI.spellDetailMeta:SetTextColor(0.55, 0.57, 0.62)
+    UI.spellDetailMeta:SetTextColor(unpack(GC.textDim))
 
     UI.spellDetailCast = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontNormal")
     UI.spellDetailCast:SetPoint("TOPLEFT", UI.spellDetailTitle, "BOTTOMLEFT", 0, -2)
     UI.spellDetailCast:SetPoint("RIGHT", UI.spellDetailHeader, "RIGHT", -18, 0)
     UI.spellDetailCast:SetJustifyH("LEFT")
     UI.spellDetailCast:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
-    UI.spellDetailCast:SetTextColor(0.92, 0.92, 0.95)
+    UI.spellDetailCast:SetTextColor(unpack(GC.text))
 
     -- 正文独立滚动；标题、射程/施法时间和测试控件始终固定在信息卡上。
     UI.spellDetailBodyScroll = CreateFrame("ScrollFrame", nil, UI.spellDetailHeader, "ScrollFrameTemplate")
@@ -3305,7 +3311,7 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailDivider:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 14, 10)
     UI.spellDetailDivider:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "BOTTOMRIGHT", -14, 10)
     UI.spellDetailDivider:SetHeight(1)
-    UI.spellDetailDivider:SetColorTexture(1, 1, 1, 0.14)
+    UI.spellDetailDivider:SetColorTexture(unpack(GC.headerDivider))
     UI.spellDetailDivider:Hide()
 
     UI.spellSettingsGridScroll = CreateFrame("ScrollFrame", nil, UI.spellSettingsFrame, "ScrollFrameTemplate")
@@ -3813,19 +3819,18 @@ end
 local function RebindSpellSettingsGrid(mdb)
     local Grid = _G.ExwindGrid
     local container = UI.spellSettingsGridChild
-    local state = Grid and Grid.ContainerStates and container and Grid.ContainerStates[container]
-    -- state.widgets 与 SETTINGS_LAYOUT key 必须原样对应；这是草稿原地重绑而不重建回调的身份合同。
-    local widgets = state and state.widgets
+    local widgets = GetSpellSettingsWidgets()
     if not (STATE.spellSettingsGridBound and type(mdb) == "table" and type(widgets) == "table"
-            and next(widgets) ~= nil and state.config == mdb) then
+            and UI.spellSettingsCardConfig == mdb) then
         return false
     end
 
     -- 固定 schema 的控件保留其原有回调；BuildSpellEditorDraft 已原地刷新
     -- 同一张 mdb，因此这些回调继续指向当前技能，而不需要 Grid:Render。
-    for _, item in ipairs(SETTINGS_LAYOUT) do
-        local widget = widgets[item.key]
-        if widget then
+    for _, card in ipairs(SETTINGS_LAYOUT.cards or {}) do
+        for _, item in ipairs((card.content and card.content.items) or {}) do
+            local widget = widgets[item.key]
+            if widget then
             local value = mdb[item.key]
             if item.type == "checkbox" and widget.SetChecked then
                 widget:SetChecked(value == true)
@@ -3844,6 +3849,7 @@ local function RebindSpellSettingsGrid(mdb)
                 widget._currentDb = mdb
                 widget._currentKey = item.key
                 if widget.UpdateColor then widget:UpdateColor() end
+            end
             end
         end
     end
@@ -4058,15 +4064,19 @@ local function RefreshSpellSettingsPanel(expectedRevision)
             return
         end
         BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spellIcon, GetEventIconFlags(event))
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(UI.spellSettingsGridChild, C.SPELL_SETTINGS_GRID_COLS)
-        end
-        if Grid.SetContainerPadding then
-            Grid:SetContainerPadding(UI.spellSettingsGridChild, { left = 0, right = 10, top = 10, bottom = 0 })
-        end
         -- Boss 页右下设置区现在作为标准 Grid 页面接入：
         -- 编辑模式必须显式绑定当前容器和模块，不能再借用别页的 live edit 状态。
-        Grid:Render(UI.spellSettingsGridChild, SETTINGS_LAYOUT, mdb, SETTINGS.EDITOR_KEY)
+        if UI.spellSettingsCardSession and type(UI.spellSettingsCardSession.Release) == "function" then
+            UI.spellSettingsCardSession:Release()
+        end
+        UI.spellSettingsCardSession = Grid:MountCards(UI.spellSettingsGridChild, SETTINGS_LAYOUT, {
+            pageId = SETTINGS.EDITOR_KEY,
+            regionId = "boss-spell-editor",
+            config = mdb,
+            moduleKey = SETTINGS.EDITOR_KEY,
+            scrollFrame = UI.spellSettingsGridScroll,
+        })
+        UI.spellSettingsCardConfig = mdb
         STATE.spellSettingsGridBound = true
         EnsureSpellTextInputPersistHooks()
         RefreshSettingsDynamicWidgets(mdb)

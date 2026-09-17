@@ -24,6 +24,7 @@ local scrollChild = nil
 local missingDepsText = nil
 local RefreshPage = nil
 local pageLayoutData = nil
+local cardSession = nil
 
 local THEME = {
     gold = { 1.00, 0.82, 0.35 },
@@ -209,16 +210,27 @@ end
 -- [卡片/Grid 迁移边界：首页]
 -- 允许：只按共享规范调整现有两组声明的 x/y/w/h 与卡片外观；未进入布局的旧 helper 不得借迁移恢复。
 -- 禁止：修改 localeMode、ReloadUI 回调、key/type、页面 DB 或 ValueController。
--- type="card" 当前只是 Grid 背景项，不自动拥有后续控件、回调或释放责任。
+-- 只声明统一 SettingsCard；标题、折叠点击区、圆角与页面 gutter 均由 Core 共享实现负责。
 local function BuildLayout()
     return {
-        { key = "card_locale", type = "card", x = 3, y = 7, w = 92, h = 30, title = L["界面语言"], desc = "", accentColor = { r = THEME.cyan[1], g = THEME.cyan[2], b = THEME.cyan[3], a = 1 } },
-        { key = "localeMode", type = "dropdown", x = 8, y = 16, w = 38, h = 4, label = "", items = LOCALE_OPTIONS, search = true },
-        { key = "btn_reload_ui", type = "button", x = 50, y = 16, w = 25, h = 4, label = L["立即重载界面"], func = function() ReloadUI() end, frameLevelOffset = 8 },
-        { key = "desc_locale_status", type = "description", x = 8, y = 23, w = 80, h = 9, label = BuildLocaleStatusText() },
-
-        { key = "card_on_dev", type = "card", x = 99, y = 7, w = 92, h = 30, title = "ON DEV", desc = "", accentColor = { r = THEME.gold[1], g = THEME.gold[2], b = THEME.gold[3], a = 1 } },
-        { key = "desc_on_dev", type = "description", x = 105, y = 19, w = 80, h = 6, label = "ON DEV" },
+        version = 1,
+        title = L["首页"],
+        cards = {
+            { id = "locale", title = L["界面语言"], collapsible = true,
+                placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+                content = { kind = "grid", items = {
+                    { key = "localeMode", type = "dropdown", x = 1, y = 1, w = 46, h = 6, label = "", items = LOCALE_OPTIONS, search = true },
+                    { key = "btn_reload_ui", type = "button", x = 51, y = 1, w = 46, h = 6, label = L["立即重载界面"], func = function() ReloadUI() end, frameLevelOffset = 8 },
+                    { key = "desc_locale_status", type = "description", x = 1, y = 9, w = 196, h = 9, label = BuildLocaleStatusText() },
+                } },
+            },
+            { id = "on-dev", title = "ON DEV", collapsible = true,
+                placement = { target = "locale", side = "below", align = "start" },
+                content = { kind = "grid", items = {
+                    { key = "desc_on_dev", type = "description", x = 1, y = 1, w = 196, h = 6, label = "ON DEV" },
+                } },
+            },
+        },
     }
 end
 
@@ -226,13 +238,31 @@ local function FindLayoutEntry(layout, key)
     if type(layout) ~= "table" then
         return nil
     end
-    for i = 1, #layout do
-        local item = layout[i]
-        if item and item.key == key then
-            return item
+    local function FindItems(items)
+        if type(items) ~= "table" then
+            return nil
+        end
+        for i = 1, #items do
+            local item = items[i]
+            if item and item.key == key then
+                return item
+            end
+            local found = item and FindItems(item.children)
+            if found then
+                return found
+            end
         end
     end
-    return nil
+    if type(layout.cards) == "table" then
+        for i = 1, #layout.cards do
+            local content = layout.cards[i] and layout.cards[i].content
+            local found = content and FindItems(content.items)
+            if found then
+                return found
+            end
+        end
+    end
+    return FindItems(layout)
 end
 
 local function UpdateLayoutData(layout)
@@ -315,10 +345,17 @@ local function RenderGrid(contentFrame, resetScroll)
             ExwindTools.UI.ActivePageFrame = scrollChild
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(scrollChild, GRID_COLS)
+        if cardSession and type(cardSession.Release) == "function" then
+            cardSession:Release()
+            cardSession = nil
         end
-        Grid:Render(scrollChild, layout, GetPageDB(), MODULE_KEY)
+        cardSession = Grid:MountCards(scrollChild, layout, {
+            pageId = MODULE_KEY,
+            regionId = "home",
+            config = GetPageDB(),
+            moduleKey = MODULE_KEY,
+            scrollFrame = scrollFrame,
+        })
     end)
 
     return true

@@ -114,29 +114,42 @@ end
 -- 禁止：修改 key/type/parentKey/subKey、字段业务次序、CVar/Store 写回与即时刷新回调。
 -- header/背景类声明不自动拥有相邻控件；迁移后仍须让原 DB 路径与回调负责保存。
 local LAYOUT = {
-    { key = "header_8111", type = "header", x = 1, y = 4, w = 200, h = 6, label = L["通用设置"], labelSize = 20 },
-    { key = "barDisplayMode", type = "dropdown", x = 1, y = 17, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
-    { key = "bunBarSources", type = "multiselect", x = 68, y = 17, w = 63, h = 6, label = L["束状条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
-    { key = "timerBarSources", type = "multiselect", x = 135, y = 17, w = 63, h = 6, label = L["计时条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
-    { key = "disableBlizzardEncounterTimeline", type = "checkbox", x = 1, y = 23, w = 76, h = 6, label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
-    { key = "disableEXBossInRaid", type = "checkbox", x = 1, y = 30, w = 76, h = 6, label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
-    { key = "disableAuraSoundRegistration", type = "checkbox", x = 1, y = 36, w = 90, h = 6, label = L["关闭光环语音注册（重载后生效）"], parentKey = "voice.global" },
-    { key = "hideTankBossAlertsForDps", type = "checkbox", x = 1, y = 43, w = 76, h = 6, label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
-    { key = "hideTankBossAlertsForHeal", type = "checkbox", x = 1, y = 50, w = 76, h = 6, label = L["治疗职责下不提示坦克技能"], parentKey = "ui.general" },
-    { key = "showSpellOccurrenceCount", type = "checkbox", x = 1, y = 57, w = 73, h = 6, label = L["法术名称显示次数"], parentKey = "ui.general" },
-    { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 64, w = 86, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
-    { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 1, y = 71, w = 127, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
-    { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 78, w = 44, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
-    { key = "header_5292", type = "header", x = 1, y = 89, w = 197, h = 10, label = L["音频输出选项"], labelSize = 20 },
-    { key = "channel", type = "dropdown", x = 1, y = 102, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
-    { key = "volume", type = "slider", x = 55, y = 102, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
-    { key = "label_5567", type = "label", x = 1, y = 114, w = 95, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
-    { key = "header_auto_gossip", type = "header", x = 1, y = 121, w = 197, h = 10, label = L["自动对话"], labelSize = 20 },
-    { key = "autoGossipEnabled", type = "checkbox", x = 1, y = 127, w = 76, h = 6, label = L["启用自动对话"], parentKey = "autoGossip", subKey = "enabled" },
-    { key = "autoGossipAcademyBuff", type = "checkbox", x = 1, y = 134, w = 102, h = 6, label = L["[大秘境] 自动对话学院(AA)BUFF"], parentKey = "autoGossip", subKey = "academyBuff" },
-    { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 140, w = 102, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
-    { key = "autoGossipPosRescue", type = "checkbox", x = 1, y = 146, w = 102, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
-    { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 152, w = 102, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
+    version = 1,
+    title = L["通用设置"],
+    cards = {
+        { id = "general", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "grid", items = {
+                { key = "barDisplayMode", type = "dropdown", x = 1, y = 1, w = 63, h = 6, label = L["时间轴样式选择"], items = BAR_MODE_OPTIONS, parentKey = "ui.general" },
+                { key = "bunBarSources", type = "multiselect", x = 68, y = 1, w = 63, h = 6, label = L["束状条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
+                { key = "timerBarSources", type = "multiselect", x = 135, y = 1, w = 63, h = 6, label = L["计时条显示"], items = BAR_SOURCE_OPTIONS, parentKey = "ui.general" },
+                { key = "disableBlizzardEncounterTimeline", type = "checkbox", x = 1, y = 9, w = 76, h = 6, label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
+                { key = "disableEXBossInRaid", type = "checkbox", x = 68, y = 9, w = 76, h = 6, label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
+                { key = "disableAuraSoundRegistration", type = "checkbox", x = 135, y = 9, w = 63, h = 6, label = L["关闭光环语音注册（重载后生效）"], parentKey = "voice.global" },
+                { key = "hideTankBossAlertsForDps", type = "checkbox", x = 1, y = 17, w = 76, h = 6, label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
+                { key = "hideTankBossAlertsForHeal", type = "checkbox", x = 68, y = 17, w = 76, h = 6, label = L["治疗职责下不提示坦克技能"], parentKey = "ui.general" },
+                { key = "showSpellOccurrenceCount", type = "checkbox", x = 135, y = 17, w = 63, h = 6, label = L["法术名称显示次数"], parentKey = "ui.general" },
+                { key = "encounterWarningsEnabled", type = "checkbox", x = 1, y = 25, w = 98, h = 6, label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
+                { key = "encounterWarningSoundsEnabled", type = "checkbox", x = 101, y = 25, w = 97, h = 6, label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
+                { key = "enableBlizzardHintCountdown", type = "checkbox", x = 1, y = 33, w = 76, h = 6, label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
+            } } },
+        { id = "audio", title = L["音频输出选项"], collapsible = true,
+            placement = { target = "general", side = "below", align = "start" },
+            content = { kind = "grid", items = {
+                { key = "channel", type = "dropdown", x = 1, y = 1, w = 48, h = 6, label = L["输出通道"], items = CHANNEL_OPTIONS, parentKey = "voice.global" },
+                { key = "volume", type = "slider", x = 55, y = 1, w = 44, h = 6, label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global" },
+                { key = "label_5567", type = "label", x = 1, y = 10, w = 196, h = 6, label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] },
+            } } },
+        { id = "auto-gossip", title = L["自动对话"], collapsible = true,
+            placement = { target = "audio", side = "below", align = "start" },
+            content = { kind = "grid", items = {
+                { key = "autoGossipEnabled", type = "checkbox", x = 1, y = 1, w = 96, h = 6, label = L["启用自动对话"], parentKey = "autoGossip", subKey = "enabled" },
+                { key = "autoGossipAcademyBuff", type = "checkbox", x = 101, y = 1, w = 96, h = 6, label = L["[大秘境] 自动对话学院(AA)BUFF"], parentKey = "autoGossip", subKey = "academyBuff" },
+                { key = "autoGossipCaveCauldron", type = "checkbox", x = 1, y = 9, w = 96, h = 6, label = L["[大秘境] 自动对话洞窟(MC)大锅BUFF"], parentKey = "autoGossip", subKey = "caveCauldron" },
+                { key = "autoGossipPosRescue", type = "checkbox", x = 101, y = 9, w = 96, h = 6, label = L["[大秘境] 自动对话萨隆矿坑救人(POS)"], parentKey = "autoGossip", subKey = "posRescue" },
+                { key = "autoGossipNpxBuff", type = "checkbox", x = 1, y = 17, w = 96, h = 6, label = L["[大秘境] 自动对话节点(NPX)BUFF"], parentKey = "autoGossip", subKey = "npxBuff" },
+            } } },
+    },
 }
 
 local function NormalizeBarDisplayMode(mode)
@@ -462,10 +475,16 @@ function Page:Render(contentFrame)
             ExwindTools.UI.ActivePageFrame = sc
             ExwindTools.UI.CurrentModule = MODULE_KEY
         end
-        local cols = ResolveGridCols(sc:GetWidth())
-        if Grid.SetContainerCols then
-            Grid:SetContainerCols(sc, cols)
+        if Page._cardSession and type(Page._cardSession.Release) == "function" then
+            Page._cardSession:Release()
+            Page._cardSession = nil
         end
-        Grid:Render(sc, ScaleLayout(LAYOUT, cols), rootDB, MODULE_KEY)
+        Page._cardSession = Grid:MountCards(sc, LAYOUT, {
+            pageId = MODULE_KEY,
+            regionId = "general-overview",
+            config = rootDB,
+            moduleKey = MODULE_KEY,
+            scrollFrame = sf,
+        })
     end)
 end

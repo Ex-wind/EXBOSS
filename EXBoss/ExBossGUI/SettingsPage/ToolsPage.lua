@@ -4,6 +4,7 @@ ExBoss.UI.Panel.ToolsPage = ExBoss.UI.Panel.ToolsPage or {}
 local Page = ExBoss.UI.Panel.ToolsPage
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local EXUI = _G.ExwindTools and _G.ExwindTools.UI
+local GC = _G.ExwindTools and _G.ExwindTools.GUIColors
 
 local selectedKey = "mythiccast"
 local leftRoot
@@ -143,7 +144,7 @@ local function RefreshList()
             if ExBoss.UI and ExBoss.UI.ApplySidebarModuleButtonState and button.label then
                 ExBoss.UI.ApplySidebarModuleButtonState(button, active, true)
             else
-                button.fs:SetTextColor(active and 1 or 0.88, active and 0.82 or 0.88, active and 0.45 or 0.90, 1)
+                button.fs:SetTextColor(unpack(active and GC.selectedText or GC.text))
             end
             button:SetScript("OnClick", function()
                 selectedKey = item.key
@@ -171,7 +172,7 @@ local function RefreshList()
         if ExBoss.UI and ExBoss.UI.ApplySidebarModuleButtonState and empty.label then
             ExBoss.UI.ApplySidebarModuleButtonState(empty, false, false)
         else
-            empty.fs:SetTextColor(0.45, 0.48, 0.55, 1)
+            empty.fs:SetTextColor(unpack(GC.textDisabled))
         end
         empty:SetScript("OnClick", nil)
         empty:Show()
@@ -195,7 +196,7 @@ local function EnsureUI(leftFrame)
     sidebarDivider:SetWidth(1)
     sidebarDivider:SetPoint("TOPRIGHT", leftRoot, "TOPRIGHT", -2, -2)
     sidebarDivider:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -2, 2)
-    sidebarDivider:SetColorTexture(0.12, 0.15, 0.20, 0.9)
+    sidebarDivider:SetColorTexture(unpack(GC.popupDivider))
 
     if ExBoss.UI and ExBoss.UI.CreateSidebarSearchBox then
         searchBox = ExBoss.UI.CreateSidebarSearchBox(leftRoot, searchText, {
@@ -250,7 +251,7 @@ function Page:Render(leftFrame, contentFrame)
         resetButton = CreateFrame("Button", nil, contentFrame, "UIPanelButtonTemplate")
         resetButton:SetSize(100, 22)
         resetButton:SetText(L["重置配置"])
-        resetButton:GetFontString():SetTextColor(1, 0.5, 0.5)
+        resetButton:GetFontString():SetTextColor(unpack(GC.dangerText))
         resetButton:SetScript("OnClick", function()
             local item = ITEMS_BY_KEY[selectedKey]
             if not item then return end

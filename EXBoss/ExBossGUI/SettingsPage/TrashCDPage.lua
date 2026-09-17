@@ -5,6 +5,7 @@ local Page = ExBoss.UI.Panel.TrashCDPage
 
 local ExwindTools = _G.ExwindTools
 local EXUI = ExwindTools and ExwindTools.UI
+local GC = ExwindTools and ExwindTools.GUIColors
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local TrashStore = ExBoss.TrashCD and ExBoss.TrashCD.Store or nil
 local TrashData = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
@@ -176,8 +177,8 @@ local function CreateSectionBackdrop(parent)
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    frame:SetBackdropColor(0.03, 0.03, 0.04, 0.90)
-    frame:SetBackdropBorderColor(0.22, 0.22, 0.25, 0.95)
+    frame:SetBackdropColor(unpack(GC.panel))
+    frame:SetBackdropBorderColor(unpack(GC.panelBorder))
     return frame
 end
 
@@ -967,9 +968,9 @@ end
 -- [卡片/Grid 迁移边界：TrashCD 技能编辑器]
 -- 允许：只按共享规范调整 master/text/voice/cast/target 五组的 x/y/w/h、外层卡片与当前可见高度。
 -- 禁止：修改稳定 key/type、地图/NPC/法术业务顺序、draft→Store 提交、试听回调或三个 pane 的选择身份。
--- 来源控件共享同一坐标槽位；高度只累计当前可见来源一次，type="card" 背景不自动拥有相邻控件。
+-- 来源控件共享同一坐标槽位；高度只累计当前可见来源一次。
 local function BuildSettingsLayout()
-    if #SETTINGS_LAYOUT > 0 then
+    if SETTINGS_LAYOUT.version == 1 then
         return
     end
     local rows = {
@@ -977,7 +978,6 @@ local function BuildSettingsLayout()
         { key = "eventColorEnabled", type = "checkbox", x = 6, y = 16, w = 20, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 31, y = 16, w = 37, h = 5, label = "", items = EVENT_COLOR_ITEMS_FUNC, labelPos = "left", search = true },
         { key = "eventColor", type = "color", x = 70, y = 16, w = 30, h = 5, label = L["自定义颜色"] },
-        { key = "card_text", type = "card", x = 3, y = 8, w = 99, h = 62, label = L["文本设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\text.png", accentColor = { r = 1.00, g = 0.82, b = 0.22, a = 0.95 } },
         { key = "description_trash_text_1", type = "description", x = 6, y = 23, w = 35, h = 5, label = "|cffffd637" .. L["中央文本"] .. "|r" },
         { key = "centralEnabled", type = "checkbox", x = 6, y = 28, w = 25, h = 5, label = L["启用"] },
         { key = "centralLead", type = "input", x = 31, y = 28, w = 17, h = 5, label = L["提前(秒)"], labelPos = "right" },
@@ -989,7 +989,6 @@ local function BuildSettingsLayout()
         { key = "timerBarRenameEnabled", type = "checkbox", x = 6, y = 60, w = 25, h = 5, label = L["启用"] },
         { key = "timerBarRenameText", type = "input", x = 31, y = 60, w = 54, h = 5, label = "" },
 
-        { key = "card_voice", type = "card", x = 3, y = 73, w = 99, h = 62, label = L["语音设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\sound.png", accentColor = { r = 0.28, g = 0.84, b = 1.00, a = 0.95 } },
         { key = "description_trash_voice_1", type = "description", x = 6, y = 80, w = 44, h = 5, label = "|cffffd637" .. L["施法开始"] .. "|r" },
         { key = "tr1Enabled", type = "checkbox", x = 6, y = 85, w = 20, h = 5, label = L["启用"] },
         { key = "tr1Source", type = "dropdown", x = 31, y = 85, w = 25, h = 5, label = "", items = TRIGGER_SOURCE_ITEMS, search = true },
@@ -1011,13 +1010,11 @@ local function BuildSettingsLayout()
         { key = "showTimerBar", type = "checkbox", x = 134, y = 1, w = 20, h = 5, label = L["计时条"] },
         { key = "showNameplate", type = "checkbox", x = 166, y = 1, w = 20, h = 5, label = L["姓名版"] },
 
-        { key = "card_cast", type = "card", x = 105, y = 8, w = 96, h = 62, label = L["施法设置"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png", accentColor = { r = 0.50, g = 0.74, b = 1.00, a = 0.95 } },
         { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["BOSS施法时显示圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["BOSS施法时显示读条"] },
         { key = "castProgressBarRenameEnabled", type = "checkbox", x = 107, y = 28, w = 20, h = 5, label = L["改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 132, y = 28, w = 54, h = 5, label = "" },
         { key = "ringCastCheckEnabled", type = "checkbox", x = 107, y = 36, w = 30, h = 5, label = L["施法检测"] },
-        { key = "card_target_alert", type = "card", x = 105, y = 73, w = 96, h = 62, label = L["被点名提示"], titleIcon = "Interface\\AddOns\\ExwindCore\\Textures\\target.png", accentColor = { r = 0.40, g = 1.00, b = 0.62, a = 0.95 } },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 107, y = 85, w = 35, h = 5, label = L["启用"] },
         { key = "targetAlertStartLSM", type = "lsm_sound", x = 144, y = 85, w = 42, h = 5, label = "", labelPos = "left", search = true },
         { key = "targetAlertStartValueTest", type = "button", x = 189, y = 85, w = 10, h = 5, label = L["试听"] },
@@ -1027,9 +1024,39 @@ local function BuildSettingsLayout()
         { key = "targetAlertTextEnabledV2", type = "checkbox", x = 149, y = 107, w = 17, h = 7, label = L["文本"] },
         { key = "targetAlertStealthEnabledV2", type = "checkbox", x = 166, y = 107, w = 30, h = 7, label = "|T132089:16:16|t" .. L["隐遁提示"], labelSize = 17 },
     }
+    local masterKeys = { enabled = true, eventColorEnabled = true, eventColorMode = true, eventColor = true,
+        showBunBar = true, showTimerBar = true, showNameplate = true }
+    local castKeys = { ringEnabled = true, castProgressBarEnabled = true, castProgressBarRenameEnabled = true,
+        castProgressBarRenameText = true, ringCastCheckEnabled = true }
+    local targetKeys = { targetAlertStartEnabled = true, targetAlertStartLSM = true, targetAlertStartValueTest = true,
+        targetAlertTankEnabled = true, targetAlertRingEnabled = true, targetAlertIconEnabled = true,
+        targetAlertTextEnabledV2 = true, targetAlertStealthEnabledV2 = true }
+    local groups = { master = {}, text = {}, voice = {}, cast = {}, target = {} }
     for _, row in ipairs(rows) do
-        SETTINGS_LAYOUT[#SETTINGS_LAYOUT + 1] = row
+        local group
+        if masterKeys[row.key] then group = "master"
+        elseif castKeys[row.key] then group = "cast"
+        elseif targetKeys[row.key] then group = "target"
+        elseif (tonumber(row.y) or 0) < 73 then group = "text"
+        else group = "voice" end
+        local xOffset = (group == "cast" or group == "target") and 106 or (group == "text" or group == "voice") and 5 or 0
+        local yOffset = group == "text" and 15 or group == "voice" and 79 or group == "cast" and 15 or group == "target" and 84 or 0
+        row.x = math.max(1, (tonumber(row.x) or 1) - xOffset)
+        row.y = math.max(1, (tonumber(row.y) or 1) - yOffset)
+        groups[group][#groups[group] + 1] = row
     end
+    SETTINGS_LAYOUT = { version = 1, title = L["小怪技能设置"], cards = {
+        { id = "master", title = L["通用设置"], collapsible = true,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" }, content = { kind = "grid", items = groups.master } },
+        { id = "text", title = L["文本设置"], collapsible = true,
+            placement = { target = "master", side = "below", align = "start" }, content = { kind = "grid", items = groups.text } },
+        { id = "voice", title = L["语音设置"], collapsible = true,
+            placement = { target = "text", side = "below", align = "start" }, content = { kind = "grid", items = groups.voice } },
+        { id = "cast", title = L["施法设置"], collapsible = true,
+            placement = { target = "voice", side = "below", align = "start" }, content = { kind = "grid", items = groups.cast } },
+        { id = "target", title = L["被点名提示"], collapsible = true,
+            placement = { target = "cast", side = "below", align = "start" }, content = { kind = "grid", items = groups.target } },
+    } }
     if ExwindTools and ExwindTools.RegisterModuleLayout then
         ExwindTools:RegisterModuleLayout(SPELL_SETTINGS_MODULE_KEY, SETTINGS_LAYOUT)
     end
@@ -1041,15 +1068,14 @@ local function RefreshSettingsDynamicWidgets()
     if not (Grid and type(mdb) == "table") then
         return
     end
-    local widgets = Grid.Widgets
-    local state = settingsScrollChild and Grid.ContainerStates and Grid.ContainerStates[settingsScrollChild]
-    -- state.widgets 是复用后控件的权威 key 索引；迁移后不得改为按视觉位置或全局控件猜身份。
-    if type(state) == "table" and type(state.widgets) == "table" then
-        widgets = state.widgets
-    end
-    if type(widgets) ~= "table" then
+    if not (settingsScrollChild and Grid.FindMountedWidget) then
         return
     end
+    local widgets = setmetatable({}, { __index = function(t, key)
+        local widget = Grid:FindMountedWidget(settingsScrollChild, key)
+        rawset(t, key, widget)
+        return widget
+    end })
     local selectedRow = GetSelectedSpellRow()
     local runtimeCfg = selectedRow and GetRuntimeSpellEntry(selectedRow) or nil
     local authorVoiceDisabled = type(runtimeCfg) == "table" and runtimeCfg.authorVoiceDisabled == true
@@ -1906,14 +1932,18 @@ function Page:RenderSettingsGrid(resetScroll)
     if resetScroll == true then
         settingsScrollFrame:SetVerticalScroll(0)
     end
-    if Grid.SetContainerCols then
-        Grid:SetContainerCols(settingsScrollChild, 200)
-    end
-    if Grid.SetContainerPadding then
-        Grid:SetContainerPadding(settingsScrollChild, { left = 0, right = 10, top = 10, bottom = 0 })
-    end
     RegisterSpellSettingsGridAsActive(SPELL_SETTINGS_MODULE_KEY)
-    Grid:Render(settingsScrollChild, SETTINGS_LAYOUT, db, SPELL_SETTINGS_MODULE_KEY)
+    if Page._settingsCardSession and type(Page._settingsCardSession.Release) == "function" then
+        Page._settingsCardSession:Release()
+        Page._settingsCardSession = nil
+    end
+    Page._settingsCardSession = Grid:MountCards(settingsScrollChild, SETTINGS_LAYOUT, {
+        pageId = SPELL_SETTINGS_MODULE_KEY,
+        regionId = "trash-spell-editor",
+        config = db,
+        moduleKey = SPELL_SETTINGS_MODULE_KEY,
+        scrollFrame = settingsScrollFrame,
+    })
     RefreshSettingsDynamicWidgets()
 end
 
@@ -1976,7 +2006,7 @@ local function EnsureUI(parent)
 
     detailPlaceholder = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontDisableSmall")
     detailPlaceholder:SetPoint("CENTER", 0, 0)
-    detailPlaceholder:SetTextColor(0.55, 0.55, 0.6)
+    detailPlaceholder:SetTextColor(unpack(GC.textPlaceholder))
     detailPlaceholder:SetText(L["点击左侧法术后，可在此查看法术描述。"])
 
     detailIcon = EXUI:CreateVisualTexture(detailPane, EXBASEFRAME)
@@ -1989,21 +2019,21 @@ local function EnsureUI(parent)
     detailTitle:SetJustifyH("LEFT")
     detailTitle:SetWordWrap(false)
     detailTitle:SetFont(ExwindTools.MAIN_FONT, 23, "OUTLINE")
-    detailTitle:SetTextColor(1, 0.95, 0.55)
+    detailTitle:SetTextColor(unpack(GC.text))
 
     detailMeta = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
     detailMeta:SetPoint("LEFT", detailTitle, "RIGHT", 10, 0)
     detailMeta:SetJustifyH("LEFT")
     detailMeta:SetWordWrap(false)
     detailMeta:SetFont(ExwindTools.MAIN_FONT, 16, "")
-    detailMeta:SetTextColor(0.55, 0.57, 0.62)
+    detailMeta:SetTextColor(unpack(GC.textDim))
 
     detailCast = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontNormal")
     detailCast:SetPoint("TOPLEFT", detailTitle, "BOTTOMLEFT", 0, -2)
     detailCast:SetPoint("RIGHT", detailPane, "RIGHT", -18, 0)
     detailCast:SetJustifyH("LEFT")
     detailCast:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
-    detailCast:SetTextColor(0.92, 0.92, 0.95)
+    detailCast:SetTextColor(unpack(GC.text))
 
     detailBody = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
     detailBody:SetPoint("TOPLEFT", detailCast, "BOTTOMLEFT", 0, -8)
@@ -2019,7 +2049,7 @@ local function EnsureUI(parent)
     detailDivider:SetPoint("BOTTOMLEFT", detailPane, "BOTTOMLEFT", 14, 10)
     detailDivider:SetPoint("BOTTOMRIGHT", detailPane, "BOTTOMRIGHT", -14, 10)
     detailDivider:SetHeight(1)
-    detailDivider:SetColorTexture(1, 1, 1, 0.14)
+    detailDivider:SetColorTexture(unpack(GC.headerDivider))
     detailDivider:Hide()
 
     detailInfo = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlightSmall")
@@ -2028,12 +2058,12 @@ local function EnsureUI(parent)
     detailInfo:SetJustifyH("LEFT")
     detailInfo:SetJustifyV("BOTTOM")
     detailInfo:SetWordWrap(true)
-    detailInfo:SetTextColor(0.82, 0.86, 0.92)
+    detailInfo:SetTextColor(unpack(GC.textDim))
 
     local settingsTitle = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormal")
     settingsTitle:SetPoint("TOPLEFT", 10, -8)
     settingsTitle:SetText(L["当前法术设置"])
-    settingsTitle:SetTextColor(1, 0.82, 0.45)
+    settingsTitle:SetTextColor(unpack(GC.text))
     settingsTitle:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
 
     settingsVoiceDisabledNote = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormalSmall")
