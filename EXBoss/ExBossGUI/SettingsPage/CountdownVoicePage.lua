@@ -50,6 +50,7 @@ local root
 local scrollFrame
 local scrollChild
 local cardSession
+local renderTicket = 0
 
 local function DeepCopy(v)
     if type(v) ~= "table" then
@@ -203,6 +204,8 @@ function Page:Render(contentFrame)
 
     CopyRuntimeDBToPageDB()
     RegisterLayout()
+    renderTicket = renderTicket + 1
+    local ticket = renderTicket
 
     if not scrollFrame then
         scrollFrame = CreateFrame("ScrollFrame", "ExBoss_CountdownVoiceSettingsScroll", contentFrame, "ScrollFrameTemplate")
@@ -221,42 +224,51 @@ function Page:Render(contentFrame)
     scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4)
     scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -18, 4)
     scrollFrame:SetVerticalScroll(0)
+    -- Page:Hide retains the mounted GUI session. Do not expose that previous
+    -- lease for one frame while the deferred width pass is still rebuilding it.
+    scrollChild:Hide()
+    if cardSession and type(cardSession.Release) == "function" then
+        cardSession:Release()
+        cardSession = nil
+    end
     scrollFrame:Show()
 
     C_Timer.After(0, function()
-        if not (scrollFrame and scrollFrame:IsShown() and scrollChild) then
+        if ticket ~= renderTicket or not (scrollFrame and scrollFrame:IsShown() and scrollChild) then
             return
         end
         local width = contentFrame:GetWidth()
         if width < 100 then
             width = 820
         end
-        scrollChild:SetWidth(width - 16)
-        scrollChild:SetHeight(980)
-        scrollChild:SetParent(scrollFrame)
-        scrollChild:ClearAllPoints()
-        scrollChild:SetPoint("TOPLEFT", 0, 0)
-        scrollChild:Show()
-        if ExwindTools.UI then
-            ExwindTools.UI.ActivePageFrame = scrollChild
-            ExwindTools.UI.CurrentModule = MODULE_KEY
+        local mounted, failure = pcall(function()
+            scrollChild:SetWidth(width - 16)
+            scrollChild:SetHeight(980)
+            scrollChild:SetParent(scrollFrame)
+            scrollChild:ClearAllPoints()
+            scrollChild:SetPoint("TOPLEFT", 0, 0)
+            if ExwindTools.UI then
+                ExwindTools.UI.ActivePageFrame = scrollChild
+                ExwindTools.UI.CurrentModule = MODULE_KEY
+            end
+            cardSession = Grid:MountCards(scrollChild, BuildLayout(), {
+                pageId = MODULE_KEY,
+                regionId = "countdown-voice",
+                config = GetPageDB(),
+                moduleKey = MODULE_KEY,
+                scrollFrame = scrollFrame,
+            })
+            RefreshDynamicWidgets()
+        end)
+        if ticket == renderTicket and scrollFrame:IsShown() then
+            scrollChild:Show()
         end
-        if cardSession and type(cardSession.Release) == "function" then
-            cardSession:Release()
-            cardSession = nil
-        end
-        cardSession = Grid:MountCards(scrollChild, BuildLayout(), {
-            pageId = MODULE_KEY,
-            regionId = "countdown-voice",
-            config = GetPageDB(),
-            moduleKey = MODULE_KEY,
-            scrollFrame = scrollFrame,
-        })
-        RefreshDynamicWidgets()
+        if not mounted then error(failure, 0) end
     end)
 end
 
 function Page:Hide()
+    renderTicket = renderTicket + 1
     if scrollFrame then
         scrollFrame:Hide()
     end

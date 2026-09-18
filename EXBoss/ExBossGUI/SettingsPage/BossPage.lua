@@ -2339,7 +2339,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "tr2TtsText", type = "input", x = 61, y = 79, w = 33, h = 5, label = "" },
         { key = "tr2ValueTest", type = "button", x = 95, y = 79, w = 11, h = 6, label = "", tooltip = L["试听"] },
         { key = "description_voice_preview_heading", type = "description", x = 4, y = 86, w = 68, h = 5,
-            label = "↳ " .. L["你将听到"] },
+            label = L["你将听到"] },
         { key = "voiceSequencePreview", type = "button", x = 76, y = 86, w = 30, h = 6,
             label = L["播放预览"] },
         { key = "description_voice_preview_sequence", type = "description", x = 4, y = 93, w = 102, h = 8,
@@ -2348,7 +2348,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
         { key = "targetAlertStartEnabled", type = "checkbox", x = 112, y = 58, w = 28, h = 5, label = L["启用"] },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 112, y = 66, w = 25, h = 5, label = L["圆环"] },
         { key = "targetAlertTextEnabledV2", type = "checkbox", x = 142, y = 66, w = 25, h = 5, label = L["文本"] },
-        { key = "targetAlertIconEnabled", type = "checkbox", x = 112, y = 73, w = 25, h = 5, label = "|TInterface\\AddOns\\ExwindCore\\Textures\\umage.png:16:16:0:0|t " .. L["图标"] },
+        { key = "targetAlertIconEnabled", type = "checkbox", x = 112, y = 73, w = 25, h = 5, label = L["图标"] },
         { key = "targetAlertStealthEnabledV2", type = "checkbox", x = 142, y = 73, w = 43, h = 5, label = "|T132089:18:18|t " .. L["隐遁提示"] },
         { key = "targetAlertVoiceEnabled", type = "checkbox", x = 112, y = 80, w = 20, h = 5, label = L["语音"] },
         { key = "targetAlertStartSource", type = "dropdown", x = 134, y = 80, w = 24, h = 5, label = "", items = C.TRIGGER_SOURCE_ITEMS, search = true },
@@ -2375,7 +2375,6 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
     end
     local cardGap = 6
     local topRowBodyHeight = 184
-    local bottomRowBodyHeight = 320
     local wideColumnRatio = 1.57 / 2.57
     local narrowColumnRatio = 1 / 2.57
     local wideColumn = { ratio = wideColumnRatio, offset = -cardGap * wideColumnRatio }
@@ -2395,6 +2394,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
             content = { kind = "grid", items = groups.master },
             settingsList = { summaryEnabled = true } },
         { id = "text", title = L["文本设置"], collapsible = false,
+            equalHeightGroup = "boss-settings-top",
             minBodyHeight = topRowBodyHeight,
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = wideColumn,
                 narrow = { target = "$container", width = { ratio = 1 } } },
@@ -2406,20 +2406,19 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
                 { controls = { { key = "timerBarRenameEnabled", width = textLabelWidth }, { key = "timerBarRenameText" } } },
             } } },
         { id = "display", title = L["施法设置"], collapsible = false,
+            equalHeightGroup = "boss-settings-top",
             minBodyHeight = topRowBodyHeight,
             placement = { target = "text", side = "right", align = "start", gap = cardGap, width = narrowColumn,
                 narrow = { target = "text", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
             content = { kind = "grid", items = groups.display },
             settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
-                { controls = { { key = "ringEnabled", width = displayChoiceWidth, presentation = "card",
-                    cardIcon = "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\RingWhiteThin2.tga" },
-                    { key = "castProgressBarEnabled", width = displayChoiceWidth, presentation = "card",
-                    cardIcon = "Interface\\AddOns\\ExwindCore\\Textures\\bar.png" } } },
+                { controls = { { key = "ringEnabled", width = displayChoiceWidth, presentation = "card" },
+                    { key = "castProgressBarEnabled", width = displayChoiceWidth, presentation = "card" } } },
                 { key = "ringCastCheckEnabled", presentation = "card", descriptionKey = "description_cast_check" },
                 { controls = { { key = "castProgressBarRenameEnabled", width = displayLabelWidth }, { key = "castProgressBarRenameText" } } },
             } } },
         { id = "voice", title = L["语音设置"], collapsible = false,
-            minBodyHeight = bottomRowBodyHeight + 28,
+            equalHeightGroup = "boss-settings-bottom",
             placement = { target = "text", side = "below", align = "start", gap = cardGap + 10, width = wideColumn,
                 rowAfter = { "text", "display" },
                 narrow = { target = "display", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
@@ -2436,7 +2435,7 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
                 { key = "description_voice_preview_sequence", informational = true },
             } } },
         { id = "target", title = L["被点名提示"], collapsible = false,
-            minBodyHeight = bottomRowBodyHeight,
+            equalHeightGroup = "boss-settings-bottom",
             placement = { target = "voice", side = "right", align = "start", gap = cardGap, width = narrowColumn,
                 narrow = { target = "voice", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
             content = { kind = "grid", items = groups.target },
@@ -3852,15 +3851,6 @@ local function RelayoutBossNavigation()
     UI.bossScrollContent:SetHeight(math.max(1, y + 2))
 end
 
-local function LockSpellSettingsCardHeights(session)
-    if not (session and session.byId) then return end
-    local fixedHeights = { text = 197, display = 197, voice = 361, target = 333 }
-    for id, height in pairs(fixedHeights) do
-        local state = session.byId[id]
-        if state and state.card then state.card:SetHeight(height) end
-    end
-end
-
 -- Reflow existing frames only: no selection, editor rebuild, or data refresh.
 function Page:RelayoutPrototype()
     if not (Page._visible and UI.rightRoot and UI.spellScrollChild) then return end
@@ -3902,7 +3892,6 @@ function Page:RelayoutPrototype()
     RefreshSpellDetailHeaderLayout()
     if UI.spellSettingsCardSession then
         UI.spellSettingsCardSession:Relayout()
-        LockSpellSettingsCardHeights(UI.spellSettingsCardSession)
         if ApplyBossCustomCardLayouts then
             ApplyBossCustomCardLayouts(UI.spellSettingsCardSession)
         end
@@ -4509,7 +4498,10 @@ local function ReleaseSpellSettingsCardSession()
             { "voice", "tr2ValueTest" }, { "voice", "voiceSequencePreview" },
             { "target", "targetAlertStartValueTest" } }) do
             local button = UI.spellSettingsCardSession:GetWidget(spec[1], spec[2])
-            if button and button._exBossPlayIcon then button._exBossPlayIcon:Hide() end
+            if button and button._exBossPlayIcon then
+                button._exBossPlayIconActive = nil
+                button._exBossPlayIcon:Hide()
+            end
         end
         for _, state in pairs(UI.spellSettingsCardSession.byId) do
             local card = state and state.card
@@ -4523,11 +4515,13 @@ local function ReleaseSpellSettingsCardSession()
                 card._exBossVoicePreviewDivider:Hide()
             end
             if card and card._exBossCastCheckHelp then
-                _G.ExwindFactory:ReleaseCompositeHost(card._exBossCastCheckHelp)
-                card._exBossCastCheckHelp = nil
+                card._exBossCastCheckHelp:Hide()
             end
             if card and card._exBossVoicePreviewTimeline then
                 card._exBossVoicePreviewTimeline:Hide()
+                card._exBossVoicePreviewTimeline._exBossCardSession = nil
+                card._exBossVoicePreviewTimeline._exBossCardState = nil
+                card._exBossVoicePreviewTimeline._layoutBusy = nil
             end
         end
     end
@@ -4558,13 +4552,26 @@ local function SetBossPlayButtonVisual(button, withLabel)
         button._exBossPlayIcon = EXUI:CreateVisualTexture(button, EXBORDERFRAME)
         button._exBossPlayIcon:SetTexture("Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\EXBossPlayTriangleWhite32.tga")
     end
+    button._exBossPlayIconActive = true
+    if not button._exBossPlayHoverHooked then
+        button._exBossPlayHoverHooked = true
+        button:HookScript("OnEnter", function(self)
+            if self._exBossPlayIconActive and self._exBossPlayIcon then
+                self._exBossPlayIcon:SetVertexColor(1, 1, 1, 1)
+            end
+        end)
+        button:HookScript("OnLeave", function(self)
+            if self._exBossPlayIconActive and self._exBossPlayIcon then
+                self._exBossPlayIcon:SetVertexColor(0.72, 0.76, 0.80, 1)
+            end
+        end)
+    end
     local icon = button._exBossPlayIcon
     icon:ClearAllPoints()
     icon:SetSize(14, 14)
     button:SetText(withLabel and L["播放预览"] or "")
     if withLabel then
         icon:SetPoint("LEFT", button, "LEFT", 9, 0)
-        icon:SetVertexColor(0.06, 0.10, 0.14, 1)
         local label = button:GetFontString()
         label:ClearAllPoints()
         label:SetPoint("LEFT", icon, "RIGHT", 4, 0)
@@ -4572,7 +4579,11 @@ local function SetBossPlayButtonVisual(button, withLabel)
         label:SetFont(ExwindTools.MAIN_FONT, 11, "")
     else
         icon:SetPoint("CENTER", button, "CENTER", 0, 0)
-        icon:SetVertexColor(unpack(GC.text))
+    end
+    if MouseIsOver and MouseIsOver(button) then
+        icon:SetVertexColor(1, 1, 1, 1)
+    else
+        icon:SetVertexColor(0.72, 0.76, 0.80, 1)
     end
     icon:Show()
 end
@@ -4639,8 +4650,21 @@ local function LayoutDisplaySettingsCard(session)
 
     AnchorBossWidget(ring, body, inset, 6, choiceWidth, 40)
     AnchorBossWidget(castBar, body, inset + choiceWidth + gap, 6, choiceWidth, 40)
+    local list = _G.ExwindGrid:GetSettingsListSession(body)
+    for _, entry in ipairs(list and list.entries or {}) do
+        local divider = entry.host and entry.host._exSettingsRowDivider
+        if divider then divider:Hide() end
+    end
     if not card._exBossCastCheckHelp then
-        card._exBossCastCheckHelp = EXUI:CreateButton(body, 18, 18, "?", nil, { compact = true })
+        local ringTexture = "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\RingWhiteThin2.tga"
+        local help = EXUI:CreatePicButton(body, 11, 11,
+            ringTexture, ringTexture, ringTexture, nil, true)
+        card._exBossCastCheckHelp = help
+        help.label = EXUI:CreateVisualFontString(help, EXFONTFRAME, "GameFontDisableSmall")
+        help.label:SetPoint("CENTER", 0, 0)
+        help.label:SetFont(ExwindTools.MAIN_FONT, 9, "")
+        help.label:SetText("?")
+        help.label:SetTextColor(unpack(GC.textDim))
         card._exBossCastCheckHelp:SetScript("OnEnter", function(self)
             if not GameTooltip then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -4653,7 +4677,7 @@ local function LayoutDisplaySettingsCard(session)
     end
     AnchorBossWidget(castCheck, body, inset, 54, nil, 60, inset)
     if castDescription then
-        AnchorBossWidget(castDescription, castCheck, 30, 33, nil, 23, 14)
+        AnchorBossWidget(castDescription, castCheck, 38, 33, nil, 23, 14)
         if castDescription.text then
             castDescription.text:SetFont(ExwindTools.MAIN_FONT, 11, "")
             castDescription.text:SetTextColor(unpack(GC.textDim))
@@ -4661,9 +4685,6 @@ local function LayoutDisplaySettingsCard(session)
     end
     card._exBossCastCheckHelp:ClearAllPoints()
     card._exBossCastCheckHelp:SetPoint("TOPRIGHT", castCheck, "TOPRIGHT", -8, -7)
-    EXUI:ClearControlSurface(card._exBossCastCheckHelp)
-    card._exBossCastCheckHelp:SetText("ⓘ")
-    card._exBossCastCheckHelp:GetFontString():SetFont(ExwindTools.MAIN_FONT, 11, "")
     card._exBossCastCheckHelp:SetFrameLevel(castCheck:GetFrameLevel() + 3)
     card._exBossCastCheckHelp:Show()
 
@@ -4676,6 +4697,7 @@ local function LayoutDisplaySettingsCard(session)
         renameText:SetHeight(30)
         renameText:Show()
     end
+    return 184
 end
 
 local function LayoutTargetSettingsCard(session)
@@ -4737,12 +4759,42 @@ local function LayoutTargetSettingsCard(session)
         divider:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -top)
         divider:Show()
     end
+    local noteHeight = note and note.text and math.ceil(note.text:GetStringHeight()) or 30
+    if note then note:SetHeight(math.max(30, noteHeight)) end
+    return 238 + math.max(30, noteHeight) + 12
+end
+
+local function SetBossVoicePreviewVisibility(session)
+    local state = session and session.byId.voice
+    local card = state and state.card
+    if not card then return false end
+    local draft = STATE.spellEditorDraft
+    local visible = type(draft) == "table"
+        and (draft.tr2Enabled == true or draft.tr2PlayTextEnabled == true)
+    for _, key in ipairs({ "description_voice_preview_heading", "voiceSequencePreview" }) do
+        local widget = session:GetWidget("voice", key)
+        if widget then widget:SetShown(visible) end
+    end
+    if card._exBossVoicePreviewDivider then card._exBossVoicePreviewDivider:SetShown(visible) end
+    if card._exBossVoicePreviewTimeline then card._exBossVoicePreviewTimeline:SetShown(visible) end
+    if card._exBossVoiceBranchV then card._exBossVoiceBranchV:Hide() end
+    if card._exBossVoiceBranchH then card._exBossVoiceBranchH:Hide() end
+    return visible
+end
+
+local function GetBossVoiceContentHeight(visible, timelineHeight)
+    return visible and math.max(348, 86 + 170 + (timelineHeight or 58) + 24) or 222
 end
 
 local function LayoutVoiceSettingsCard(session)
     local state = session.byId.voice
     local card, body = state and state.card, state and state.body
     if not (card and body) then return end
+    local list = _G.ExwindGrid:GetSettingsListSession(body)
+    for _, entry in ipairs(list and list.entries or {}) do
+        local divider = entry.host and entry.host._exSettingsRowDivider
+        if divider then divider:Hide() end
+    end
     local labelWidth = math.max(128, math.floor((body:GetWidth() or 600) * 0.36))
     local sourceWidth = math.max(78, math.floor((body:GetWidth() - labelWidth - 56) * 0.25))
     LayoutBossAudioRow(session, "voice", "tr0", body, 6, labelWidth, sourceWidth, 12)
@@ -4799,18 +4851,18 @@ local function LayoutVoiceSettingsCard(session)
         card._exBossVoiceRuleDivider:Show()
     end
 
+    local previewVisible = SetBossVoicePreviewVisibility(session)
     local divider = card._exBossVoicePreviewDivider
     if divider then
         divider:ClearAllPoints()
         divider:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -120)
         divider:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -120)
-        divider:Show()
     end
-    AnchorBossWidget(previewHeading, surface, 28, 126, 160, 28)
+    if previewVisible then AnchorBossWidget(previewHeading, surface, 14, 126, 160, 28) end
     if previewHeading and previewHeading.text then
         previewHeading.text:SetText(L["你将听到"])
     end
-    AnchorBossWidget(previewButton, surface, 0, 126, 94, 28)
+    if previewVisible then AnchorBossWidget(previewButton, surface, 0, 126, 94, 28) end
     if previewButton then
         previewButton:ClearAllPoints()
         previewButton:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -12, -126)
@@ -4818,26 +4870,18 @@ local function LayoutVoiceSettingsCard(session)
         SetBossPlayButtonVisual(previewButton, true)
     end
     if previewSequence then previewSequence:Hide() end
-    local branchV, branchH = card._exBossVoiceBranchV, card._exBossVoiceBranchH
-    if branchV and branchH then
-        branchV:ClearAllPoints()
-        branchV:SetPoint("TOPLEFT", surface, "TOPLEFT", 16, -132)
-        branchV:SetSize(1, 9)
-        branchH:ClearAllPoints()
-        branchH:SetPoint("TOPLEFT", branchV, "BOTTOMLEFT", 0, 0)
-        branchH:SetWidth(9)
-        branchV:Show()
-        branchH:Show()
-    end
     local timeline = card._exBossVoicePreviewTimeline
     if timeline then
         timeline:ClearAllPoints()
         timeline:SetPoint("TOPLEFT", surface, "TOPLEFT", 14, -170)
         timeline:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -14, -170)
-        timeline:SetHeight(58)
-        timeline:Show()
         if timeline._layout then timeline:_layout() end
     end
+    local contentHeight = GetBossVoiceContentHeight(previewVisible, timeline and timeline:GetHeight())
+    -- The existing geometry report must track resize measurements as well as
+    -- text changes, so its next comparison cannot use an older narrow width.
+    state.reportedHeight = contentHeight
+    return contentHeight
 end
 
 ApplyBossCustomCardLayouts = function(session)
@@ -4858,7 +4902,7 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
             local title = card._exSettingsCardTitle
             if card._exSettingsListExternalHeader then
                 card._exSettingsListExternalHeader.height = 13
-                card._exSettingsListExternalHeader.footerPadding = 13
+                card._exSettingsListExternalHeader.footerPadding = (id == "display" or id == "voice") and 0 or 13
             end
             if header then
                 header:SetHeight(24)
@@ -4886,12 +4930,8 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
             body:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", 0, 0)
             EXUI:SetControlSurface(card, 10, GC.card, GC.panelBorder)
             EXUI:ClearControlSurface(body)
-            card:SetHeight((id == "text" or id == "display") and 197 or (id == "voice" and 361 or 333))
         end
     end
-    session:Relayout()
-    LockSpellSettingsCardHeights(session)
-
     local voiceState = session.byId.voice
     local voiceCard = voiceState and voiceState.card
     local voiceBody = voiceState and voiceState.body
@@ -4910,12 +4950,6 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
                 voiceCard._exBossVoicePrimaryDividers[index] = EXUI:CreateSettingsSeparator(voiceBody, 1)
             end
         end
-        voiceCard._exBossVoiceBranchV = voiceCard._exBossVoiceBranchV
-            or EXUI:CreateVisualTexture(voiceSurface, EXBORDERFRAME)
-        voiceCard._exBossVoiceBranchH = voiceCard._exBossVoiceBranchH
-            or EXUI:CreateSettingsSeparator(voiceSurface, 9)
-        voiceCard._exBossVoiceBranchV:SetColorTexture(unpack(GC.textDisabled))
-
         UI.voiceCountdownSelector = session:GetWidget("voice", "tr2CountdownLead")
 
         if not voiceCard._exBossVoicePreviewTimeline then
@@ -4947,6 +4981,8 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
                 timeline.nodes[index] = node
             end
             timeline._layout = function(self)
+                if self._layoutBusy then return end
+                self._layoutBusy = true
                 local count = math.max(1, math.min(#self.nodes, self._visibleNodeCount or 1))
                 local width = math.max(1, self:GetWidth() or 1)
                 local slotWidth = width / count
@@ -4975,15 +5011,38 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
                     node.arrow:SetPoint("CENTER", self, "TOPLEFT", index * slotWidth, -30)
                     node.arrow:SetShown(index < count)
                 end
-                if self:GetHeight() ~= timelineHeight then self:SetHeight(timelineHeight) end
-                local cardHeight = math.max(361, 13 + 86 + 170 + timelineHeight + 24)
-                if voiceCard:GetHeight() ~= cardHeight then voiceCard:SetHeight(cardHeight) end
+                local heightChanged = self:GetHeight() ~= timelineHeight
+                if heightChanged then self:SetHeight(timelineHeight) end
+                self._layoutBusy = nil
+                local list = _G.ExwindGrid:GetSettingsListSession(voiceBody)
+                local owner = self._exBossCardSession
+                local visible = owner and SetBossVoicePreviewVisibility(owner)
+                local contentHeight = GetBossVoiceContentHeight(visible, timelineHeight)
+                local state = self._exBossCardState
+                if state and state.reportedHeight ~= contentHeight and list and owner and not owner.released
+                    and not list.visualLayoutBusy and not owner.reflowBusy then
+                    owner:_SetReportedContentHeight(state, contentHeight)
+                end
             end
             timeline:SetScript("OnSizeChanged", function(self) self:_layout() end)
             voiceCard._exBossVoicePreviewTimeline = timeline
         end
+        voiceCard._exBossVoicePreviewTimeline._exBossCardSession = session
+        voiceCard._exBossVoicePreviewTimeline._exBossCardState = voiceState
         UI.voicePreviewTimeline = voiceCard._exBossVoicePreviewTimeline
     end
+    for id, layout in pairs({ display = LayoutDisplaySettingsCard, voice = LayoutVoiceSettingsCard,
+        target = LayoutTargetSettingsCard }) do
+        local state = session.byId[id]
+        local list = state and _G.ExwindGrid:GetSettingsListSession(state.body)
+        if list then
+            list.onVisualLayout = function()
+                if session.released then return end
+                return layout(session)
+            end
+        end
+    end
+    session:Relayout()
     ApplyBossCustomCardLayouts(session)
 end
 
