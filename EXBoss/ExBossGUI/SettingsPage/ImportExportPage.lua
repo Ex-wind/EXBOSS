@@ -641,7 +641,7 @@ local function EnsureUI(contentFrame)
     if scrollFrame then scrollFrame:Hide(); scrollFrame:SetParent(UIParent) end
     scrollFrame = CreateFrame("ScrollFrame", nil, contentFrame, "ScrollFrameTemplate")
     if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then ExBoss.UI.ApplyModernScrollBarSkin(scrollFrame) end
-    scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4); scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -26, 4)
+    scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4); scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -18, 4)
     scrollChild = CreateFrame("Frame", nil, scrollFrame); scrollFrame:SetScrollChild(scrollChild)
     local width = math.max(600, (contentFrame:GetWidth() or 1100) - 50)
     local columnWidth = width - 20
@@ -729,7 +729,7 @@ end
 
 function Page:Render(contentFrame)
     EnsureUI(contentFrame)
-    scrollFrame:SetParent(contentFrame); scrollFrame:ClearAllPoints(); scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4); scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -26, 4)
+    scrollFrame:SetParent(contentFrame); scrollFrame:ClearAllPoints(); scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4); scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -18, 4)
     scrollChild:SetWidth(math.max(600, (contentFrame:GetWidth() or 1100) - 50))
     RelayoutExportPresentation()
     RelayoutImportPresentation()

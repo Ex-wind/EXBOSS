@@ -501,7 +501,7 @@ function Page:Render(contentFrame)
     sf:SetParent(contentFrame)
     sf:ClearAllPoints()
     sf:SetPoint("TOPLEFT", dock, "BOTTOMLEFT", 0, -6)
-    sf:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24, 4)
+    sf:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -18, 4)
     sf:SetVerticalScroll(0)
     sf:Show()
 

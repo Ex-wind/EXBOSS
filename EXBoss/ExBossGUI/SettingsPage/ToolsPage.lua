@@ -209,7 +209,7 @@ local function EnsureUI(leftFrame)
         ExBoss.UI.ApplyModernScrollBarSkin(listScroll)
     end
     listScroll:SetPoint("TOPLEFT", leftRoot, "TOPLEFT", 0, -40)
-    listScroll:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -24, 5)
+    listScroll:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -18, 5)
 
     listChild = CreateFrame("Frame", nil, listScroll)
     listChild:SetSize(340, 1)

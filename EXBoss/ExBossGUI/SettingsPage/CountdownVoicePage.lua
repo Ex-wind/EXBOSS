@@ -219,7 +219,7 @@ function Page:Render(contentFrame)
     scrollFrame:SetParent(contentFrame)
     scrollFrame:ClearAllPoints()
     scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4)
-    scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24, 4)
+    scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -18, 4)
     scrollFrame:SetVerticalScroll(0)
     scrollFrame:Show()
 
