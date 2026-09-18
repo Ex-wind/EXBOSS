@@ -23,63 +23,49 @@ end
 local ANCHOR_OPTS = bunBar:GetStandardAnchorGroupOptions()
 
 local COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
-    { path = "moveDir", type = "dropdown", label = L["移动方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } }, row = 2 },
-    { path = "font_spell.side", type = "dropdown", label = L["名称位置"], items = { { L["图标左边"], "LEFT" }, { L["图标右边"], "RIGHT" } }, row = 2 },
-    { path = "hideLongTimersSeconds", type = "slider", label = L["隐藏几秒以上的"], min = 1, max = 60, step = 1, row = 2, column = 4 },
-    { path = "width", type = "slider", label = L["轨道长度"], min = 200, max = 1400, step = 1, row = 3 },
-    { path = "trackHeight", type = "slider", label = L["轨道宽度"], min = 5, max = 90, step = 1, row = 3 },
-    { path = "fiveSecLineWidth", type = "slider", label = L["5秒线粗细"], min = 1, max = 8, step = 1, row = 3 },
-    { path = "fiveSecLineColor", type = "color", label = L["5秒线颜色"], row = 3 },
-    { path = "bgSettings.texture", type = "lsm_background", label = L["背景材质"], row = 4 },
-    { path = "bgSettings.bgColor", type = "color", label = L["背景颜色"], row = 4 },
-    { path = "bgSettings.showBorder", type = "checkbox", label = L["启用轨道边框"], row = 4, column = 3, presentation = "switch" },
-    { path = "bgSettings.borderTexture", type = "lsm_border", label = L["边框材质"], row = 5 },
-    { path = "bgSettings.borderColor", type = "color", label = L["边框颜色"], row = 5 },
-    { path = "bgSettings.edgeSize", type = "slider", label = L["边框粗细"], min = 1, max = 32, step = 1, row = 5 },
-    { path = "bgSettings.inset", type = "slider", label = L["边框内距"], min = 0, max = 16, step = 1, row = 5 },
+    { path = "enabled", type = "checkbox", label = L["启用"] },
+    { path = "moveDir", type = "dropdown", label = L["移动方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } } },
+    { path = "font_spell.side", type = "dropdown", label = L["名称位置"], items = { { L["图标左边"], "LEFT" }, { L["图标右边"], "RIGHT" } } },
+    { path = "hideLongTimersSeconds", type = "slider", label = L["隐藏几秒以上的"], min = 1, max = 60, step = 1 },
+    { path = "width", type = "slider", label = L["轨道长度"], min = 200, max = 1400, step = 1 },
+    { path = "trackHeight", type = "slider", label = L["轨道宽度"], min = 5, max = 90, step = 1 },
+    { path = "fiveSecLineWidth", type = "slider", label = L["5秒线粗细"], min = 1, max = 8, step = 1 },
+    { path = "fiveSecLineColor", type = "color", label = L["5秒线颜色"] },
+    { path = "bgSettings.texture", type = "lsm_background", label = L["背景材质"] },
+    { path = "bgSettings.bgColor", type = "color", label = L["背景颜色"] },
+    { path = "bgSettings.showBorder", type = "checkbox", label = L["启用轨道边框"] },
+    { path = "bgSettings.borderTexture", type = "lsm_border", label = L["边框材质"] },
+    { path = "bgSettings.borderColor", type = "color", label = L["边框颜色"] },
+    { path = "bgSettings.edgeSize", type = "slider", label = L["边框粗细"], min = 1, max = 32, step = 1 },
+    { path = "bgSettings.inset", type = "slider", label = L["边框内距"], min = 0, max = 16, step = 1 },
 }
 
 local COMMON_OPTS = {
     bindRoot = true,
     poolType = "BunBarModuleCommonSettingsGroup",
-    fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = COMMON_FIELDS,
-    presentation = "settings-list",
 }
 
 -- [卡片/Grid 迁移边界：BunBar 设置页]
--- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 允许：普通 sections 单声明及纯展示排列；Core 统一测量，原语义选项保留。
 -- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
 -- modulecommonsettings/anchorgroup/icongroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local LAYOUT = {
     version = 1,
     title = L["束状条设置"],
-    cards = {
-        { id = "module-common", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
-            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
-            settingsList = { preserveHeader = true, rows = { { key = "anchor", fullWidth = true } } } },
-        { id = "main-icon", title = L["主图标外观"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "icon", opts = {} },
-            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "icon", fullWidth = true } } } },
-        { id = "alert-icons", title = L["业务提示 Atlas"], collapsible = true,
-            placement = { target = "main-icon", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "alertIcons", opts = { enableOffset = true } },
-            settingsList = { preserveHeader = true, rows = { { key = "alertIcons", fullWidth = true } } } },
-        { id = "spell-font", title = L["法术名称"], collapsible = true,
-            placement = { target = "alert-icons", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {} },
-            settingsList = { preserveHeader = true, rows = { { key = "font_spell", fullWidth = true } } } },
-        { id = "timer-font", title = L["图标倒数时间"], collapsible = true,
-            placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {} },
-            settingsList = { preserveHeader = true, rows = { { key = "font_timer", fullWidth = true } } } },
+    sections = {
+        { kind = "composite", id = "module-common", title = L["通用设置"],
+            component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+        { kind = "composite", id = "anchor", title = L["锚点设置"],
+            component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+        { kind = "composite", id = "main-icon", title = L["外观"],
+            component = "icongroup", key = "icon", opts = {} },
+        { kind = "composite", id = "alert-icons", title = L["业务提示 Atlas"],
+            component = "icongroup", key = "alertIcons", opts = { enableOffset = true } },
+        { kind = "composite", id = "spell-font", title = L["法术名称"],
+            component = "fontgroup", key = "font_spell", opts = {} },
+        { kind = "composite", id = "timer-font", title = L["图标倒数时间"],
+            component = "fontgroup", key = "font_timer", opts = {} },
     },
 }
 

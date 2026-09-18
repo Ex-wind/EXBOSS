@@ -25,16 +25,16 @@ local LAYOUT = {}
 -- 方案 A 的视觉令牌。这里只影响 Frame/Texture/FontString 的表现，AuraSound
 -- 的 action ID、字段结构、SavedVariables 与运行时调用链均保持原样。
 local AURA_UI_THEME = {
-    canvas = { 0.027, 0.043, 0.067, 1.00 },       -- #070b11
-    panel = { 0.067, 0.090, 0.129, 0.98 },        -- #111721
-    panelDeep = { 0.039, 0.059, 0.086, 0.98 },    -- #0a0f16
-    panelHover = { 0.085, 0.110, 0.150, 0.98 },
-    ink = { 0.925, 0.898, 0.820, 1.00 },          -- #ece5d1
-    muted = { 0.612, 0.639, 0.686, 1.00 },        -- #9ca3af
-    line = { 0.847, 0.773, 0.545, 0.18 },
-    lineStrong = { 0.847, 0.773, 0.545, 0.38 },
-    gold = { 0.953, 0.788, 0.424, 1.00 },         -- #f3c96c
-    cyan = { 0.447, 0.847, 1.000, 1.00 },         -- #72d8ff
+    canvas = GC.page,
+    panel = GC.card,
+    panelDeep = GC.input,
+    panelHover = GC.headerHover,
+    ink = GC.text,
+    muted = GC.textDim,
+    line = GC.headerDivider,
+    lineStrong = GC.panelBorder,
+    gold = GC.accent,
+    cyan = GC.accentHover,
     success = { 0.420, 0.900, 0.650, 1.00 },
     danger = { 0.937, 0.498, 0.490, 1.00 },
 }
@@ -673,7 +673,7 @@ function Common.CreateAuraSoundVirtualRow(parent)
 
     row.categoryPill = CreateFrame("Frame", nil, row, "BackdropTemplate")
     row.categoryPill:SetBackdrop(AURA_FLAT_BACKDROP)
-    row.categoryPill:SetBackdropColor(0.070, 0.078, 0.086, 0.94)
+    row.categoryPill:SetBackdropColor(unpack(GC.input))
     row.categoryPill:SetBackdropBorderColor(
         AURA_UI_THEME.line[1], AURA_UI_THEME.line[2], AURA_UI_THEME.line[3], 0.26
     )
@@ -1428,19 +1428,14 @@ local function RefreshAuraSoundCategoryFilterCardStyle(card)
     local selected = card._auraSoundCategorySelected == true
     local hovered = card._auraSoundCategoryHovered == true
     if selected then
-        card:SetBackdropColor(0.239, 0.176, 0.078, 0.98)
-        card:SetBackdropBorderColor(0.718, 0.529, 0.239, 0.92)
+        card:SetBackdropColor(unpack(GC.menuSelected))
+        card:SetBackdropBorderColor(unpack(GC.accent))
         SetAuraThemeText(card.name, AURA_UI_THEME.gold)
     else
         card:SetBackdropColor(
             AURA_UI_THEME.panel[1], AURA_UI_THEME.panel[2], AURA_UI_THEME.panel[3], 0.98
         )
-        card:SetBackdropBorderColor(
-            hovered and AURA_UI_THEME.gold[1] or 0.220,
-            hovered and AURA_UI_THEME.gold[2] or 0.267,
-            hovered and AURA_UI_THEME.gold[3] or 0.329,
-            hovered and 0.56 or 0.86
-        )
+        card:SetBackdropBorderColor(unpack(hovered and GC.accent or GC.panelBorder))
         -- 分类是主要筛选入口，未选中时也必须保持可读；此前的 muted 灰色
         -- 在深色面板上会被误认为半透明文字。
         SetAuraThemeText(card.name, AURA_UI_THEME.ink)
@@ -2340,7 +2335,7 @@ function Common.RefreshAuraSoundEditorFields(editor)
     local isCatalogAction = editor.isCatalogAction == true
     local name, icon, spellID = GetAuraSpellInfo(row)
     editor.icon:SetTexture(icon)
-    editor.spellSummary:SetText(string.format("%s |cff888888[%d]|r", name, spellID))
+    editor.spellSummary:SetText(string.format("%s %s[%d]|r", name, GC.markup.placeholder, spellID))
     editor.spellIDInput:SetShown(not isCatalogAction)
     editor.scope:SetShown(not isCatalogAction)
     editor.auraType:SetShown(not isCatalogAction)

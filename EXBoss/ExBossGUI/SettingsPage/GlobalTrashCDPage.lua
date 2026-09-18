@@ -104,46 +104,19 @@ local NAMEPLATE_ICON_STRATA_ITEMS = {
 local LAYOUT = {
     version = 1,
     title = L["小怪内置CD姓名版图标"],
-    cards = {
-        { id = "icon", title = L["图标位置与外观"], collapsible = true,
-            placement = { target = "placement", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "nameplateIcon", opts = { enableOffset = true, hideIconID = true } },
-            settingsList = {
-                preserveHeader = true,
-                title = L["外观"],
-                rows = {
-                    { key = "nameplateIcon", fullWidth = true },
-                },
+    sections = {
+        { kind = "settings", id = "placement", title = L["通用"],
+            items = {
+                { key = "nameplateIconSpacing", subKey = "spacing", parentKey = "nameplateIcon", type = "slider", min = 0, max = 50, step = 1, label = L["图标间距"] },
+                { key = "nameplateGrowthSide", type = "select", label = L["图标增长方向"], options = { { value = "left", label = L["左侧"] }, { value = "right", label = L["右侧"] } } },
+                { key = "nameplateIconStrata", type = "select", label = L["图标层级"], options = { { value = "BACKGROUND", label = "BACKGROUND" }, { value = "LOW", label = "LOW" }, { value = "MEDIUM", label = "MEDIUM" }, { value = "HIGH", label = "HIGH" }, { value = "DIALOG", label = "DIALOG" }, { value = "FULLSCREEN", label = "FULLSCREEN" }, { value = "FULLSCREEN_DIALOG", label = "FULLSCREEN_DIALOG" }, { value = "TOOLTIP", label = "TOOLTIP" } } },
+                { key = "hideNameplateIconAboveSeconds", type = "input", label = L["隐藏剩余超过 X 秒的图标（0=关闭）"] },
+                { key = "screenNameplatePreview", type = "button", label = L["屏幕敌方姓名版预览 开/关"], func = function() ToggleScreenNameplatePreview() end },
             } },
-        { id = "placement", title = L["姓名版排列"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "grid", items = {
-                { key = "nameplateIconSpacing", subKey = "spacing", parentKey = "nameplateIcon", type = "slider", x = 1, y = 1, w = 96, h = 6, min = 0, max = 50, step = 1, label = L["图标间距"], labelPos = "top" },
-                { key = "nameplateGrowthSide", type = "dropdown", x = 103, y = 1, w = 96, h = 6, label = L["图标增长方向"], items = NAMEPLATE_GROWTH_SIDE_ITEMS, labelPos = "top" },
-                { key = "nameplateIconStrata", type = "dropdown", x = 1, y = 10, w = 96, h = 6, label = L["图标层级"], items = NAMEPLATE_ICON_STRATA_ITEMS, labelPos = "top" },
-                { key = "hideNameplateIconAboveSeconds", type = "input", x = 103, y = 10, w = 96, h = 6, label = L["隐藏剩余超过 X 秒的图标（0=关闭）"], labelPos = "top" },
-                { key = "screenNameplatePreview", type = "button", x = 1, y = 19, w = 198, h = 6, label = L["屏幕敌方姓名版预览 开/关"], func = function() ToggleScreenNameplatePreview() end },
-            } },
-            settingsList = {
-                preserveHeader = true,
-                title = L["通用"],
-                rows = {
-                    { key = "nameplateIconSpacing", label = L["图标间距"] },
-                    { key = "nameplateGrowthSide", label = L["图标增长方向"] },
-                    { key = "nameplateIconStrata", label = L["图标层级"] },
-                    { key = "hideNameplateIconAboveSeconds", label = L["隐藏剩余超过 X 秒的图标（0=关闭）"] },
-                    { key = "screenNameplatePreview", label = L["屏幕敌方姓名版预览 开/关"] },
-                },
-            } },
-        { id = "text", title = L["倒数时间文本"], collapsible = true,
-            placement = { target = "icon", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "nameplateIconText" },
-            settingsList = {
-                preserveHeader = true,
-                rows = {
-                    { key = "nameplateIconText", fullWidth = true },
-                },
-            } },
+        { kind = "composite", id = "icon", title = L["外观"],
+            component = "icongroup", key = "nameplateIcon", opts = { enableOffset = true, hideIconID = true } },
+        { kind = "composite", id = "text", title = L["倒数时间文本"],
+            component = "fontgroup", key = "nameplateIconText" },
     },
 }
 

@@ -20,14 +20,12 @@ local function GetIconAlert()
 end
 
 local ICON_COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
+    { path = "enabled", type = "checkbox", label = L["启用"] },
 }
 
 local COMMON_OPTS = {
     bindRoot = true,
     poolType = "IconAlertModuleCommonSettingsGroup",
-    presentation = "settings-list",
-    fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = ICON_COMMON_FIELDS,
 }
 
@@ -50,61 +48,29 @@ local LAYOUT_OPTS = {
 }
 
 -- [卡片/Grid 迁移边界：IconAlert 设置页]
--- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 允许：普通 sections 单声明及纯展示排列；Core 统一测量，原语义选项保留。
 -- 禁止：修改 key/type/path/opts、允许增长方向、预览、Slider 或释放合同。
 -- modulecommonsettings/anchorgroup/widgetlayout/icongroup/fontgroup/glow_settings 必须整体引用，不能拆开重拼。
 local GRID_LAYOUT = {
     version = 1,
     title = L["图标设置"],
-    cards = {
-        { id = "module-common", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
-            settingsList = { preserveHeader = true, title = L["通用"], rows = {
-                { key = "moduleCommon", fullWidth = true },
-            } } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "layout", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchorGroup", opts = ANCHOR_OPTS },
-            settingsList = { preserveHeader = true, title = L["锚点"], rows = {
-                { key = "anchorGroup", fullWidth = true },
-            } } },
-        { id = "layout", title = L["排列设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "layout", fullWidth = true },
-            } } },
-        { id = "icon", title = L["图标本体"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "icon" },
-            settingsList = { preserveHeader = true, title = L["外观"], rows = {
-                { key = "icon", fullWidth = true },
-            } } },
-        { id = "name-font", title = L["名称子元素"], collapsible = true,
-            placement = { target = "glow", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_text" },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_text", fullWidth = true },
-            } } },
-        { id = "time-font", title = L["倒数文本"], collapsible = true,
-            placement = { target = "name-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_time" },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_time", fullWidth = true },
-            } } },
-        { id = "stacks-font", title = L["层数文本"], collapsible = true,
-            placement = { target = "time-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_stacks" },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_stacks", fullWidth = true },
-            } } },
-        { id = "glow", title = L["发光子元素"], collapsible = true,
-            placement = { target = "icon", side = "below", align = "start" },
-            content = { kind = "composite", component = "glow_settings", key = "glow" },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "glow", fullWidth = true },
-            } } },
+    sections = {
+        { kind = "composite", id = "module-common", title = L["通用"],
+            component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+        { kind = "composite", id = "layout", title = L["排列设置"],
+            component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS },
+        { kind = "composite", id = "anchor", title = L["锚点"],
+            component = "anchorgroup", key = "anchorGroup", opts = ANCHOR_OPTS },
+        { kind = "composite", id = "icon", title = L["外观"],
+            component = "icongroup", key = "icon" },
+        { kind = "composite", id = "glow", title = L["发光子元素"],
+            component = "glow_settings", key = "glow" },
+        { kind = "composite", id = "name-font", title = L["名称子元素"],
+            component = "fontgroup", key = "font_text" },
+        { kind = "composite", id = "time-font", title = L["倒数文本"],
+            component = "fontgroup", key = "font_time" },
+        { kind = "composite", id = "stacks-font", title = L["层数文本"],
+            component = "fontgroup", key = "font_stacks" },
     },
 }
 

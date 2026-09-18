@@ -506,6 +506,51 @@ end
 -- 内容区刷新
 -- =============================================================
 -- [混合函数边界] RefreshContent 内仅宿主 frame 的 SetPoint/SetAllPoints 属布局语句；Tab 分派、Hide 顺序、页面 Render/Hide 与嵌入清理全部禁止修改。
+-- HTML special pages own only the geometry inside EXBoss's B+C host.
+-- Keep navigation reachable at small widths; hiding it would remove real controls.
+local function ApplySpecialPageHostGeometry()
+    if not (mainFrame and leftFrame and contentFrame) then return end
+    local special = currentTab == "boss" or currentTab == "trash"
+    if special then
+        local host = mainFrame
+        -- In split mode FullContentHost is deliberately unanchored by Core.
+        -- Use the live B+C body bounds, respecting the existing preview dock.
+        local rightHost = IsUnifiedMode() and unifiedHosts.contentBodyHost or mainFrame
+        local width = IsUnifiedMode() and ((unifiedHosts.navHost:GetWidth() or 0) + (rightHost:GetWidth() or 0)) or host:GetWidth()
+        width = math.max(1, width)
+        local navWidth = width <= 1180 and 220 or math.max(248, math.min(320, width * 0.21))
+        local top = IsUnifiedMode() and 0 or (TAB_BAR_Y - TAB_H - 4)
+        leftFrame:ClearAllPoints()
+        leftFrame:SetPoint("TOPLEFT", host, "TOPLEFT", 0, top)
+        leftFrame:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+        leftFrame:SetWidth(navWidth)
+        contentFrame:ClearAllPoints()
+        contentFrame:SetPoint("TOPLEFT", host, "TOPLEFT", navWidth, top)
+        contentFrame:SetPoint("BOTTOMRIGHT", rightHost, "BOTTOMRIGHT", 0, 0)
+        leftFrame:SetBackdropColor(unpack(GC.panel))
+        contentFrame:SetBackdropColor(unpack(GC.page))
+        leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+        contentFrame:SetBackdropBorderColor(unpack(GC.transparent))
+        mainFrame._prototypeHosts = true
+    elseif mainFrame._prototypeHosts then
+        mainFrame._prototypeHosts = nil
+        leftFrame:SetBackdropColor(unpack(GC.panel))
+        leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+        contentFrame:SetBackdropColor(unpack(GC.page))
+        contentFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+        if not IsUnifiedMode() then
+            leftFrame:ClearAllPoints()
+            leftFrame:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 4, TAB_BAR_Y - TAB_H - 4)
+            leftFrame:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 4, 4)
+            leftFrame:SetWidth(LEFT_W)
+            contentFrame:ClearAllPoints()
+            contentFrame:SetPoint("TOPLEFT", mainFrame, "TOPLEFT",
+                ShouldUseLeftNav(currentTab) and CONTENT_X + 4 or 4, TAB_BAR_Y - TAB_H - 4)
+            contentFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -4, 4)
+        end
+    end
+end
+
 local function RefreshContent()
     if not contentFrame then return end
 
@@ -547,6 +592,14 @@ local function RefreshContent()
             contentFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -4, 4)
             contentFrame._fullWidthMode = expectFull
         end
+    end
+
+    ApplySpecialPageHostGeometry()
+    if not mainFrame._prototypeResizeHooked then
+        mainFrame._prototypeResizeHooked = true
+        mainFrame:HookScript("OnSizeChanged", function()
+            if currentTab == "boss" or currentTab == "trash" then ApplySpecialPageHostGeometry() end
+        end)
     end
 
     -- Blizzard 样式 Tab 高亮
@@ -1103,6 +1156,7 @@ function Panel:RelayoutUnified()
     mainFrame:ClearAllPoints()
     mainFrame:SetPoint("TOPLEFT", unifiedHosts.navHost, "TOPLEFT", 0, 0)
     mainFrame:SetPoint("BOTTOMRIGHT", unifiedHosts.contentHost, "BOTTOMRIGHT", 0, 0)
+    ApplySpecialPageHostGeometry()
 end
 
 function Panel:RefreshUnifiedTabs()

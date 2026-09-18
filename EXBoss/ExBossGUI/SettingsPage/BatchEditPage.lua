@@ -100,39 +100,35 @@ local TRASH_VOICE_SOURCE_ITEMS = {
 -- 禁止：修改 key/type、范围/筛选/动作业务顺序、预览→确认应用两阶段回调或 Store 写回。
 -- 多组控件共享同一坐标槽位；高度只能累计当前可见分支一次，不能把隐藏分支重复相加。
 local LAYOUT = {
-    version = 1, title = T("批量修改"), cards = {
-        { id = "source", title = T("把什么内容"), collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" }, content = { kind = "grid", items = {
-                { key = "scope", type = "dropdown", x = 1, y = 1, w = 62, h = 6, label = T("作用范围"), items = SCOPE_ITEMS },
-                { key = "targetFilter", type = "dropdown", x = 69, y = 1, w = 62, h = 6, label = T("目标筛选"), items = FILTER_ITEMS },
-                { key = "field1", type = "dropdown", x = 137, y = 1, w = 62, h = 6, label = T("批量动作"), items = FIELD_ITEMS },
-            } }, settingsList = { title = T("通用"), preserveHeader = true, rows = {
-                { key = "scope", label = T("作用范围") },
-                { key = "targetFilter", label = T("目标筛选") },
-                { key = "field1", label = T("批量动作") },
-            } } },
-        { id = "target", title = T("变更为"), collapsible = true,
-            placement = { target = "source", side = "below", align = "start" }, content = { kind = "grid", items = {
-                { key = "matchText", type = "dropdown", x = 1, y = 1, w = 96, h = 6, label = T("匹配文本"), items = MATCH_TEXT_ITEMS_FUNC },
-                { key = "matchVoice", type = "dropdown", x = 1, y = 1, w = 198, h = 6, label = T("匹配语音"), items = MATCH_VOICE_ITEMS_FUNC },
-                { key = "action1", type = "dropdown", x = 1, y = 14, w = 51, h = 6, label = T("操作"), items = ACTION_ITEMS },
-                { key = "replaceText", type = "input", x = 1, y = 27, w = 198, h = 6, label = T("替换为") },
-                { key = "voiceSource", type = "dropdown", x = 1, y = 14, w = 44, h = 6, label = T("替换来源"), items = VOICE_SOURCE_ITEMS },
-                { key = "voiceLabel", type = "dropdown", x = 52, y = 14, w = 76, h = 6, label = T("语音标签"), items = LABEL_ITEMS_FUNC },
-                { key = "voiceLSM", type = "lsm_sound", x = 52, y = 14, w = 76, h = 6, label = T("LSM音效") },
-                { key = "voicePath", type = "input", x = 52, y = 14, w = 136, h = 6, label = T("文件路径") },
-                { key = "voiceTtsText", type = "input", x = 52, y = 14, w = 136, h = 6, label = T("TTS文本") },
-                { key = "btn_preview", type = "button", x = 1, y = 42, w = 44, h = 6, label = T("生成预览") },
-                { key = "btn_apply", type = "button", x = 52, y = 42, w = 44, h = 6, label = T("确认应用") },
-                { key = "previewText", type = "description", x = 1, y = 52, w = 198, h = 6, label = "" },
-                { key = "taEnabled", type = "checkbox", x = 1, y = 14, w = 44, h = 6, label = T("被点名提示") },
-                { key = "taLSM", type = "lsm_sound", x = 52, y = 14, w = 95, h = 6, label = T("音效"), search = true },
-                { key = "taValueTest", type = "button", x = 154, y = 14, w = 29, h = 6, label = T("试听") },
-                { key = "taRingEnabled", type = "checkbox", x = 1, y = 27, w = 32, h = 6, label = T("圆环") },
-                { key = "taIconEnabled", type = "checkbox", x = 39, y = 27, w = 32, h = 6, label = T("图标") },
-                { key = "taTextEnabled", type = "checkbox", x = 77, y = 27, w = 32, h = 6, label = T("文本") },
-                { key = "taStealthEnabled", type = "checkbox", x = 115, y = 27, w = 44, h = 6, label = T("隐遁提示") },
-            } } },
+    version = 1, title = T("批量修改"), sections = {
+        { kind = "settings", id = "source", title = T("通用"),
+            items = {
+                { key = "scope", type = "select", label = T("作用范围"), options = { { value = "allMplus", label = T("全部大秘境BOSS") }, { value = "allTrash", label = T("全部小怪法术") } } },
+                { key = "targetFilter", type = "select", label = T("目标筛选"), options = { { value = "allEvents", label = T("全部事件") }, { value = "enabledOnly", label = T("仅当前已启用") }, { value = "disabledOnly", label = T("仅当前已禁用") } } },
+                { key = "field1", type = "select", label = T("批量动作"), options = { { value = "enabled", label = T("[启用/禁用] 启用") }, { value = "centralEnabled", label = T("[启用/禁用] 中央文本") }, { value = "preAlertEnabled", label = T("[启用/禁用] 提前5秒") }, { value = "timerBarRenameEnabled", label = T("[启用/禁用] 计时条改名") }, { value = "trigger0", label = T("[启用/禁用] 中央警告语音") }, { value = "trigger1", label = T("[启用/禁用] 施法开始语音") }, { value = "trigger2", label = T("[启用/禁用] 提前5秒语音") }, { value = "ringEnabled", label = T("[启用/禁用] BOSS施法时显示圆环") }, { value = "eventColorCombined", label = T("[启用/禁用] 颜色覆盖") }, { value = "preAlertTextReplace", label = T("[文本替换] 倒数文本") }, { value = "centralTextReplace", label = T("[文本替换] 中央文本") }, { value = "timerBarRenameTextReplace", label = T("[文本替换] 计时条改名") }, { value = "trigger0VoiceReplace", label = T("[语音替换] 中央警告语音") }, { value = "trigger1VoiceReplace", label = T("[语音替换] 施法开始语音") }, { value = "trigger2VoiceReplace", label = T("[语音替换] 提前5秒语音") }, { value = "targetAlertConfig", label = T("[被点名提示] 整体配置") } } },
+            } },
+        { kind = "settings", id = "target", title = T("变更为"),
+            footerDescription = { key = "previewText", type = "description", label = "" },
+            items = {
+                { key = "matchText", type = "select", label = T("匹配文本"), optionsSource = "ExBoss.UI.Panel.BatchEditPage.GetPreAlertTextDropdownItems" },
+                { key = "matchVoice", type = "select", label = T("匹配语音"), optionsSource = "ExBoss.UI.Panel.BatchEditPage.GetVoiceMatchDropdownItems" },
+                { key = "action1", type = "select", label = T("操作"), options = { { value = "enable", label = T("启用") }, { value = "disable", label = T("禁用") } } },
+                { key = "voiceSource", type = "select", label = T("替换来源"), options = { { value = "pack", label = T("语音包标签") }, { value = "lsm", label = T("LSM音效") }, { value = "file", label = T("自定义路径") }, { value = "tts", label = T("TTS语音") } } },
+                { key = "taEnabled", type = "switch", label = T("被点名提示") },
+                { key = "voiceLabel", type = "select", label = T("语音标签"), optionsSource = "ExBoss.Voice.LabelCatalog.GetDropdownItems" },
+                { key = "voiceLSM", type = "select", media = "sound", label = T("LSM音效") },
+                { key = "voicePath", type = "input", label = T("文件路径") },
+                { key = "voiceTtsText", type = "input", label = T("TTS文本") },
+                { key = "taLSM", type = "select", media = "sound", label = T("音效"), search = true },
+                { key = "taValueTest", type = "button", label = T("试听") },
+                { key = "replaceText", type = "input", label = T("替换为") },
+                { key = "taRingEnabled", type = "switch", label = T("圆环") },
+                { key = "taIconEnabled", type = "switch", label = T("图标") },
+                { key = "taTextEnabled", type = "switch", label = T("文本") },
+                { key = "taStealthEnabled", type = "switch", label = T("隐遁提示") },
+                { key = "btn_preview", type = "button", label = T("生成预览") },
+                { key = "btn_apply", type = "button", label = T("确认应用") },
+            } },
     },
 }
 
@@ -160,10 +156,10 @@ local function BuildBatchTargetContent(mode)
         keep.action1 = true
     end
     local items = {}
-    for _, item in ipairs(LAYOUT.cards[2].content.items) do
+    for _, item in ipairs(LAYOUT.sections[2].items) do
         if keep[item.key] then items[#items + 1] = item end
     end
-    return { kind = "grid", items = items }
+    return { kind = "settings", id = LAYOUT.sections[2].id, title = LAYOUT.sections[2].title, items = items, footerDescription = LAYOUT.sections[2].footerDescription }
 end
 
 local function DeepCopy(v)
@@ -1630,7 +1626,7 @@ local function RefreshActionUI()
         or "action"
     if Page._cardSession and Page._targetContentMode ~= targetMode then
         Page._targetContentMode = targetMode
-        Page._cardSession:ReplaceCardContent("target", BuildBatchTargetContent(targetMode))
+        Page._cardSession:ReplaceSettingsSection("target", BuildBatchTargetContent(targetMode))
         Page._mountedWidgets = nil
         widgets = GetBatchWidgets(Grid)
     end

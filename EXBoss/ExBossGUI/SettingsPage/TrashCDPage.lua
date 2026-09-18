@@ -21,11 +21,11 @@ end
 local SPELL_SETTINGS_MODULE_KEY = "ExBoss.TrashCD.SpellEditor"
 local C = {
     SPELL_CARD = {
-        cols = 1,
-        gapX = 6,
-        gapY = 6,
-        height = 50,
-        titleFontSizes = { 16, 14, 13, 11 },
+        cols = 4,
+        gapX = 9,
+        gapY = 9,
+        height = 61,
+        titleFontSizes = { 15, 14, 13, 11 },
     },
 }
 
@@ -82,6 +82,12 @@ local CACHE = {
 local root
 local mapPane
 local spellPane
+local rosterPane
+local rosterScroll
+local rosterChild
+local rosterLabels = {}
+local rosterTitle
+local mapTitle
 local detailPane
 local settingsPane
 local mapScrollFrame
@@ -91,6 +97,7 @@ local spellScrollChild
 local settingsScrollFrame
 local settingsScrollChild
 local detailIcon
+local detailIconBorder
 local detailPlaceholder
 local detailTitle
 local detailMeta
@@ -98,6 +105,7 @@ local detailCast
 local detailBody
 local detailInfo
 local detailDivider
+local detailEnableHost
 local settingsVoiceDisabledNote
 
 local activeDungeonButtons = {}
@@ -588,35 +596,61 @@ local function SplitSpellDescription(descText)
 end
 
 local function RefreshDetailCardLayout()
-    if not (detailPane and detailTitle and detailMeta and detailCast and detailBody and detailDivider) then
-        return
-    end
-    local headerW = detailPane:GetWidth() or 0
-    if headerW <= 0 then
-        headerW = 980
-    end
-
-    local metaWidth = math.min(300, math.floor(headerW * 0.28))
+    if not (detailPane and detailTitle and detailMeta and detailCast and detailBody and detailDivider) then return end
+    local width = math.max(1, detailPane:GetWidth())
+    local compact = width <= 500
+    local topInset = compact and 12 or 15
+    detailTitle:SetFont(ExwindTools.MAIN_FONT, compact and 19 or 21, "")
+    local inset, iconSize, iconGap = compact and 12 or 17, compact and 36 or 46, compact and 10 or 14
+    detailIcon:SetSize(iconSize, iconSize)
+    detailIcon:ClearAllPoints()
+    detailIcon:SetPoint("TOPLEFT", inset, -topInset)
+    detailIconBorder:SetSize(iconSize + 2, iconSize + 2)
+    local left = inset + iconSize + iconGap
+    local bodyWidth = math.max(1, width - left - inset)
+    local enabled = detailEnableHost and detailEnableHost:IsShown()
+    local stackEnable = enabled and width < 360
+    local identityWidth = math.max(1, bodyWidth - (enabled and not stackEnable and 166 or 0))
     local titleNatural = math.ceil(detailTitle:GetUnboundedStringWidth() or 0) + 8
-    local titleWidth = math.min(
-        math.max(220, headerW - 44 - 14 - 12 - 12 - metaWidth - 18),
-        math.max(120, titleNatural)
-    )
-    local bodyWidth = math.max(320, headerW - 44 - 14 - 12 - 18)
-
-    detailTitle:SetWidth(titleWidth)
+    local metaNatural = math.ceil(detailMeta:GetUnboundedStringWidth() or 0) + 8
+    local inline = width > 500 and titleNatural + metaNatural + 16 <= identityWidth
+    detailTitle:ClearAllPoints()
+    detailTitle:SetPoint("TOPLEFT", detailIcon, "TOPRIGHT", iconGap, -1)
+    detailTitle:SetWidth(inline and titleNatural or identityWidth)
+    detailTitle:SetWordWrap(not inline)
     detailMeta:ClearAllPoints()
-    detailMeta:SetPoint("LEFT", detailTitle, "RIGHT", 6, 0)
-    detailMeta:SetPoint("RIGHT", detailPane, "RIGHT", -18, 0)
+    if inline then
+        detailMeta:SetPoint("LEFT", detailTitle, "RIGHT", 16, 0)
+        detailMeta:SetWidth(math.max(1, identityWidth - titleNatural - 16))
+    else
+        detailMeta:SetPoint("TOPLEFT", detailTitle, "BOTTOMLEFT", 0, -2)
+        detailMeta:SetWidth(bodyWidth)
+    end
+    local titleHeight, metaHeight = detailTitle:GetStringHeight() or 0, detailMeta:GetStringHeight() or 0
+    local y = topInset + (inline and math.max(titleHeight, metaHeight) or titleHeight + 2 + metaHeight)
+    if enabled then
+        detailEnableHost:ClearAllPoints()
+        if stackEnable then
+            detailEnableHost:SetPoint("TOPLEFT", detailPane, "TOPLEFT", left, -(y + 4))
+            y = y + 32
+        else
+            detailEnableHost:SetPoint("TOPRIGHT", detailPane, "TOPRIGHT", -inset, -9)
+        end
+    end
+    y = y + 8
+    detailCast:ClearAllPoints()
+    detailCast:SetPoint("TOPLEFT", detailPane, "TOPLEFT", left, -y)
     detailCast:SetWidth(bodyWidth)
+    y = y + (detailCast:GetStringHeight() or 0) + 8
+    detailBody:ClearAllPoints()
+    detailBody:SetPoint("TOPLEFT", detailPane, "TOPLEFT", left, -y)
     detailBody:SetWidth(bodyWidth)
+    y = y + (detailBody:GetStringHeight() or 0) + 8
+    detailInfo:ClearAllPoints()
+    detailInfo:SetPoint("TOPLEFT", detailPane, "TOPLEFT", left, -y)
     detailInfo:SetWidth(bodyWidth)
-
-    local castH = detailCast:GetStringHeight() or 0
-    local bodyH = detailBody:GetStringHeight() or 0
-    local infoH = detailInfo:GetStringHeight() or 0
-    local desiredHeight = math.max(118, math.ceil(64 + castH + 6 + bodyH + 8 + infoH + 18))
-    detailPane:SetHeight(desiredHeight)
+    detailPane:SetHeight(math.max(110, math.ceil(y + (detailInfo:GetStringHeight() or 0) + 15)))
+    detailDivider:Hide()
 end
 
 local function SetDetailCardEmpty(message)
@@ -624,17 +658,19 @@ local function SetDetailCardEmpty(message)
         return
     end
     if detailPlaceholder then
-        detailPlaceholder:SetText(tostring(message or L["点击左侧法术后，可在此查看法术描述。"]))
+        detailPlaceholder:SetText(tostring(message or L["点击上方法术后，可在此查看法术描述。"]))
         detailPlaceholder:Show()
     end
     if detailIcon then detailIcon:Hide() end
+    if detailIconBorder then detailIconBorder:Hide() end
     if detailTitle then detailTitle:SetText("") end
     if detailMeta then detailMeta:SetText("") end
     if detailCast then detailCast:SetText("") end
     if detailBody then detailBody:SetText("") end
     if detailInfo then detailInfo:SetText("") end
     if detailDivider then detailDivider:Hide() end
-    detailPane:SetHeight(98)
+    if detailEnableHost then detailEnableHost:Hide() end
+    detailPane:SetHeight(88)
 end
 
 local function GetDungeonRows()
@@ -978,88 +1014,174 @@ local function BuildSettingsLayout()
         { key = "eventColorEnabled", type = "checkbox", x = 6, y = 16, w = 20, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 31, y = 16, w = 37, h = 5, label = "", items = EVENT_COLOR_ITEMS_FUNC, labelPos = "left", search = true },
         { key = "eventColor", type = "color", x = 70, y = 16, w = 30, h = 5, label = L["自定义颜色"] },
-        { key = "description_trash_text_1", type = "description", x = 6, y = 23, w = 35, h = 5, label = "|cffffd637" .. L["中央文本"] .. "|r" },
-        { key = "centralEnabled", type = "checkbox", x = 6, y = 28, w = 25, h = 5, label = L["启用"] },
+        { key = "description_trash_text_1", type = "description", x = 6, y = 23, w = 35, h = 5, label = GC.markup.accent .. L["中央文本"] .. "|r" },
+        { key = "centralEnabled", type = "checkbox", x = 6, y = 28, w = 25, h = 5, label = L["中央文本"] },
         { key = "centralLead", type = "input", x = 31, y = 28, w = 17, h = 5, label = L["提前(秒)"], labelPos = "right" },
         { key = "centralText", type = "input", x = 31, y = 33, w = 54, h = 5, label = "" },
-        { key = "description_trash_text_2", type = "description", x = 6, y = 41, w = 44, h = 5, label = "|cffffd637" .. L["倒数文本"] .. "|r" },
-        { key = "countdownEnabled", type = "checkbox", x = 6, y = 45, w = 25, h = 5, label = L["启用"] },
+        { key = "description_trash_text_2", type = "description", x = 6, y = 41, w = 44, h = 5, label = GC.markup.accent .. L["倒数文本"] .. "|r" },
+        { key = "countdownEnabled", type = "checkbox", x = 6, y = 45, w = 25, h = 5, label = L["倒数文本"] },
         { key = "preAlertText", type = "input", x = 31, y = 45, w = 54, h = 5, label = "" },
-        { key = "description_trash_text_3", type = "description", x = 6, y = 55, w = 44, h = 5, label = "|cffffd637" .. L["计时条改名"] .. "|r" },
-        { key = "timerBarRenameEnabled", type = "checkbox", x = 6, y = 60, w = 25, h = 5, label = L["启用"] },
+        { key = "description_trash_text_3", type = "description", x = 6, y = 55, w = 44, h = 5, label = GC.markup.accent .. L["计时条改名"] .. "|r" },
+        { key = "timerBarRenameEnabled", type = "checkbox", x = 6, y = 60, w = 25, h = 5, label = L["计时条改名"] },
         { key = "timerBarRenameText", type = "input", x = 31, y = 60, w = 54, h = 5, label = "" },
 
-        { key = "description_trash_voice_1", type = "description", x = 6, y = 80, w = 44, h = 5, label = "|cffffd637" .. L["施法开始"] .. "|r" },
-        { key = "tr1Enabled", type = "checkbox", x = 6, y = 85, w = 20, h = 5, label = L["启用"] },
+        { key = "description_trash_voice_1", type = "description", x = 6, y = 80, w = 44, h = 5, label = GC.markup.accent .. L["施法开始"] .. "|r" },
+        { key = "tr1Enabled", type = "checkbox", x = 6, y = 85, w = 20, h = 5, label = L["施法开始"] },
         { key = "tr1Source", type = "dropdown", x = 31, y = 85, w = 25, h = 5, label = "", items = TRIGGER_SOURCE_ITEMS, search = true },
         { key = "tr1Label", type = "dropdown", x = 58, y = 85, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
         { key = "tr1LSM", type = "lsm_sound", x = 58, y = 85, w = 30, h = 5, label = "", search = true },
         { key = "tr1Path", type = "input", x = 58, y = 85, w = 30, h = 5, label = "" },
-        { key = "tr1ValueTest", type = "button", x = 90, y = 85, w = 10, h = 5, label = L["试听"] },
-        { key = "description_trash_voice_2", type = "description", x = 6, y = 97, w = 44, h = 5, label = "|cffffd637" .. L["倒数提示"] .. "|r" },
-        { key = "tr2Enabled", type = "checkbox", x = 6, y = 102, w = 20, h = 5, label = L["启用"] },
+        { key = "tr1ValueTest", type = "button", x = 90, y = 85, w = 10, h = 5, label = "▶", tooltip = L["试听"] },
+        { key = "description_trash_voice_2", type = "description", x = 6, y = 97, w = 44, h = 5, label = GC.markup.accent .. L["倒数提示"] .. "|r" },
+        { key = "tr2Enabled", type = "checkbox", x = 6, y = 102, w = 20, h = 5, label = L["倒数提示"] },
         { key = "tr2CountdownLead", type = "dropdown", x = 31, y = 102, w = 25, h = 5, label = "", items = COUNTDOWN_LEAD_ITEMS, search = true },
         { key = "tr2PlayTextEnabled", type = "checkbox", x = 6, y = 110, w = 22, h = 5, label = L["播放文字"] },
         { key = "tr2Source", type = "dropdown", x = 31, y = 110, w = 25, h = 5, label = "", items = TRIGGER_SOURCE_ITEMS, search = true },
         { key = "tr2Label", type = "dropdown", x = 58, y = 110, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
         { key = "tr2LSM", type = "lsm_sound", x = 58, y = 110, w = 30, h = 5, label = "", search = true },
         { key = "tr2Path", type = "input", x = 58, y = 110, w = 30, h = 5, label = "" },
-        { key = "tr2ValueTest", type = "button", x = 90, y = 110, w = 10, h = 5, label = L["试听"] },
+        { key = "tr2ValueTest", type = "button", x = 90, y = 110, w = 10, h = 5, label = "▶", tooltip = L["试听"] },
 
         { key = "showBunBar", type = "checkbox", x = 105, y = 1, w = 15, h = 5, label = L["竖条"] },
         { key = "showTimerBar", type = "checkbox", x = 134, y = 1, w = 20, h = 5, label = L["计时条"] },
         { key = "showNameplate", type = "checkbox", x = 166, y = 1, w = 20, h = 5, label = L["姓名版"] },
 
-        { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["BOSS施法时显示圆环"] },
-        { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["BOSS施法时显示读条"] },
-        { key = "castProgressBarRenameEnabled", type = "checkbox", x = 107, y = 28, w = 20, h = 5, label = L["改名"] },
+        { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["施法圆环"] },
+        { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["施法读条"] },
+        { key = "castProgressBarRenameEnabled", type = "checkbox", x = 107, y = 28, w = 20, h = 5, label = L["读条改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 132, y = 28, w = 54, h = 5, label = "" },
         { key = "ringCastCheckEnabled", type = "checkbox", x = 107, y = 36, w = 30, h = 5, label = L["施法检测"] },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 107, y = 85, w = 35, h = 5, label = L["启用"] },
         { key = "targetAlertStartLSM", type = "lsm_sound", x = 144, y = 85, w = 42, h = 5, label = "", labelPos = "left", search = true },
-        { key = "targetAlertStartValueTest", type = "button", x = 189, y = 85, w = 10, h = 5, label = L["试听"] },
+        { key = "targetAlertStartValueTest", type = "button", x = 189, y = 85, w = 10, h = 5, label = "▶", tooltip = L["试听"] },
         { key = "targetAlertTankEnabled", type = "checkbox", x = 107, y = 95, w = 44, h = 5, label = L["坦克也生效"] },
+        { key = "targetVisualHeading", type = "description", x = 107, y = 101, w = 79, h = 5,
+            label = GC.markup.textDim .. L["视觉提示"] .. "|r" },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 107, y = 107, w = 20, h = 7, label = L["圆环"] },
         { key = "targetAlertIconEnabled", type = "checkbox", x = 127, y = 107, w = 20, h = 7, label = "|TInterface\\AddOns\\ExwindCore\\Textures\\umage.png:14:14:0:0|t" .. L["图标"] },
         { key = "targetAlertTextEnabledV2", type = "checkbox", x = 149, y = 107, w = 17, h = 7, label = L["文本"] },
         { key = "targetAlertStealthEnabledV2", type = "checkbox", x = 166, y = 107, w = 30, h = 7, label = "|T132089:16:16|t" .. L["隐遁提示"], labelSize = 17 },
+        { key = "targetAudioHeading", type = "description", x = 107, y = 113, w = 79, h = 5,
+            label = GC.markup.textDim .. L["语音提示"] .. "|r" },
+        { key = "targetPresentationNote", type = "description", x = 107, y = 116, w = 92, h = 5,
+            label = L["停用时保留配置，启用后生效。"] },
     }
-    local masterKeys = { enabled = true, eventColorEnabled = true, eventColorMode = true, eventColor = true,
+    local masterKeys = { enabled = true }
+    local textKeys = { eventColorEnabled = true, eventColorMode = true, eventColor = true,
         showBunBar = true, showTimerBar = true, showNameplate = true }
     local castKeys = { ringEnabled = true, castProgressBarEnabled = true, castProgressBarRenameEnabled = true,
         castProgressBarRenameText = true, ringCastCheckEnabled = true }
     local targetKeys = { targetAlertStartEnabled = true, targetAlertStartLSM = true, targetAlertStartValueTest = true,
         targetAlertTankEnabled = true, targetAlertRingEnabled = true, targetAlertIconEnabled = true,
-        targetAlertTextEnabledV2 = true, targetAlertStealthEnabledV2 = true }
+        targetAlertTextEnabledV2 = true, targetAlertStealthEnabledV2 = true, targetVisualHeading = true,
+        targetAudioHeading = true, targetPresentationNote = true }
     local groups = { master = {}, text = {}, voice = {}, cast = {}, target = {} }
     for _, row in ipairs(rows) do
         local group
-        if masterKeys[row.key] then group = "master"
+        if tostring(row.key):find("^description_trash_") and row.key ~= "description_trash_voice_2" then
+            group = nil
+        elseif masterKeys[row.key] then group = "master"
         elseif castKeys[row.key] then group = "cast"
         elseif targetKeys[row.key] then group = "target"
-        elseif (tonumber(row.y) or 0) < 73 then group = "text"
+        elseif textKeys[row.key] or (tonumber(row.y) or 0) < 73 then group = "text"
         else group = "voice" end
-        local xOffset = (group == "cast" or group == "target") and 106 or (group == "text" or group == "voice") and 5 or 0
-        local yOffset = group == "text" and 15 or group == "voice" and 79 or group == "cast" and 15 or group == "target" and 84 or 0
-        row.x = math.max(1, (tonumber(row.x) or 1) - xOffset)
-        row.y = math.max(1, (tonumber(row.y) or 1) - yOffset)
-        groups[group][#groups[group] + 1] = row
+        if group then
+            local xOffset = (group == "cast" or group == "target") and 106 or (group == "text" or group == "voice") and 5 or 0
+            local yOffset = group == "text" and 15 or group == "voice" and 79 or group == "cast" and 15 or group == "target" and 84 or 0
+            row.x = math.max(1, (tonumber(row.x) or 1) - xOffset)
+            row.y = math.max(1, (tonumber(row.y) or 1) - yOffset)
+            groups[group][#groups[group] + 1] = row
+        end
     end
-    SETTINGS_LAYOUT = { version = 1, title = L["小怪技能设置"], cards = {
-        { id = "master", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" }, content = { kind = "grid", items = groups.master } },
-        { id = "text", title = L["文本设置"], collapsible = true,
-            placement = { target = "master", side = "below", align = "start" }, content = { kind = "grid", items = groups.text } },
-        { id = "voice", title = L["语音设置"], collapsible = true,
-            placement = { target = "text", side = "below", align = "start" }, content = { kind = "grid", items = groups.voice } },
-        { id = "cast", title = L["施法设置"], collapsible = true,
-            placement = { target = "voice", side = "below", align = "start" }, content = { kind = "grid", items = groups.cast } },
-        { id = "target", title = L["被点名提示"], collapsible = true,
-            placement = { target = "cast", side = "below", align = "start" }, content = { kind = "grid", items = groups.target } },
+    local cardGap = 14
+    local wideColumnRatio = 1.38 / 2.38
+    local narrowColumnRatio = 1 / 2.38
+    local wideColumn = { ratio = wideColumnRatio, offset = -cardGap * wideColumnRatio }
+    local narrowColumn = { ratio = narrowColumnRatio, offset = -cardGap * narrowColumnRatio }
+    SETTINGS_LAYOUT = { version = 1, title = L["小怪技能设置"],
+        settingsListWidthPercent = 100, settingsLayoutBreakpoint = 880, cards = {
+        { id = "master", title = L["通用设置"], collapsible = false,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
+            content = { kind = "grid", items = groups.master },
+            settingsList = { summaryEnabled = true } },
+        { id = "text", title = GC.markup.accent .. L["文本设置"] .. "|r", headerIcon = 134939, collapsible = false,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = wideColumn,
+                narrow = { target = "$container", width = { ratio = 1 } } },
+            content = { kind = "grid", items = groups.text },
+            settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
+                    { controls = { { key = "showBunBar", presentation = "pill" }, { key = "showTimerBar", presentation = "pill" }, { key = "showNameplate", presentation = "pill" } } },
+                    { controlsLayout = "fieldRow", controls = { { key = "eventColorEnabled", role = "label" }, { key = "eventColorMode" }, { key = "eventColor" } } },
+                    { controlsLayout = "fieldRow", controls = { { key = "centralEnabled", role = "label" }, { key = "centralLead", width = 92 }, { key = "centralText" } } },
+                    { controlsLayout = "fieldRow", controls = { { key = "countdownEnabled", role = "label" }, { key = "preAlertText" } } },
+                    { controlsLayout = "fieldRow", controls = { { key = "timerBarRenameEnabled", role = "label" }, { key = "timerBarRenameText" } } },
+                } } },
+        { id = "voice", title = GC.markup.accent .. L["语音设置"] .. "|r", headerIcon = 132161, collapsible = false,
+            placement = { target = "text", side = "below", align = "start", gap = cardGap, width = wideColumn,
+                rowAfter = { "text", "cast" },
+                narrow = { target = "cast", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
+            content = { kind = "grid", items = groups.voice },
+            settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
+                    { controlsLayout = "compactVoice", controls = { { key = "tr1Enabled", role = "label" }, { key = "tr1Source" }, { key = "tr1Label" }, { key = "tr1LSM" }, { key = "tr1Path" }, { key = "tr1ValueTest", width = 35 } } },
+                    { key = "description_trash_voice_2", informational = true },
+                    { controlsLayout = "fieldRow", controls = { { key = "tr2Enabled", role = "label" }, { key = "tr2CountdownLead" } } },
+                    { controlsLayout = "compactVoice", controls = { { key = "tr2PlayTextEnabled", role = "label" }, { key = "tr2Source" }, { key = "tr2Label" }, { key = "tr2LSM" }, { key = "tr2Path" }, { key = "tr2ValueTest", width = 35 } } },
+                } } },
+        { id = "cast", title = GC.markup.accent .. L["施法设置"] .. "|r", headerIcon = 136243, collapsible = false,
+            placement = { target = "text", side = "right", align = "start", gap = cardGap, width = narrowColumn,
+                narrow = { target = "text", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
+            content = { kind = "grid", items = groups.cast },
+            settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
+                { key = "ringEnabled" },
+                { key = "castProgressBarEnabled" },
+                { key = "ringCastCheckEnabled" },
+                { key = "castProgressBarRenameEnabled", children = { { key = "castProgressBarRenameText", indent = 28 } } },
+            } } },
+        { id = "target", title = GC.markup.accent .. L["被点名提示"] .. "|r", headerIcon = 135779, collapsible = false,
+            placement = { target = "voice", side = "right", align = "start", gap = cardGap, width = narrowColumn,
+                narrow = { target = "voice", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
+            content = { kind = "grid", items = groups.target },
+            settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
+                { key = "targetAlertStartEnabled" },
+                { key = "targetVisualHeading", informational = true },
+                { controls = { { key = "targetAlertRingEnabled", presentation = "pill" }, { key = "targetAlertTextEnabledV2", presentation = "pill" }, { key = "targetAlertIconEnabled", presentation = "pill" } } },
+                { key = "targetAlertStealthEnabledV2" },
+                { key = "targetAlertTankEnabled" },
+                { key = "targetAudioHeading", informational = true },
+                { controls = { { key = "targetAlertStartLSM" }, { key = "targetAlertStartValueTest", width = 35 } } },
+                { key = "targetPresentationNote", informational = true },
+            } } },
     } }
     if ExwindTools and ExwindTools.RegisterModuleLayout then
         ExwindTools:RegisterModuleLayout(SPELL_SETTINGS_MODULE_KEY, SETTINGS_LAYOUT)
     end
+end
+
+local function ApplyTrashSettingsLabelLayout(widgets)
+    for _, card in ipairs(SETTINGS_LAYOUT.cards or {}) do
+        local list = card.settingsList
+        if list and list.cardPresentation == "exbossSkill" then
+            for _, row in ipairs(list.rows or {}) do
+                if row.controlsLayout == "fieldRow" or row.controlsLayout == "compactVoice" then
+                    for _, control in ipairs(row.controls or {}) do
+                        if control.role == "label" then
+                            local widget = widgets[control.key]
+                            if widget and widget.checkbox and widget.label then
+                                local label = widget.label
+                                label:ClearAllPoints()
+                                label:SetPoint("LEFT", widget.checkbox, "RIGHT", 7, 0)
+                                label:SetPoint("RIGHT", widget, "RIGHT", -2, 0)
+                                label:SetJustifyH("LEFT")
+                                label:SetWordWrap(true)
+                                if label.SetMaxLines then label:SetMaxLines(0) end
+                                if widget.SetClipsChildren then widget:SetClipsChildren(false) end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if Page._settingsCardSession then Page._settingsCardSession:Relayout() end
 end
 
 local function RefreshSettingsDynamicWidgets()
@@ -1089,6 +1211,13 @@ local function RefreshSettingsDynamicWidgets()
             settingsVoiceDisabledNote:Hide()
         end
     end
+
+    -- Reserve space only for the existing author notice when it is displayed.
+    settingsScrollFrame:ClearAllPoints()
+    local noticeHeight = settingsVoiceDisabledNote and settingsVoiceDisabledNote:IsShown()
+        and math.ceil(settingsVoiceDisabledNote:GetStringHeight() or 0) + 8 or 0
+    settingsScrollFrame:SetPoint("TOPLEFT", settingsPane, "TOPLEFT", 0, -noticeHeight)
+    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -4, 0)
 
     local modeDropdownWidget = widgets["eventColorMode"]
     local customColor = widgets["eventColor"]
@@ -1234,6 +1363,7 @@ local function RefreshSettingsDynamicWidgets()
             offsetSecondsWidget:Hide()
         end
     end
+    ApplyTrashSettingsLabelLayout(widgets)
 end
 
 local function LoadSelectedSpellToEditor()
@@ -1368,20 +1498,20 @@ local function RefreshDungeonButtonVisuals()
             btn:SetBackdropColor(0, 0, 0, 0)
             btn:SetBackdropBorderColor(0, 0, 0, 0)
             if active then
-                btn.iconFrame:SetBackdropColor(0.20, 0.43, 0.75, 0.95)
-                btn.iconFrame:SetBackdropBorderColor(0.76, 0.80, 0.90, 1)
+                btn.iconFrame:SetBackdropColor(unpack(GC.menuSelected))
+                btn.iconFrame:SetBackdropBorderColor(unpack(GC.accent))
                 btn.icon:SetDesaturated(false)
-                btn.text:SetTextColor(1, 0.85, 0.35)
+                btn.text:SetTextColor(unpack(GC.selectedText))
             elseif hovered then
-                btn.iconFrame:SetBackdropColor(0.18, 0.21, 0.32, 0.95)
-                btn.iconFrame:SetBackdropBorderColor(0.82, 0.86, 0.96, 1)
+                btn.iconFrame:SetBackdropColor(unpack(GC.secondaryHoverFill))
+                btn.iconFrame:SetBackdropBorderColor(unpack(GC.inputHoverBorder))
                 btn.icon:SetDesaturated(false)
-                btn.text:SetTextColor(0.95, 0.95, 0.95)
+                btn.text:SetTextColor(unpack(GC.text))
             else
-                btn.iconFrame:SetBackdropColor(0.15, 0.18, 0.28, 0.95)
-                btn.iconFrame:SetBackdropBorderColor(0.76, 0.80, 0.90, 1)
+                btn.iconFrame:SetBackdropColor(unpack(GC.input))
+                btn.iconFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
                 btn.icon:SetDesaturated(true)
-                btn.text:SetTextColor(0.75, 0.75, 0.78)
+                btn.text:SetTextColor(unpack(GC.textDim))
             end
         end
     end
@@ -1446,11 +1576,12 @@ local function AcquireDungeonButton()
     btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     btn.text = EXUI:CreateVisualFontString(btn, EXFONTFRAME, "GameFontNormalSmall")
-    btn.text:SetPoint("TOP", btn.iconFrame, "BOTTOM", 0, -2)
+    btn.text:SetPoint("TOP", btn.iconFrame, "BOTTOM", 0, -5)
     btn.text:SetWidth(84)
     btn.text:SetJustifyH("CENTER")
-    btn.text:SetWordWrap(false)
-    btn.text:SetFont(ExwindTools.MAIN_FONT, 13, "OUTLINE")
+    btn.text:SetWordWrap(true)
+    btn.text:SetMaxLines(0)
+    btn.text:SetFont(ExwindTools.MAIN_FONT, 13, "")
 
     btn:SetScript("OnEnter", function(self)
         self._hovered = true
@@ -1479,8 +1610,8 @@ local function AcquireSpellRow()
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    row:SetBackdropColor(0.02, 0.02, 0.03, 0.86)
-    row:SetBackdropBorderColor(0.25, 0.25, 0.28, 0.90)
+    row:SetBackdropColor(unpack(GC.card))
+    row:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     row.leftBar = EXUI:CreateVisualTexture(row, EXBACKGROUNDFRAME)
     row.leftBar:SetWidth(4)
@@ -1488,18 +1619,18 @@ local function AcquireSpellRow()
     row.leftBar:SetPoint("BOTTOMLEFT", 0, 0)
 
     local check = CreateFrame("CheckButton", nil, row, "MinimalCheckboxTemplate")
-    check:SetSize(22, 22)
+    check:SetSize(18, 18)
     check:SetPoint("LEFT", 6, 0)
     row.check = check
 
     local icon = EXUI:CreateVisualTexture(row, EXBASEFRAME)
-    icon:SetSize(29, 29)
+    icon:SetSize(32, 32)
     icon:SetPoint("LEFT", check, "RIGHT", 6, 0)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.icon = icon
 
     local alertIcon = EXUI:CreateVisualTexture(row, EXBORDERFRAME)
-    alertIcon:SetSize(22, 22)
+    alertIcon:SetSize(13, 13)
     alertIcon:SetPoint("LEFT", check, "RIGHT", 6, 0)
     alertIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     alertIcon:Hide()
@@ -1509,7 +1640,7 @@ local function AcquireSpellRow()
     textBlock:SetPoint("LEFT", icon, "RIGHT", 10, 0)
     textBlock:SetPoint("RIGHT", row, "RIGHT", -10, 0)
     textBlock:SetPoint("CENTER", row, "CENTER", 0, 0)
-    textBlock:SetHeight(32)
+    textBlock:SetHeight(43)
     row.textBlock = textBlock
 
     local label = EXUI:CreateVisualFontString(row, EXFONTFRAME, "GameFontHighlightSmall")
@@ -1517,14 +1648,14 @@ local function AcquireSpellRow()
     label:SetJustifyH("LEFT")
     label:SetJustifyV("TOP")
     label:SetWordWrap(true)
-    label:SetMaxLines(2)
+    label:SetMaxLines(0)
     label:SetSpacing(1)
-    label:SetFont(ExwindTools.MAIN_FONT, 16, "OUTLINE")
+    label:SetFont(ExwindTools.MAIN_FONT, 14, "")
     row.label = label
 
     local atlasHolder = CreateFrame("Frame", nil, row)
     atlasHolder:SetPoint("RIGHT", textBlock, "RIGHT", 0, -1)
-    atlasHolder:SetSize(35, 35)
+    atlasHolder:SetSize(18, 18)
     atlasHolder:EnableMouse(true)
     atlasHolder:Hide()
     row.testAtlasHolder = atlasHolder
@@ -1554,9 +1685,10 @@ local function AcquireSpellRow()
     meta:SetPoint("TOPRIGHT", textBlock, "BOTTOMRIGHT", 0, -4)
     meta:SetJustifyH("LEFT")
     meta:SetJustifyV("TOP")
-    meta:SetWordWrap(false)
-    meta:SetFont(ExwindTools.MAIN_FONT, 13, "")
-    meta:SetTextColor(0.72, 0.76, 0.82)
+    meta:SetWordWrap(true)
+    meta:SetMaxLines(0)
+    meta:SetFont(ExwindTools.MAIN_FONT, 11, "")
+    meta:SetTextColor(unpack(GC.textDim))
     row.meta = meta
 
     row:SetScript("OnEnter", function(self)
@@ -1589,7 +1721,7 @@ local function UpdateDetailCard()
     end
     local row = GetSelectedSpellRow()
     if not row then
-        SetDetailCardEmpty(L["点击左侧法术后，可在此查看法术描述。"])
+        SetDetailCardEmpty(L["点击上方法术后，可在此查看法术描述。"])
         return
     end
 
@@ -1606,13 +1738,21 @@ local function UpdateDetailCard()
         string.format("%s：%s", L["首次施放时间"], tostring(row.first or "-")),
         string.format("%s：%s", L["CD时间"], cdText),
     }
+    if type(cfg) == "table" and cfg.enabled == false then
+        infoLines[#infoLines + 1] = L["技能已停用，配置仍保留；重新启用后生效。"]
+    end
 
     if detailPlaceholder then detailPlaceholder:Hide() end
+    if detailEnableHost then detailEnableHost:Show() end
     detailIcon:Show()
+    if detailIconBorder then detailIconBorder:Show() end
     detailIcon:SetTexture(icon or 134400)
+    local disabled = type(cfg) == "table" and cfg.enabled == false
+    detailIcon:SetDesaturated(disabled)
+    detailIcon:SetAlpha(disabled and 0.65 or 1)
     detailTitle:SetText(displayName)
-    detailMeta:SetText(string.format("%s  |cff7f8794spell:%s|r", tostring(row.mobName or "-"),
-        tostring(row.spellID or "-")))
+    detailMeta:SetText(string.format("%s  %sspell:%s|r", tostring(row.mobName or "-"),
+        GC.markup.placeholder, tostring(row.spellID or "-")))
     detailCast:SetText((castLine ~= "" and tostring(castLine)) or L["暂无施法信息"])
     detailBody:SetText((bodyText ~= "" and tostring(bodyText)) or L["暂无描述。"])
     detailInfo:SetText(table.concat(infoLines, "\n"))
@@ -1620,6 +1760,34 @@ local function UpdateDetailCard()
         detailDivider:Show()
     end
     RefreshDetailCardLayout()
+end
+
+local function RelayoutDungeonNavigation()
+    if not (mapScrollChild and mapPane) then return end
+    local cellWidth = math.max(1, (mapScrollChild:GetWidth() - 21) / 4)
+    local iconSize = math.max(1, math.min(90, cellWidth - 2))
+    local heights = {}
+    for i, tab in ipairs(activeDungeonButtons) do
+        tab:SetWidth(cellWidth)
+        tab.iconFrame:SetSize(iconSize, iconSize)
+        tab.text:SetWidth(math.max(1, cellWidth - 4))
+        local row = math.floor((i - 1) / 4) + 1
+        heights[row] = math.max(heights[row] or 0, iconSize + 6 + math.ceil(tab.text:GetStringHeight() or 0))
+    end
+    local y, visibleHeight = 0, 0
+    for row = 1, math.max(1, math.ceil(#activeDungeonButtons / 4)) do
+        local height = heights[row] or (iconSize + 24)
+        for i = (row - 1) * 4 + 1, math.min(row * 4, #activeDungeonButtons) do
+            local tab = activeDungeonButtons[i]
+            tab:ClearAllPoints()
+            tab:SetPoint("TOPLEFT", ((i - 1) % 4) * (cellWidth + 7), -y)
+            tab:SetHeight(height)
+        end
+        if row <= 2 then visibleHeight = y + height end
+        y = y + height + 12
+    end
+    mapScrollChild:SetHeight(math.max(1, y - 12 + 4))
+    mapPane:SetHeight(81 + visibleHeight + 4)
 end
 
 -- [业务排序边界] 地图按钮顺序来自 GetDungeonRows；迁移只能改变选择卡几何/皮肤，不能重排或复制数据。
@@ -1631,15 +1799,15 @@ local function BuildDungeonButtons()
 
     local rows = GetDungeonRows()
     local perRow = 4
-    local gapX = 3
-    local gapY = 2
+    local gapX = 7
+    local gapY = 12
     local leftPad = 0
     local topPad = 0
     local availableWidth = (mapScrollChild:GetWidth() or 208) - (leftPad * 2)
-    if availableWidth < 200 then availableWidth = 200 end
+    availableWidth = math.max(1, availableWidth)
     local gridWidth = math.max(1, availableWidth - ((perRow - 1) * gapX))
     local columnUnit = gridWidth / perRow
-    local cellHeight = 106
+    local cellHeight = math.min(90, columnUnit - 2) + 24
     local contentHeight = 0
 
     for i = 1, #rows do
@@ -1656,7 +1824,7 @@ local function BuildDungeonButtons()
         local cellRight = math.ceil((gridCol + 1) * columnUnit)
         local cellWidth = math.max(1, cellRight - cellLeft)
         btn:SetSize(cellWidth, cellHeight)
-        local iconSize = math.min(90, math.max(46, cellWidth - 2))
+        local iconSize = math.min(90, math.max(1, cellWidth - 2))
         btn.iconFrame:SetSize(iconSize, iconSize)
         btn.iconFrame:ClearAllPoints()
         btn.iconFrame:SetPoint("TOP", 0, -1)
@@ -1681,11 +1849,42 @@ local function BuildDungeonButtons()
 
     -- 只更新内容高度，绝不覆盖宿主已分配的左栏宽度。
     mapScrollChild:SetHeight(math.max(1, contentHeight + topPad + 4))
+    local visibleRows = math.min(2, math.max(1, math.ceil(#rows / perRow)))
+    RelayoutDungeonNavigation()
 
     RefreshDungeonButtonVisuals()
 end
 
 -- [业务排序边界] 法术列表维持解析后的 map/NPC/spell 顺序与当前筛选；紧凑行可换外观，但不能重排、改选择身份或每次重建整页。
+-- Read-only context labels from the already resolved rows; no new filtering or binding.
+local function RefreshMobRoster(rows)
+    if not rosterChild then return end
+    local seen, count, y = {}, 0, 0
+    for _, row in ipairs(rows) do
+        if not seen[row.npcID] then
+            seen[row.npcID] = true
+            count = count + 1
+            local label = rosterLabels[count]
+            if not label then
+                label = EXUI:CreateVisualFontString(rosterChild, EXFONTFRAME, "GameFontNormal")
+                label:SetFont(ExwindTools.MAIN_FONT, 14, "")
+                label:SetJustifyH("LEFT")
+                label:SetWordWrap(true)
+                label:SetSpacing(5)
+                rosterLabels[count] = label
+            end
+            label:ClearAllPoints()
+            label:SetPoint("TOPLEFT", 9, -y - 10)
+            label:SetWidth(math.max(1, rosterChild:GetWidth() - 18))
+            label:SetText(tostring(row.mobName or "") .. "\n" .. GC.markup.placeholder .. "ID: " .. tostring(row.npcID or "-") .. "|r")
+            label:Show()
+            y = y + math.max(58, (label:GetStringHeight() or 0) + 23)
+        end
+    end
+    for i = count + 1, #rosterLabels do rosterLabels[i]:Hide() end
+    rosterChild:SetHeight(math.max(1, y))
+end
+
 function Page:RefreshSpellList()
     _spellListBuildToken = _spellListBuildToken + 1
     local token = _spellListBuildToken
@@ -1695,6 +1894,7 @@ function Page:RefreshSpellList()
     end
 
     local rows = GetSpellRows(selectedMapID)
+    RefreshMobRoster(rows)
     local enabledRows = {}
     local disabledRows = {}
     for i = 1, #rows do
@@ -1758,8 +1958,8 @@ function Page:RefreshSpellList()
         else
             row.testAtlasHolder:Hide()
         end
-        row.meta:SetText(string.format("%s  |cff7f8794spell:%s|r", tostring(rowData.mobName or ""),
-            tostring(rowData.spellID or "-")))
+        row.meta:SetText(string.format("%s  %sspell:%s|r", tostring(rowData.mobName or ""),
+            GC.markup.placeholder, tostring(rowData.spellID or "-")))
         row._selected = (rowData.npcID == selectedNPCID and rowData.spellID == selectedSpellID)
         row._hovered = false
         row._applyVisual = function(self)
@@ -1767,27 +1967,26 @@ function Page:RefreshSpellList()
             local bg = Clamp01(self._borderG, 0.38)
             local bb = Clamp01(self._borderB, 0.38)
             if self._selected then
-                self:SetBackdropColor(0.08, 0.18, 0.30, 0.95)
+                self:SetBackdropColor(unpack(GC.menuSelected))
                 self:SetBackdropBorderColor(Clamp01(br * 1.15, 1), Clamp01(bg * 1.15, 1), Clamp01(bb * 1.15, 1), 1)
                 self.leftBar:SetColorTexture(Clamp01(br * 1.15, 1), Clamp01(bg * 1.15, 1), Clamp01(bb * 1.15, 1), 1)
             elseif self._hovered then
-                self:SetBackdropColor(0.08, 0.08, 0.08, 0.88)
+                self:SetBackdropColor(unpack(GC.menuHover))
                 self:SetBackdropBorderColor(Clamp01(br * 1.08, 1), Clamp01(bg * 1.08, 1), Clamp01(bb * 1.08, 1), 1)
                 self.leftBar:SetColorTexture(Clamp01(br * 1.08, 1), Clamp01(bg * 1.08, 1), Clamp01(bb * 1.08, 1), 1)
             else
-                self:SetBackdropColor(0.04, 0.04, 0.04, 0.8)
+                self:SetBackdropColor(unpack(GC.card))
                 self:SetBackdropBorderColor(br, bg, bb, 0.95)
                 self.leftBar:SetColorTexture(br, bg, bb, 0.95)
             end
             if self._enabled == true then
                 self.icon:SetVertexColor(1, 1, 1)
-                self.label:SetTextColor(self._selected and 1 or 0.95, self._selected and 0.86 or 0.95,
-                    self._selected and 0.48 or 0.95)
-                self.meta:SetTextColor(0.72, 0.76, 0.82)
+                self.label:SetTextColor(unpack(self._selected and GC.selectedText or GC.text))
+                self.meta:SetTextColor(unpack(GC.textDim))
             else
                 self.icon:SetVertexColor(0.55, 0.55, 0.55)
-                self.label:SetTextColor(0.62, 0.62, 0.64)
-                self.meta:SetTextColor(0.48, 0.48, 0.52)
+                self.label:SetTextColor(unpack(GC.textDisabled))
+                self.meta:SetTextColor(unpack(GC.textPlaceholder))
             end
         end
 
@@ -1818,7 +2017,8 @@ function Page:RefreshSpellList()
         end
         local totalRows = math.max(1, math.ceil(#orderedRows / C.SPELL_CARD.cols))
         local totalH = totalRows * C.SPELL_CARD.height + math.max(0, totalRows - 1) * C.SPELL_CARD.gapY + 8
-        spellScrollChild:SetHeight(math.max(200, totalH))
+        spellScrollChild:SetHeight(math.max(1, totalH))
+        Page:RelayoutPrototype()
         if not selectedNPCID and not selectedSpellID and orderedRows[1] then
             selectedNPCID = orderedRows[1].npcID
             selectedSpellID = orderedRows[1].spellID
@@ -1830,8 +2030,9 @@ function Page:RefreshSpellList()
 
     local function BuildSync()
         local totalW = (spellScrollChild:GetWidth() or 360)
-        if totalW < 240 then totalW = 360 end
-        local usableW = math.max(240, totalW - 2)
+        totalW = math.max(1, totalW)
+        C.SPELL_CARD.cols = totalW <= 650 and 2 or 4
+        local usableW = math.max(1, totalW - 2)
         local cardW = math.floor((usableW - ((C.SPELL_CARD.cols - 1) * C.SPELL_CARD.gapX)) / C.SPELL_CARD.cols)
         for i = 1, #orderedRows do
             BuildOne(orderedRows[i], i, cardW)
@@ -1841,8 +2042,9 @@ function Page:RefreshSpellList()
 
     local function BuildAsync()
         local totalW = (spellScrollChild:GetWidth() or 360)
-        if totalW < 240 then totalW = 360 end
-        local usableW = math.max(240, totalW - 2)
+        totalW = math.max(1, totalW)
+        C.SPELL_CARD.cols = totalW <= 650 and 2 or 4
+        local usableW = math.max(1, totalW - 2)
         local cardW = math.floor((usableW - ((C.SPELL_CARD.cols - 1) * C.SPELL_CARD.gapX)) / C.SPELL_CARD.cols)
         for i = 1, #orderedRows do
             if not IsValid() then
@@ -1928,7 +2130,7 @@ function Page:RenderSettingsGrid(resetScroll)
     if w < 100 then
         w = 860
     end
-    settingsScrollChild:SetWidth(w - 42)
+    settingsScrollChild:SetWidth(math.max(1, settingsScrollFrame:GetWidth() - 4))
     if resetScroll == true then
         settingsScrollFrame:SetVerticalScroll(0)
     end
@@ -1940,9 +2142,11 @@ function Page:RenderSettingsGrid(resetScroll)
     Page._settingsCardSession = Grid:MountCards(settingsScrollChild, SETTINGS_LAYOUT, {
         pageId = SPELL_SETTINGS_MODULE_KEY,
         regionId = "trash-spell-editor",
+        layoutDefaults = { left = 0, right = 0, top = 0, bottom = 0, gap = 14 },
         config = db,
         moduleKey = SPELL_SETTINGS_MODULE_KEY,
         scrollFrame = settingsScrollFrame,
+        exbossSummaryEnableHost = detailEnableHost,
     })
     RefreshSettingsDynamicWidgets()
 end
@@ -1955,17 +2159,48 @@ local function EnsureUI(parent)
 
     root = CreateFrame("Frame", nil, parent)
     root:SetAllPoints(parent)
+    root:SetScript("OnSizeChanged", function(self)
+        if self._prototypeReflowPending then return end
+        self._prototypeReflowPending = true
+        C_Timer.After(0, function()
+            self._prototypeReflowPending = false
+            if Page._visible then Page:RelayoutPrototype() end
+        end)
+    end)
 
-    local leftW = 380
+    local leftW = 248
     local topLeftH = 212
     local topRightH = 170
-    local gap = 8
+    local gap = 14
 
     -- Boss 页左上没有副本选择的外层 Backdrop；这里只保留不可见定位容器，滚动框自身
     -- 即为唯一可见边界，消除小怪页多出来的一层嵌套框。
     mapPane = CreateFrame("Frame", nil, root)
     mapPane:SetPoint("TOPLEFT", 8, -8)
     mapPane:SetSize(leftW, topLeftH)
+
+    mapTitle = EXUI:CreateVisualFontString(mapPane, EXFONTFRAME, "GameFontNormal")
+    mapTitle:SetPoint("TOPLEFT", 0, -18)
+    mapTitle:SetFont(ExwindTools.MAIN_FONT, 16, "")
+    mapTitle:SetText(L["小怪技能设置"])
+    local mapLabel = EXUI:CreateVisualFontString(mapPane, EXFONTFRAME, "GameFontNormal")
+    mapLabel:SetPoint("TOPLEFT", 0, -58)
+    mapLabel:SetFont(ExwindTools.MAIN_FONT, 13, "")
+    mapLabel:SetTextColor(unpack(GC.textDim))
+    mapLabel:SetText(L["副本切换"])
+    rosterPane = CreateFrame("Frame", nil, root)
+    rosterTitle = EXUI:CreateVisualFontString(rosterPane, EXFONTFRAME, "GameFontNormal")
+    rosterTitle:SetPoint("TOPLEFT", 0, 0)
+    rosterTitle:SetFont(ExwindTools.MAIN_FONT, 13, "")
+    rosterTitle:SetTextColor(unpack(GC.textDim))
+    rosterTitle:SetText(L["小怪列表"])
+    rosterScroll = CreateFrame("ScrollFrame", nil, rosterPane, "ScrollFrameTemplate")
+    rosterScroll:SetPoint("TOPLEFT", 0, -23)
+    rosterScroll:SetPoint("BOTTOMRIGHT", -4, 0)
+    rosterChild = CreateFrame("Frame", nil, rosterScroll)
+    rosterChild:SetSize(200, 1)
+    rosterScroll:SetScrollChild(rosterChild)
+    if ExBoss.UI.ApplyModernScrollBarSkin then ExBoss.UI.ApplyModernScrollBarSkin(rosterScroll) end
 
     -- 左栏下半部与 Boss 页一致：仅作布局宿主，不再套一层可见 Backdrop。
     -- 每条法术卡片保留自己的边框，避免“列表外框 + 卡片外框”的双重嵌套。
@@ -1975,11 +2210,31 @@ local function EnsureUI(parent)
     spellPane:SetWidth(leftW)
 
     detailPane = CreateSectionBackdrop(root)
+    detailPane:SetBackdropColor(unpack(GC.card))
+    detailPane:SetBackdropBorderColor(unpack(GC.panelBorder))
+    EXUI:SetControlSurface(detailPane, 10, GC.card, GC.panelBorder)
     detailPane:SetPoint("TOPLEFT", mapPane, "TOPRIGHT", gap, 0)
     detailPane:SetPoint("TOPRIGHT", -8, -8)
     detailPane:SetHeight(topRightH)
+    detailPane._exDetailLayoutWidth = 0
+    detailPane._exDetailLayoutPending = false
+    detailPane:SetScript("OnSizeChanged", function(self, width)
+        local nextWidth = math.floor((tonumber(width) or 0) + 0.5)
+        if nextWidth <= 0 or nextWidth == self._exDetailLayoutWidth then return end
+        self._exDetailLayoutWidth = nextWidth
+        if self._exDetailLayoutPending then return end
+        self._exDetailLayoutPending = true
+        C_Timer.After(0, function()
+            self._exDetailLayoutPending = false
+            if self:IsShown() then
+                RefreshDetailCardLayout()
+            end
+        end)
+    end)
 
     settingsPane = CreateSectionBackdrop(root)
+    settingsPane:SetBackdropColor(0, 0, 0, 0)
+    settingsPane:SetBackdropBorderColor(0, 0, 0, 0)
     settingsPane:SetPoint("TOPLEFT", detailPane, "BOTTOMLEFT", 0, -gap)
     settingsPane:SetPoint("BOTTOMRIGHT", -8, 8)
 
@@ -1987,10 +2242,10 @@ local function EnsureUI(parent)
     if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
         ExBoss.UI.ApplyModernScrollBarSkin(mapScrollFrame)
     end
-    mapScrollFrame:SetPoint("TOPLEFT", mapPane, "TOPLEFT", 0, -8)
-    mapScrollFrame:SetPoint("TOPRIGHT", mapPane, "TOPRIGHT", -8, -8)
+    mapScrollFrame:SetPoint("TOPLEFT", mapPane, "TOPLEFT", 0, -81)
+    mapScrollFrame:SetPoint("TOPRIGHT", mapPane, "TOPRIGHT", -4, -81)
     mapScrollFrame:SetPoint("BOTTOMLEFT", mapPane, "BOTTOMLEFT", 0, 2)
-    mapScrollFrame:SetPoint("BOTTOMRIGHT", mapPane, "BOTTOMRIGHT", -8, 2)
+    mapScrollFrame:SetPoint("BOTTOMRIGHT", mapPane, "BOTTOMRIGHT", -4, 2)
 
     mapScrollChild = CreateFrame("Frame", nil, mapScrollFrame)
     mapScrollChild:SetSize(208, 1)
@@ -2007,43 +2262,53 @@ local function EnsureUI(parent)
     detailPlaceholder = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontDisableSmall")
     detailPlaceholder:SetPoint("CENTER", 0, 0)
     detailPlaceholder:SetTextColor(unpack(GC.textPlaceholder))
-    detailPlaceholder:SetText(L["点击左侧法术后，可在此查看法术描述。"])
+    detailPlaceholder:SetText(L["点击上方法术后，可在此查看法术描述。"])
+
+    detailEnableHost = CreateFrame("Frame", nil, detailPane)
+    detailEnableHost:SetSize(154, 28)
+    detailEnableHost:SetPoint("TOPRIGHT", detailPane, "TOPRIGHT", -14, -9)
+    detailEnableHost:Hide()
 
     detailIcon = EXUI:CreateVisualTexture(detailPane, EXBASEFRAME)
-    detailIcon:SetSize(52, 52)
-    detailIcon:SetPoint("TOPLEFT", 10, -12)
+    detailIcon:SetSize(46, 46)
+    detailIcon:SetPoint("TOPLEFT", 14, -14)
     detailIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    detailIconBorder = CreateFrame("Frame", nil, detailPane, "BackdropTemplate")
+    detailIconBorder:SetSize(48, 48)
+    detailIconBorder:SetPoint("TOPLEFT", detailIcon, "TOPLEFT", -1, 1)
+    detailIconBorder:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    detailIconBorder:SetBackdropBorderColor(unpack(GC.accent))
 
     detailTitle = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontNormalLarge")
     detailTitle:SetPoint("TOPLEFT", detailIcon, "TOPRIGHT", 8, -1)
     detailTitle:SetJustifyH("LEFT")
-    detailTitle:SetWordWrap(false)
-    detailTitle:SetFont(ExwindTools.MAIN_FONT, 23, "OUTLINE")
+    detailTitle:SetWordWrap(true)
+    detailTitle:SetFont(ExwindTools.MAIN_FONT, 21, "")
     detailTitle:SetTextColor(unpack(GC.text))
 
     detailMeta = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
-    detailMeta:SetPoint("LEFT", detailTitle, "RIGHT", 10, 0)
+    detailMeta:SetPoint("TOPLEFT", detailTitle, "BOTTOMLEFT", 0, -2)
     detailMeta:SetJustifyH("LEFT")
-    detailMeta:SetWordWrap(false)
-    detailMeta:SetFont(ExwindTools.MAIN_FONT, 16, "")
+    detailMeta:SetWordWrap(true)
+    detailMeta:SetFont(ExwindTools.MAIN_FONT, 11, "")
     detailMeta:SetTextColor(unpack(GC.textDim))
 
     detailCast = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontNormal")
-    detailCast:SetPoint("TOPLEFT", detailTitle, "BOTTOMLEFT", 0, -2)
-    detailCast:SetPoint("RIGHT", detailPane, "RIGHT", -18, 0)
+    detailCast:SetPoint("TOPLEFT", detailMeta, "BOTTOMLEFT", 0, -4)
+    detailCast:SetWidth(1)
     detailCast:SetJustifyH("LEFT")
-    detailCast:SetFont(ExwindTools.MAIN_FONT, 15, "OUTLINE")
+    detailCast:SetFont(ExwindTools.MAIN_FONT, 12, "")
     detailCast:SetTextColor(unpack(GC.text))
 
     detailBody = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
-    detailBody:SetPoint("TOPLEFT", detailCast, "BOTTOMLEFT", 0, -8)
-    detailBody:SetPoint("RIGHT", detailPane, "RIGHT", -18, 0)
+    detailBody:SetPoint("TOPLEFT", detailCast, "BOTTOMLEFT", 0, -5)
+    detailBody:SetWidth(1)
     detailBody:SetJustifyH("LEFT")
     detailBody:SetJustifyV("TOP")
     detailBody:SetWordWrap(true)
     detailBody:SetSpacing(2)
-    detailBody:SetFont(ExwindTools.MAIN_FONT, 16, "OUTLINE")
-    detailBody:SetTextColor(1, 0.82, 0.2)
+    detailBody:SetFont(ExwindTools.MAIN_FONT, 12, "")
+    detailBody:SetTextColor(unpack(GC.textDim))
 
     detailDivider = EXUI:CreateVisualTexture(detailPane, EXBORDERFRAME)
     detailDivider:SetPoint("BOTTOMLEFT", detailPane, "BOTTOMLEFT", 14, 10)
@@ -2062,12 +2327,12 @@ local function EnsureUI(parent)
 
     local settingsTitle = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormal")
     settingsTitle:SetPoint("TOPLEFT", 10, -8)
-    settingsTitle:SetText(L["当前法术设置"])
+    settingsTitle:SetText("")
     settingsTitle:SetTextColor(unpack(GC.text))
     settingsTitle:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
 
     settingsVoiceDisabledNote = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormalSmall")
-    settingsVoiceDisabledNote:SetPoint("TOPLEFT", settingsPane, "TOPLEFT", 150, -10)
+    settingsVoiceDisabledNote:SetPoint("TOPLEFT", settingsPane, "TOPLEFT", 0, -2)
     settingsVoiceDisabledNote:SetPoint("RIGHT", settingsPane, "RIGHT", -28, 0)
     settingsVoiceDisabledNote:SetJustifyH("LEFT")
     settingsVoiceDisabledNote:SetWordWrap(true)
@@ -2075,8 +2340,8 @@ local function EnsureUI(parent)
     settingsVoiceDisabledNote:Hide()
 
     settingsScrollFrame = CreateFrame("ScrollFrame", nil, settingsPane, "ScrollFrameTemplate")
-    settingsScrollFrame:SetPoint("TOPLEFT", 2, -30)
-    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -22, 4)
+    settingsScrollFrame:SetPoint("TOPLEFT", 0, -28)
+    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -4, 0)
     settingsScrollChild = CreateFrame("Frame", nil, settingsScrollFrame)
     settingsScrollChild:SetWidth(900)
     settingsScrollChild:SetHeight(420)
@@ -2086,7 +2351,7 @@ local function EnsureUI(parent)
         ExBoss.UI.ApplyModernScrollBarSkin(spellScrollFrame)
         ExBoss.UI.ApplyModernScrollBarSkin(settingsScrollFrame)
     end
-    SetDetailCardEmpty(L["点击左侧法术后，可在此查看法术描述。"])
+    SetDetailCardEmpty(L["点击上方法术后，可在此查看法术描述。"])
 end
 
 -- Unified Shell 的 B+C 必须由 Core 按 20:80 分配。本页原本把这套结构硬编码
@@ -2094,77 +2359,92 @@ end
 -- [共享宿主边界] 只可调整 left/map 与 content/spell/settings 三 pane 的锚点；Unified 挂载、独立滚动与选择状态禁止修改。
 local function ApplyHostLayout(leftHost, contentHost)
     if not root or not contentHost then return end
-    local gap = 8
-
     root:SetParent(contentHost)
     root:ClearAllPoints()
     root:SetAllPoints(contentHost)
-
-    if leftHost then
-        mapPane:SetParent(leftHost)
-        mapPane:ClearAllPoints()
-        mapPane:SetPoint("TOPLEFT", leftHost, "TOPLEFT", 8, -8)
-        mapPane:SetPoint("TOPRIGHT", leftHost, "TOPRIGHT", -8, -8)
-        mapPane:SetHeight(212)
-
-        spellPane:SetParent(leftHost)
-        spellPane:ClearAllPoints()
-        spellPane:SetPoint("TOPLEFT", mapPane, "BOTTOMLEFT", 0, -gap)
-        spellPane:SetPoint("BOTTOMRIGHT", leftHost, "BOTTOMRIGHT", -8, 8)
-
-        detailPane:SetParent(contentHost)
-        detailPane:ClearAllPoints()
-        detailPane:SetPoint("TOPLEFT", contentHost, "TOPLEFT", 8, -8)
-        detailPane:SetPoint("TOPRIGHT", contentHost, "TOPRIGHT", -8, -8)
-        detailPane:SetHeight(170)
-
-        settingsPane:SetParent(contentHost)
-        settingsPane:ClearAllPoints()
-        settingsPane:SetPoint("TOPLEFT", detailPane, "BOTTOMLEFT", 0, -gap)
-        settingsPane:SetPoint("BOTTOMRIGHT", contentHost, "BOTTOMRIGHT", -8, 8)
-
-        -- 必须以 ScrollFrame 的实际可视宽度为准。此前 mapPane / scrollbar 的两次
-        -- 留边没有同步，内容比视口宽 16px，第四列就会被右侧裁切。
-        if mapScrollChild and mapScrollFrame then
-            mapScrollChild:SetWidth(math.max(1, (mapScrollFrame:GetWidth() or 0) - 4))
-        end
-        if spellScrollChild and spellScrollFrame then
-            spellScrollChild:SetWidth(math.max(1, (spellScrollFrame:GetWidth() or 0) - 4))
-        end
-    else
-        mapPane:SetParent(root)
-        mapPane:ClearAllPoints()
-        mapPane:SetPoint("TOPLEFT", 8, -8)
-        mapPane:SetSize(380, 212)
-
-        spellPane:SetParent(root)
-        spellPane:ClearAllPoints()
-        spellPane:SetPoint("TOPLEFT", mapPane, "BOTTOMLEFT", 0, -gap)
-        spellPane:SetPoint("BOTTOMLEFT", 8, 8)
-        spellPane:SetWidth(380)
-
-        detailPane:SetParent(root)
-        detailPane:ClearAllPoints()
-        detailPane:SetPoint("TOPLEFT", mapPane, "TOPRIGHT", gap, 0)
-        detailPane:SetPoint("TOPRIGHT", -8, -8)
-        detailPane:SetHeight(170)
-
-        settingsPane:SetParent(root)
-        settingsPane:ClearAllPoints()
-        settingsPane:SetPoint("TOPLEFT", detailPane, "BOTTOMLEFT", 0, -gap)
-        settingsPane:SetPoint("BOTTOMRIGHT", -8, 8)
-        if mapScrollChild and mapScrollFrame then
-            mapScrollChild:SetWidth(math.max(1, (mapScrollFrame:GetWidth() or 0) - 4))
-        end
-        if spellScrollChild and spellScrollFrame then
-            spellScrollChild:SetWidth(math.max(1, (spellScrollFrame:GetWidth() or 0) - 4))
-        end
-    end
-
+    local nav = leftHost or root
+    local width = math.max(1, contentHost:GetWidth())
+    local navWidth = leftHost and leftHost:GetWidth() or (width <= 1180 and 220 or math.max(248, math.min(320, width * 0.21)))
+    local mainLeft = leftHost and 16 or navWidth + 16
+    local navInset = navWidth <= 220 and 11 or 14
+    mapTitle:ClearAllPoints()
+    mapTitle:SetPoint("TOPLEFT", 0, navWidth <= 220 and -15 or -18)
+    mapPane:SetParent(nav)
+    mapPane:ClearAllPoints()
+    mapPane:SetPoint("TOPLEFT", nav, "TOPLEFT", navInset, 0)
+    mapPane:SetWidth(math.max(1, navWidth - navInset * 2))
+    rosterPane:SetParent(nav)
+    rosterPane:ClearAllPoints()
+    rosterPane:SetPoint("TOPLEFT", mapPane, "BOTTOMLEFT", 0, -27)
+    rosterPane:SetPoint("BOTTOMLEFT", nav, "BOTTOMLEFT", navInset, navWidth <= 220 and 15 or 18)
+    rosterPane:SetWidth(math.max(1, navWidth - navInset * 2))
+    rosterChild:SetWidth(math.max(1, rosterPane:GetWidth() - 4))
+    spellPane:SetParent(root)
+    spellPane:ClearAllPoints()
+    spellPane:SetPoint("TOPLEFT", root, "TOPLEFT", mainLeft, -16)
+    spellPane:SetPoint("TOPRIGHT", root, "TOPRIGHT", -16, -16)
+    spellPane:SetHeight(C.SPELL_CARD.height * 2 + C.SPELL_CARD.gapY + 8)
+    detailPane:SetParent(root)
+    detailPane:ClearAllPoints()
+    detailPane:SetPoint("TOPLEFT", spellPane, "BOTTOMLEFT", 0, -14)
+    detailPane:SetPoint("TOPRIGHT", spellPane, "BOTTOMRIGHT", 0, -14)
+    settingsPane:SetParent(root)
+    settingsPane:ClearAllPoints()
+    settingsPane:SetPoint("TOPLEFT", detailPane, "BOTTOMLEFT", 0, -14)
+    settingsPane:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -16, 16)
+    mapScrollChild:SetWidth(math.max(1, mapScrollFrame:GetWidth() - 4))
+    spellScrollChild:SetWidth(math.max(1, spellScrollFrame:GetWidth() - 4))
+    C.SPELL_CARD.cols = spellScrollChild:GetWidth() <= 650 and 2 or 4
     mapPane:Show()
+    rosterPane:Show()
     spellPane:Show()
     detailPane:Show()
     settingsPane:Show()
+end
+
+-- Geometry-only resize, preserving the mounted controls and all selection state.
+function Page:RelayoutPrototype()
+    if not (Page._visible and Page._prototypeContentHost) then return end
+    ApplyHostLayout(Page._prototypeLeftHost, Page._prototypeContentHost)
+    local width = math.max(1, spellScrollChild:GetWidth())
+    local columns = C.SPELL_CARD.cols
+    local cardWidth = math.max(1, (width - (columns - 1) * C.SPELL_CARD.gapX) / columns)
+    local rowHeights = {}
+    for i, item in ipairs(activeSpellRows) do
+        item:SetWidth(cardWidth)
+        local textHeight = math.ceil(item.label:GetStringHeight() or 0) + 4 + math.ceil(item.meta:GetStringHeight() or 0)
+        item.textBlock:SetHeight(textHeight)
+        local row = math.floor((i - 1) / columns) + 1
+        rowHeights[row] = math.max(rowHeights[row] or C.SPELL_CARD.height, textHeight + 20)
+    end
+    local y, visibleHeight = 4, 0
+    for row = 1, math.max(1, math.ceil(#activeSpellRows / columns)) do
+        local height = rowHeights[row] or C.SPELL_CARD.height
+        for i = (row - 1) * columns + 1, math.min(row * columns, #activeSpellRows) do
+            local item = activeSpellRows[i]
+            item:ClearAllPoints()
+            item:SetPoint("TOPLEFT", ((i - 1) % columns) * (cardWidth + C.SPELL_CARD.gapX), -y)
+            item:SetSize(cardWidth, height)
+        end
+        if row <= 2 then visibleHeight = y + height end
+        y = y + height + C.SPELL_CARD.gapY
+    end
+    spellScrollChild:SetHeight(math.max(1, y - C.SPELL_CARD.gapY + 4))
+    spellPane:SetHeight(math.max(C.SPELL_CARD.height * 2 + C.SPELL_CARD.gapY + 8, visibleHeight + 4))
+    RelayoutDungeonNavigation()
+    local y = 0
+    for _, label in ipairs(rosterLabels) do
+        if label:IsShown() then
+            label:ClearAllPoints()
+            label:SetPoint("TOPLEFT", 9, -y - 10)
+            label:SetWidth(math.max(1, rosterChild:GetWidth() - 18))
+            y = y + math.max(58, (label:GetStringHeight() or 0) + 23)
+        end
+    end
+    rosterChild:SetHeight(math.max(1, y))
+    RefreshDetailCardLayout()
+    settingsScrollChild:SetWidth(math.max(1, settingsScrollFrame:GetWidth() - 4))
+    if Page._settingsCardSession then Page._settingsCardSession:Relayout() end
 end
 
 if ExwindTools and type(ExwindTools.WatchState) == "function" then
@@ -2247,6 +2527,7 @@ function Page:Render(leftHost, contentFrame)
     end
     if not contentFrame then return end
     EnsureUI(contentFrame)
+    Page._prototypeLeftHost, Page._prototypeContentHost = leftHost, contentFrame
     ApplyHostLayout(leftHost, contentFrame)
     root:Show()
     Page._visible = true
@@ -2277,6 +2558,7 @@ function Page:Hide()
         root:Hide()
     end
     if mapPane then mapPane:Hide() end
+    if rosterPane then rosterPane:Hide() end
     if spellPane then spellPane:Hide() end
     if detailPane then detailPane:Hide() end
     if settingsPane then settingsPane:Hide() end

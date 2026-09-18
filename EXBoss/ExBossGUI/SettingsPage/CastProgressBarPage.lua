@@ -49,58 +49,36 @@ local SLIDER_GROUP_PATHS = {
 local COMMON_OPTS = {
     bindRoot = true,
     poolType = "CastProgressBarModuleCommonSettingsGroup",
-    presentation = "settings-list",
-    fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
     fields = {
-        { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
-        { path = "layout.direction", type = "dropdown", label = L["增长方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } }, row = 1 },
-        { path = "layout.maxVisible", type = "slider", label = L["最大显示"], min = 1, max = 5, step = 1, row = 1 },
-        { path = "layout.spacing", type = "slider", label = L["条目间距"], min = -24, max = 24, step = 1, row = 1 },
-        { path = "timerGroup.progressMode", type = "dropdown", label = L["进度方向"], items = { { L["剩余时间"], "REMAINING" }, { L["已过时间"], "ELAPSED" } }, row = 2 },
-        { path = "timerGroup.iconSide", type = "dropdown", label = L["图标位置"], items = { { L["左侧"], "LEFT" }, { L["右侧"], "RIGHT" }, { L["居中"], "CENTER" } }, row = 2 },
-        { path = "timerGroup.showIcon", type = "checkbox", label = L["显示图标"], row = 2, presentation = "switch" },
-        { path = "timerGroup.showBorder", type = "checkbox", label = L["显示边框"], row = 2, presentation = "switch" },
+        { path = "enabled", type = "checkbox", label = L["启用"] },
+        { path = "layout.direction", type = "dropdown", label = L["增长方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } } },
+        { path = "layout.maxVisible", type = "slider", label = L["最大显示"], min = 1, max = 5, step = 1 },
+        { path = "layout.spacing", type = "slider", label = L["条目间距"], min = -24, max = 24, step = 1 },
+        { path = "timerGroup.progressMode", type = "dropdown", label = L["进度方向"], items = { { L["剩余时间"], "REMAINING" }, { L["已过时间"], "ELAPSED" } } },
+        { path = "timerGroup.iconSide", type = "dropdown", label = L["图标位置"], items = { { L["左侧"], "LEFT" }, { L["右侧"], "RIGHT" }, { L["居中"], "CENTER" } } },
+        { path = "timerGroup.showIcon", type = "checkbox", label = L["显示图标"] },
+        { path = "timerGroup.showBorder", type = "checkbox", label = L["显示边框"] },
     },
 }
 
 -- [卡片/Grid 迁移边界：CastProgressBar 设置页]
--- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 允许：普通 sections 单声明及纯展示排列；Core 统一测量，原语义选项保留。
 -- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
 -- modulecommonsettings/anchorgroup/timerBarGroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local GRID_LAYOUT = {
     version = 1,
     title = L["施法进度条设置"],
-    cards = {
-        { id = "module-common", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
-            settingsList = { preserveHeader = true, title = L["通用"], rows = {
-                { key = "moduleCommon", fullWidth = true },
-            } } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_GROUP_OPTS },
-            settingsList = { preserveHeader = true, title = L["锚点"], rows = {
-                { key = "anchor", fullWidth = true },
-            } } },
-        { id = "timer-bar", title = L["施法条外观"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "timerbargroup", key = "timerGroup" },
-            settingsList = { preserveHeader = true, title = L["外观"], rows = {
-                { key = "timerGroup", fullWidth = true },
-            } } },
-        { id = "spell-font", title = L["法术名称"], collapsible = true,
-            placement = { target = "timer-bar", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell" },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_spell", fullWidth = true },
-            } } },
-        { id = "timer-font", title = L["时间文本"], collapsible = true,
-            placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer" },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_timer", fullWidth = true },
-            } } },
+    sections = {
+        { kind = "composite", id = "module-common", title = L["通用"],
+            component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+        { kind = "composite", id = "anchor", title = L["锚点"],
+            component = "anchorgroup", key = "anchor", opts = ANCHOR_GROUP_OPTS },
+        { kind = "composite", id = "timer-bar", title = L["外观"],
+            component = "timerbargroup", key = "timerGroup" },
+        { kind = "composite", id = "spell-font", title = L["法术名称"],
+            component = "fontgroup", key = "font_spell" },
+        { kind = "composite", id = "timer-font", title = L["时间文本"],
+            component = "fontgroup", key = "font_timer" },
     },
 }
 

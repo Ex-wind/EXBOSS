@@ -17,9 +17,9 @@ local BACKDROP = {
 }
 local BACKDROP_SIMPLE = { bgFile = "Interface\\Buttons\\WHITE8X8" }
 local THEME = {
-    Background = { 0.04, 0.04, 0.05, 0.98 }, Border = { 0.25, 0.25, 0.28, 1 },
-    Primary = { 0.64, 0.19, 0.79 }, Success = { 0.13, 0.77, 0.37 },
-    TextMain = { 0.9, 0.9, 0.9, 1 }, TextSub = { 0.6, 0.6, 0.65, 1 },
+    Background = GC.popup, Border = GC.popupBorder,
+    Primary = GC.accent, Success = { 0.13, 0.77, 0.37 },
+    TextMain = GC.text, TextSub = GC.textDim,
 }
 local ROLE_LABELS = {
     mplus_tank = L["大秘境坦克"], mplus_heal = L["大秘境治疗"], mplus_dps = L["大秘境 DPS"],
@@ -28,6 +28,8 @@ local ROLE_LABELS = {
 local ROLE_ORDER = { "mplus_tank", "mplus_heal", "mplus_dps", "raid_tank", "raid_heal", "raid_dps" }
 
 local scrollFrame, scrollChild, exportPopup, uiBuilt
+local exportFormSession, RelayoutExportPresentation
+local importFormSession, importNameLabel, importParseButton, RelayoutImportPresentation
 local exportNameInput, exportAppearanceCheck, exportAppearanceDropdown, exportMplusCheck, exportRaidCheck, exportStatus
 local importInputBox, importSummary, importStatus, importAppearanceCheck, importLegacyCheck, exportSection, importSection, importButton, apiImportButton
 local importRoleChecks, parsedTransfer
@@ -39,12 +41,12 @@ end
 
 local function CreateSmallButton(parent, text, onClick)
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(unpack(GC.secondaryText))
+    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(unpack(GC.transparent))
     local label = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormal")
     label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(THEME.TextMain))
     button:SetScript("OnClick", onClick)
-    button:SetScript("OnEnter", function(self) self:SetBackdropColor(unpack(GC.accentHover)) end)
-    button:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(GC.secondaryText)) end)
+    button:SetScript("OnEnter", function(self) self:SetBackdropColor(unpack(GC.secondaryHoverFill)) end)
+    button:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(GC.transparent)) end)
     return button
 end
 
@@ -72,7 +74,7 @@ end
 local function StyleInput(control)
     if control and control.SetBackdropColor then
         control:SetBackdropColor(unpack(GC.input))
-        control:SetBackdropBorderColor(unpack(GC.inputHoverBorder))
+        control:SetBackdropBorderColor(unpack(GC.panelBorder))
     end
     local edit = GetNativeEditBox(control)
     if edit and edit.SetTextColor then
@@ -102,7 +104,7 @@ local function ShowExportPopup(encoded, name)
     if not exportPopup then
         local popup = CreateFrame("Frame", "ExBoss_ExportPopup", UIParent, "BackdropTemplate")
         popup:SetSize(600, 350); popup:SetPoint("CENTER"); popup:SetFrameStrata("FULLSCREEN_DIALOG")
-        popup:SetBackdrop(BACKDROP); popup:SetBackdropColor(0.06, 0.06, 0.08, 0.98); popup:SetBackdropBorderColor(unpack(THEME.Border))
+        popup:SetBackdrop(BACKDROP); popup:SetBackdropColor(unpack(GC.popup)); popup:SetBackdropBorderColor(unpack(GC.popupBorder))
         popup:EnableMouse(true); popup:SetMovable(true); popup:RegisterForDrag("LeftButton")
         popup:SetScript("OnDragStart", popup.StartMoving); popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
         if not tContains(UISpecialFrames, "ExBoss_ExportPopup") then table.insert(UISpecialFrames, "ExBoss_ExportPopup") end
@@ -110,7 +112,7 @@ local function ShowExportPopup(encoded, name)
         title:SetFont(ExwindTools.MAIN_FONT or "Fonts\\FRIZQT__.TTF", 22, "OUTLINE"); title:SetPoint("TOP", 0, -15); popup.Title = title
         local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -5, -5); close:SetScript("OnClick", function() popup:Hide() end)
         local hint = EXUI:CreateVisualFontString(popup, EXFONTFRAME, "GameFontHighlight")
-        hint:SetPoint("TOP", title, "BOTTOM", 0, -8); hint:SetTextColor(0.8, 0.8, 0.8); hint:SetText("|cffffd100Ctrl+C|r " .. L["复制，或点击"] .. " |cffffd100" .. L["全选复制"] .. "|r")
+        hint:SetPoint("TOP", title, "BOTTOM", 0, -8); hint:SetTextColor(unpack(GC.textDim)); hint:SetText(GC.markup.accent .. "Ctrl+C|r " .. L["复制，或点击"] .. " " .. GC.markup.accent .. L["全选复制"] .. "|r")
         popup.ExportTextInput = CreateMultiLineEditBox(popup, 560, 200)
         popup.ExportTextInput:SetPoint("TOP", hint, "BOTTOM", 0, -10)
         local selectButton = CreateSmallButton(popup, L["全选复制"], function() FocusAndHighlight(popup.ExportTextInput) end)
@@ -149,6 +151,8 @@ local function SetStatus(target, text, ok)
     if not target then return end
     local color = ok == true and "|cff33ee77" or ok == false and "|cffff6666" or "|cffbfc8d6"
     target:SetText(color .. tostring(text or "") .. "|r")
+    if target == exportStatus and RelayoutExportPresentation then RelayoutExportPresentation() end
+    if target == importStatus and RelayoutImportPresentation then RelayoutImportPresentation() end
 end
 
 local function IsChecked(check)
@@ -166,6 +170,10 @@ local function IsVisible(frame)
 end
 
 local function ClearImportNameRows()
+    if importFormSession then
+        importFormSession:Release()
+        importFormSession = nil
+    end
     for _, row in ipairs(importNameRows or {}) do
         row.label:Hide()
         row.input:Hide()
@@ -239,60 +247,58 @@ local function IsImportNameRowSelected(row)
     return false
 end
 
+RelayoutImportPresentation = function()
+    if not importFormSession or not importSection then return end
+    local height = importFormSession:Relayout(math.max(1, importSection:GetWidth() or 1))
+    importSection._settingsCard:SetContentHeight(height)
+    if scrollChild then
+        local exportHeight = exportSection and exportSection._settingsCard and exportSection._settingsCard:GetHeight() or 0
+        scrollChild:SetHeight(math.max(740, exportHeight + importSection._settingsCard:GetHeight() + 48))
+    end
+end
+
 local function LayoutImportControls()
-    -- [卡片/Grid 迁移边界：导入动态高度]
-    -- 只可把现有可见控件的几何与 importSection/scrollChild 高度反馈接入共享容器；选择顺序、输入、导入回调与部分失败语义禁止修改。
+    -- 只重排原同parent控件；原选择、显隐、职责顺序及输入对象保持。
     if not importSection then return end
-    local y = -230
+    if importFormSession then
+        importFormSession:Release()
+        importFormSession = nil
+    end
+    local records = {}
+    local function Add(widget, kind)
+        records[#records + 1] = { cells = { { widget = widget, type = kind } } }
+    end
+    Add(importNameLabel, "text")
+    Add(importInputBox, "multiline")
+    Add(importParseButton, "button")
     for _, row in ipairs(importNameRows) do
         local visible = IsImportNameRowSelected(row)
         SetVisible(row.label, visible)
         SetVisible(row.input, visible)
         if visible then
-            row.label:ClearAllPoints(); row.label:SetPoint("TOPLEFT", 14, y)
-            row.input:ClearAllPoints(); row.input:SetPoint("TOPLEFT", 14, y - 18)
-            y = y - 52
+            Add(row.label, "text")
+            Add(row.input, "input")
         end
     end
 
-    if importSummary then
-        importSummary:ClearAllPoints(); importSummary:SetPoint("TOPLEFT", 14, y); importSummary:SetPoint("TOPRIGHT", -14, y)
-        y = y - math.max(60, (tonumber(importSummary._lineCount) or 0) * 14 + 10)
-    end
-
+    if importSummary then Add(importSummary, "text") end
     for _, check in ipairs({ importAppearanceCheck, importLegacyCheck }) do
-        if IsVisible(check) then
-            check:ClearAllPoints(); check:SetPoint("TOPLEFT", 14, y)
-            y = y - 28
-        end
+        if IsVisible(check) then Add(check, "switch") end
     end
     for _, slot in ipairs(ROLE_ORDER) do
         local check = importRoleChecks and importRoleChecks[slot]
-        if IsVisible(check) then
-            check:ClearAllPoints(); check:SetPoint("TOPLEFT", 14, y)
-            y = y - 25
-        end
+        if IsVisible(check) then Add(check, "switch") end
     end
-    if importButton then
-        importButton:ClearAllPoints(); importButton:SetPoint("TOPLEFT", 14, y)
-        y = y - 44
-    end
-    if apiImportButton then
-        apiImportButton:ClearAllPoints(); apiImportButton:SetPoint("TOPLEFT", 14, y)
-        y = y - 44
-    end
-    if importStatus then
-        importStatus:ClearAllPoints(); importStatus:SetPoint("TOPLEFT", 14, y); importStatus:SetPoint("TOPRIGHT", -14, y)
-        y = y - 34
-    end
-    local height = math.max(700, -y + 18)
-    importSection:SetHeight(height)
-    if importSection._settingsCard then importSection._settingsCard:SetContentHeight(height) end
-    if scrollChild then
-        local exportHeight = exportSection and exportSection._settingsCard and exportSection._settingsCard:GetHeight() or 0
-        local importHeight = importSection._settingsCard and importSection._settingsCard:GetHeight() or height
-        scrollChild:SetHeight(math.max(740, exportHeight + importHeight + 48))
-    end
+    if importButton then Add(importButton, "button") end
+    if apiImportButton then Add(apiImportButton, "button") end
+    if importStatus then Add(importStatus, "text") end
+    EXUI:PrepareSettingsListCard(importSection._settingsCard, { preserveHeader = false })
+    importFormSession = _G.ExwindGrid:MountSettingsForm(importSection, {
+        kind = "table", id = "transfer-import", title = L["导入"],
+        columns = { { title = "" } }, supportsAdd = false, records = records,
+    })
+    importFormSession.card = importSection._settingsCard
+    RelayoutImportPresentation()
 end
 
 local function RefreshImportNameRows()
@@ -615,8 +621,25 @@ end
 -- 允许：只按共享规范替换导出/导入两块的外观、锚点、宽高与动态高度报告。
 -- 禁止：修改控件创建顺序、导入/导出/解析/重载回调、输入焦点、职责槽顺序或结果弹窗行为。
 -- SectionBg 当前是真实 parent；若换共享卡必须整体承接其 children，不能只把背景当容器声明后遗留子控件。
+RelayoutExportPresentation = function()
+    if not exportFormSession or not exportSection then return end
+    local height = exportFormSession:Relayout(math.max(1, exportSection:GetWidth() or 1))
+    exportSection._settingsCard:SetContentHeight(height)
+    if scrollChild and importSection and importSection._settingsCard then
+        scrollChild:SetHeight(math.max(740, exportSection._settingsCard:GetHeight() + importSection._settingsCard:GetHeight() + 48))
+    end
+end
+
 local function EnsureUI(contentFrame)
     if uiBuilt and scrollFrame and scrollFrame:GetParent() == contentFrame then return end
+    if exportFormSession then
+        exportFormSession:Release()
+        exportFormSession = nil
+    end
+    if importFormSession then
+        importFormSession:Release()
+        importFormSession = nil
+    end
     if scrollFrame then scrollFrame:Hide(); scrollFrame:SetParent(UIParent) end
     scrollFrame = CreateFrame("ScrollFrame", nil, contentFrame, "ScrollFrameTemplate")
     if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then ExBoss.UI.ApplyModernScrollBarSkin(scrollFrame) end
@@ -631,7 +654,8 @@ local function EnsureUI(contentFrame)
     exportSection._settingsCard:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -10, -16)
     exportSection:SetHeight(300); exportSection._settingsCard:SetContentHeight(300)
     local y = -42
-    MakeLabel(exportSection, L["导出包名称（可选，供接收方识别）"]):SetPoint("TOPLEFT", 14, y); y = y - 20
+    local exportNameLabel = MakeLabel(exportSection, L["导出包名称（可选，供接收方识别）"])
+    exportNameLabel:SetPoint("TOPLEFT", 14, y); y = y - 20
     exportNameInput = CreateSingleLineEditBox(exportSection, columnWidth - 28)
     exportNameInput:SetPoint("TOPLEFT", 14, y); y = y - 44
     exportAppearanceCheck = EXUI:CreateCheckbox(exportSection, L["是否导出外观配置"], true, function() end)
@@ -655,11 +679,12 @@ local function EnsureUI(contentFrame)
     importSection._settingsCard:SetPoint("TOPRIGHT", exportSection._settingsCard, "BOTTOMRIGHT", 0, -10)
     importSection:SetHeight(700); importSection._settingsCard:SetContentHeight(700)
     local iy = -42
-    MakeLabel(importSection, L["粘贴导出字符串"]):SetPoint("TOPLEFT", 14, iy); iy = iy - 20
+    importNameLabel = MakeLabel(importSection, L["粘贴导出字符串"])
+    importNameLabel:SetPoint("TOPLEFT", 14, iy); iy = iy - 20
     importInputBox = CreateMultiLineEditBox(importSection, columnWidth - 28, 110)
     importInputBox:SetPoint("TOPLEFT", 14, iy); iy = iy - 122
-    local parse = CreateActionButton(importSection, L["解析"], ParseImport, THEME.Success)
-    parse:SetSize(100, 32); parse:SetPoint("TOPLEFT", 14, iy); iy = iy - 46
+    importParseButton = CreateActionButton(importSection, L["解析"], ParseImport, THEME.Success)
+    importParseButton:SetSize(100, 32); importParseButton:SetPoint("TOPLEFT", 14, iy); iy = iy - 46
     importSummary = EXUI:CreateVisualFontString(importSection, EXFONTFRAME, "GameFontHighlightSmall")
     importSummary:SetPoint("TOPLEFT", 14, iy); importSummary:SetPoint("TOPRIGHT", -14, iy); importSummary:SetJustifyH("LEFT"); importSummary:SetJustifyV("TOP"); importSummary:SetTextColor(unpack(THEME.TextMain)); importSummary:SetText("")
     importSummary._lineCount = 0
@@ -682,6 +707,23 @@ local function EnsureUI(contentFrame)
     importStatus:SetPoint("BOTTOMLEFT", 14, 16); importStatus:SetPoint("BOTTOMRIGHT", -14, 16); importStatus:SetJustifyH("LEFT"); importStatus:SetTextColor(unpack(THEME.TextSub)); importStatus:SetText("")
 
     scrollChild:SetSize(width, exportSection._settingsCard:GetHeight() + importSection._settingsCard:GetHeight() + 48)
+    EXUI:PrepareSettingsListCard(exportSection._settingsCard, { preserveHeader = false })
+    exportFormSession = _G.ExwindGrid:MountSettingsForm(exportSection, {
+        kind = "table", id = "transfer-export", title = L["导出"],
+        columns = { { title = "" } }, supportsAdd = false,
+        records = {
+            { cells = { { widget = exportNameLabel, type = "text" } } },
+            { cells = { { widget = exportNameInput, type = "input" } } },
+            { cells = { { widget = exportAppearanceCheck, type = "switch" } } },
+            { cells = { { widget = exportAppearanceDropdown, type = "select" } } },
+            { cells = { { widget = exportMplusCheck, type = "switch" } } },
+            { cells = { { widget = exportRaidCheck, type = "switch" } } },
+            { cells = { { widget = exportButton, type = "button" } } },
+            { cells = { { widget = exportStatus, type = "text" } } },
+        },
+    })
+    exportFormSession.card = exportSection._settingsCard
+    RelayoutExportPresentation()
     uiBuilt = true
     RefreshAppearanceDropdown()
     ClearImportChoices()
@@ -691,6 +733,8 @@ function Page:Render(contentFrame)
     EnsureUI(contentFrame)
     scrollFrame:SetParent(contentFrame); scrollFrame:ClearAllPoints(); scrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4); scrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -26, 4)
     scrollChild:SetWidth(math.max(600, (contentFrame:GetWidth() or 1100) - 50))
+    RelayoutExportPresentation()
+    RelayoutImportPresentation()
     scrollFrame:Show()
     RefreshAppearanceDropdown()
 end

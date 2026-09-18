@@ -21,8 +21,8 @@ local GRID_COLS = 200
 local MAX_COUNTDOWN_DIGIT = tonumber(Runtime.GetMaxCountdownDigit and Runtime:GetMaxCountdownDigit()) or 5
 
 local SOURCE_ITEMS = {
-    { L["语音包"], "pack" },
-    { L["LSM音效"], "lsm" },
+    { value = "pack", label = L["语音包"] },
+    { value = "lsm", label = L["LSM音效"] },
 }
 
 -- [卡片/Grid 迁移边界：数字语音]
@@ -31,34 +31,18 @@ local SOURCE_ITEMS = {
 local LAYOUT = {
     version = 1,
     title = L["语音设置"],
-    cards = {
-        { id = "pull-countdown", title = L["开怪倒数"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "grid", items = {
-                { key = "pullCountdownEnabled", type = "checkbox", x = 1, y = 1, w = 96, h = 6, label = L["启用开怪倒数"] },
-                { key = "pullCountdownVoiceEnabled", type = "checkbox", x = 101, y = 1, w = 96, h = 6, label = L["为开怪倒数播放语音"] },
-            } },
-            settingsList = {
-                preserveHeader = true,
-                rows = {
-                    { key = "pullCountdownEnabled", label = L["启用开怪倒数"], presentation = "switch" },
-                    { key = "pullCountdownVoiceEnabled", label = L["为开怪倒数播放语音"], presentation = "switch" },
-                },
-            } },
-        { id = "digit-voice", title = L["数字语音"], collapsible = true,
-            placement = { target = "pull-countdown", side = "below", align = "start" },
-            content = { kind = "grid", items = {} },
-            settingsList = {
-                preserveHeader = true,
-                columns = {
-                    { title = L["数字"], width = 72 },
-                    { title = L["启用"], width = 72 },
-                    { title = L["来源"], weight = 1 },
-                    { title = L["音效选择"], weight = 1.6 },
-                    { title = L["试听"], width = 96 },
-                },
-                rows = {},
-            } },
+    sections = {
+        { kind = "settings", id = "pull-countdown", title = L["开怪倒数"], items = {
+            { key = "pullCountdownEnabled", type = "switch", label = L["启用开怪倒数"] },
+            { key = "pullCountdownVoiceEnabled", type = "switch", label = L["为开怪倒数播放语音"] },
+        } },
+        { kind = "table", id = "digit-voice", title = L["数字语音"],
+            columns = {
+                { title = L["数字"] }, { title = L["启用"] }, { title = L["来源"] },
+                { title = L["音效选择"] }, { title = L["试听"] },
+            },
+            supportsAdd = false, records = {},
+        },
     },
 }
 
@@ -95,63 +79,17 @@ local function ApplyDefaults(dst, defaults)
 end
 
 local function BuildLayout()
-    -- 重复数字行的 i 顺序是业务顺序；组合迁移只能包裹/定位整行，不能重排或改变 key。
+    -- 保留原数字顺序、key和原工厂语义；每行只声明一次。
     local layout = DeepCopy(LAYOUT)
-    local rows = layout.cards[2].content.items
-    local baseY = 1
+    local rows = layout.sections[2].records
     for i = 1, MAX_COUNTDOWN_DIGIT do
-        rows[#rows + 1] = {
-            key = "digitEnabled" .. tostring(i),
-            type = "checkbox",
-            x = 1,
-            y = baseY + ((i - 1) * 8),
-            w = 28,
-            h = 5,
-            label = string.format(L["数字 %d"], i),
-        }
-        rows[#rows + 1] = {
-            key = "digitSource" .. tostring(i),
-            type = "dropdown",
-            x = 31,
-            y = baseY + ((i - 1) * 8),
-            w = 38,
-            h = 5,
-            label = L["来源"],
-            items = SOURCE_ITEMS,
-            labelPos = "left",
-        }
-        rows[#rows + 1] = {
-            key = "digitLSM" .. tostring(i),
-            type = "lsm_sound",
-            x = 71,
-            y = baseY + ((i - 1) * 8),
-            w = 72,
-            h = 5,
-            label = L["LSM音效"],
-            labelPos = "left",
-        }
-        rows[#rows + 1] = {
-            key = "preview" .. tostring(i),
-            type = "button",
-            x = 151,
-            y = baseY + ((i - 1) * 8),
-            w = 24,
-            h = 5,
-            label = L["试听"],
-        }
-    end
-    local settingsRows = layout.cards[2].settingsList.rows
-    for i = 1, MAX_COUNTDOWN_DIGIT do
-        local suffix = tostring(i)
-        settingsRows[#settingsRows + 1] = {
-            cells = {
-                { text = string.format(L["数字 %d"], i) },
-                { key = "digitEnabled" .. suffix },
-                { key = "digitSource" .. suffix },
-                { key = "digitLSM" .. suffix },
-                { key = "preview" .. suffix },
-            },
-        }
+        rows[#rows + 1] = { cells = {
+            { text = string.format(L["数字 %d"], i) },
+            { key = "digitEnabled" .. tostring(i), type = "switch", label = string.format(L["数字 %d"], i) },
+            { key = "digitSource" .. tostring(i), type = "select", label = L["来源"], options = SOURCE_ITEMS },
+            { key = "digitLSM" .. tostring(i), type = "select", media = "sound", label = L["LSM音效"] },
+            { key = "preview" .. tostring(i), type = "button", label = L["试听"] },
+        } }
     end
     return layout
 end

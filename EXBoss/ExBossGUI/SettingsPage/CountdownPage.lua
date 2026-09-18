@@ -54,46 +54,34 @@ end
 local COMMON_OPTS = {
     bindRoot = true,
     poolType = "CountdownModuleCommonSettingsGroup",
-    fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
-    presentation = "settings-list",
     fields = {
-        { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
-        { path = "showDecimal", type = "checkbox", label = L["显示小数点"], row = 1, presentation = "switch" },
-        { path = "stackMax_1205", type = "slider", label = L["最大条数"], min = 1, max = 3, step = 1, row = 2 },
-        { path = "stackGap", type = "slider", label = L["上下间距"], min = 0, max = 20, step = 1, row = 2 },
-        { path = "growDir", type = "dropdown", label = L["生长方向"], items = { { L["向上生长"], "UP" }, { L["向下生长"], "DOWN" } }, row = 2 },
-        { key = "test", type = "button", label = L["测试倒计时"], onClick = TestCountdown, row = 2 },
+        { path = "enabled", type = "checkbox", label = L["启用"] },
+        { path = "showDecimal", type = "checkbox", label = L["显示小数点"] },
+        { path = "stackMax_1205", type = "slider", label = L["最大条数"], min = 1, max = 3, step = 1 },
+        { path = "stackGap", type = "slider", label = L["上下间距"], min = 0, max = 20, step = 1 },
+        { path = "growDir", type = "dropdown", label = L["生长方向"], items = { { L["向上生长"], "UP" }, { L["向下生长"], "DOWN" } } },
+        { key = "test", type = "button", label = L["测试倒计时"], onClick = TestCountdown },
     },
 }
 
 -- [卡片/Grid 迁移边界：Countdown 设置页]
--- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
+-- 允许：普通 sections 单声明及纯展示排列；Core 统一测量，原语义选项保留。
 -- 禁止：修改 key/type/path/opts、测试回调、Secret-safe 固定样本、预览或释放合同。
 -- modulecommonsettings/anchorgroup/icongroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local LAYOUT = {
     version = 1,
     title = L["屏幕倒计时"],
-    cards = {
-        { id = "module-common", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
-            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
-            settingsList = { preserveHeader = true, rows = { { key = "anchor", fullWidth = true } } } },
-        { id = "icon", title = L["图标外观"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "icongroup", key = "icon" },
-            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "icon", fullWidth = true } } } },
-        { id = "text-font", title = L["提示文字"], collapsible = true,
-            placement = { target = "icon", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_text" },
-            settingsList = { preserveHeader = true, rows = { { key = "font_text", fullWidth = true } } } },
-        { id = "time-font", title = L["倒计时数字"], collapsible = true,
-            placement = { target = "text-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_time" },
-            settingsList = { preserveHeader = true, rows = { { key = "font_time", fullWidth = true } } } },
+    sections = {
+        { kind = "composite", id = "module-common", title = L["通用设置"],
+            component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+        { kind = "composite", id = "anchor", title = L["锚点设置"],
+            component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+        { kind = "composite", id = "icon", title = L["外观"],
+            component = "icongroup", key = "icon" },
+        { kind = "composite", id = "text-font", title = L["提示文字"],
+            component = "fontgroup", key = "font_text" },
+        { kind = "composite", id = "time-font", title = L["倒计时数字"],
+            component = "fontgroup", key = "font_time" },
     },
 }
 

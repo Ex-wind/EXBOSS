@@ -22,38 +22,30 @@ end
 
 local COMMON_OPTS = {
     bindRoot = true, poolType = "FlashTextMediumModuleCommonSettingsGroup",
-    fixedLayout = { logicalWidth = 200, controlW = 46, controlH = 6, slotX = { 3, 53, 103, 153 }, firstY = 0, rowStep = 14 },
-    presentation = "settings-list",
     fields = {
-        { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
-        { path = "flashDuration", type = "slider", label = L["持续时间(秒)"], min = 0.5, max = 6, step = 0.5, row = 2 },
-        { key = "test", type = "button", label = L["测试文字公告"], onClick = TestFlashText, row = 2 },
+        { path = "enabled", type = "checkbox", label = L["启用"] },
+        { path = "flashDuration", type = "slider", label = L["持续时间(秒)"], min = 0.5, max = 6, step = 0.5 },
+        { key = "test", type = "button", label = L["测试文字公告"], onClick = TestFlashText },
     },
 }
 local ANCHOR_OPTS = GetFlashText():GetStandardAnchorGroupOptions()
 if type(ANCHOR_OPTS) ~= "table" then
     error("FlashTextMediumPage requires standard AnchorController group options", 2)
 end
--- [卡片/Grid 迁移边界：FlashTextMedium 设置页]
--- 允许：只按共享规范调整下列声明的 x/y/w/h 与外层卡片分组。
--- 禁止：修改 key/type/path/opts、测试按钮回调、预览、Slider 或释放合同。
+-- [普通 sections 声明边界：FlashTextMedium 设置页]
+-- Core 统一测量和排列；本页仅声明原复合控件及其语义选项。
+-- 禁止：修改 key/type/path、语义 opts、测试按钮回调、预览、Slider 或释放合同。
 -- modulecommonsettings/anchorgroup/fontgroup 是完整组合，不能拆成原子控件重拼。
 local LAYOUT = {
     version = 1,
     title = L["文字公告(中)"],
-    cards = {
-        { id = "module-common", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
-            settingsList = { preserveHeader = true, rows = { { key = "moduleCommon", fullWidth = true } } } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
-            settingsList = { preserveHeader = true, rows = { { key = "anchor", fullWidth = true } } } },
-        { id = "text-font", title = L["文字公告(中)"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_text", opts = { unboundedWidth = true } },
-            settingsList = { preserveHeader = true, title = L["外观"], rows = { { key = "font_text", fullWidth = true } } } },
+    sections = {
+        { kind = "composite", id = "module-common", title = L["通用设置"],
+            component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+        { kind = "composite", id = "anchor", title = L["锚点设置"],
+            component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+        { kind = "composite", id = "text-font", title = L["外观"],
+            component = "fontgroup", key = "font_text", opts = { unboundedWidth = true } },
     },
 }
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)

@@ -20,15 +20,6 @@ local UpdateConfigurationManagerButtonState = nil
 local DEFAULT_VOICE_PACK                  = "EXWIND(默认)"
 local ENGLISH_VOICE_PACK                  = "英文(ENG)"
 
-local THEME                               = {
-    accent = { 1.00, 0.82, 0.22 },
-    cyan   = { 0.24, 0.78, 1.00 },
-    ok     = { 0.20, 0.95, 0.50 },
-    muted  = { 0.55, 0.60, 0.68 },
-    border = { 0.18, 0.22, 0.28 },
-    cardBg = { 0.03, 0.04, 0.07 },
-}
-
 -- ─── 帮助函数 ─────────────────────────────────────────────────
 
 local function Bg(parent, r, g, b, a)
@@ -39,9 +30,12 @@ local function Bg(parent, r, g, b, a)
         edgeSize = 10,
         insets   = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    f:SetBackdropColor(r or 0.03, g or 0.04, b or 0.07, a or 0.92)
-    f:SetBackdropBorderColor(
-        THEME.border[1], THEME.border[2], THEME.border[3], 0.95)
+    if r ~= nil and g ~= nil and b ~= nil then
+        f:SetBackdropColor(r, g, b, a or 0.92)
+    else
+        f:SetBackdropColor(unpack(GC.card))
+    end
+    f:SetBackdropBorderColor(unpack(GC.panelBorder))
     return f
 end
 
@@ -917,11 +911,11 @@ end
 local function BuildVoicePackInfoBody()
     local info = GetCurrentPackInfo()
     local lines = {
-        string.format("|cff66d0ff%s|r", tostring(info.description or "")),
+        string.format("%s%s|r", GC.markup.textDim, tostring(info.description or "")),
         "",
-        string.format("|cffffd16d%s|r  %s", L["标签"], string.format(L["%d 标签"], tonumber(info.labelCount) or 0)),
-        string.format("|cffffd16d%s|r  %s", L["作者"], tostring(info.author or L["—"])),
-        string.format("|cffffd16d%s|r  %s", L["版本"], tostring(info.version or L["—"])),
+        string.format("%s%s|r  %s", GC.markup.accent, L["标签"], string.format(L["%d 标签"], tonumber(info.labelCount) or 0)),
+        string.format("%s%s|r  %s", GC.markup.accent, L["作者"], tostring(info.author or L["—"])),
+        string.format("%s%s|r  %s", GC.markup.accent, L["版本"], tostring(info.version or L["—"])),
         "",
         BuildMissingVoiceText(),
     }
@@ -929,11 +923,13 @@ local function BuildVoicePackInfoBody()
 end
 
 local function FindLayoutEntry(items, key)
-    if type(items) == "table" and type(items.cards) == "table" then
-        for i = 1, #items.cards do
-            local card = items.cards[i]
-            if card and (card.key == key or card.id == key) then return card end
-            local found = card and card.content and FindLayoutEntry(card.content.items, key)
+    if type(items) == "table" and type(items.sections) == "table" then
+        for i = 1, #items.sections do
+            local section = items.sections[i]
+            if section.id == key then return section end
+            if type(section.description) == "table" and section.description.key == key then return section.description end
+            if section.footerDescription and section.footerDescription.key == key then return section.footerDescription end
+            local found = FindLayoutEntry(section.items, key)
             if found then return found end
         end
     end
@@ -943,6 +939,7 @@ local function FindLayoutEntry(items, key)
             if item.key == key then
                 return item
             end
+            if type(item.description) == "table" and item.description.key == key then return item.description end
             if type(item.children) == "table" then
                 local found = FindLayoutEntry(item.children, key)
                 if found then
@@ -955,16 +952,24 @@ local function FindLayoutEntry(items, key)
 end
 
 -- [卡片/Grid 迁移边界：语音包与配置]
--- 允许：只按共享规范调整语音包、包详情、当前配置、Author 管理四组的 x/y/w/h 与外层卡片。
+-- 允许：四组使用共享单声明表单；原选项表直接引用，仅布局与说明归属由 Core 呈现。
 -- 禁止：修改职责槽/Author/外观的业务顺序、稳定 key、确认/重载/复制/改名/删除回调或页面 DB 投影。
--- 四组内容只使用共享 SettingsCard；卡片标题、折叠与 gutter 由 Core 统一拥有。
+-- 四组的标题、说明与排列由 Core 统一拥有；原选项生成时机、参数和次数保持。
+local function BuildVoicePackDetailsDescription(info)
+    local displayName = tostring(info.displayName or "")
+    local subtitle = tostring(info.subtitle or "")
+    if displayName == "" then return subtitle end
+    if subtitle == "" then return displayName end
+    return displayName .. "\n" .. subtitle
+end
+
 local function BuildConfigurationLayout()
     local info = GetCurrentPackInfo()
     local db = GetPageDB()
     local allConfigurations = BuildAllConfigurationItems()
     local layout = {
         {
-            key = "btn_toggle_grid_edit", type = "button", x = 88, y = 1, w = 11, h = 2,
+            key = "btn_toggle_grid_edit", type = "button",
             label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"],
             func = function()
                 local Grid = _G.ExwindGrid
@@ -976,53 +981,41 @@ local function BuildConfigurationLayout()
         },
 
         -- 左栏：语音包保持现状，后续单独调整。
-        { key = "selectedVoicePack", type = "dropdown", x = 5, y = 23, w = 50, h = 4, label = L["当前语音包"], items = BuildPackItemsForGrid(), labelPos = "top", labelWrap = true, labelMaxLines = 2, search = true },
-        { key = "desc_pack_info", type = "description", x = 5, y = 65, w = 50, h = 30, label = BuildVoicePackInfoBody() },
+        { key = "selectedVoicePack", type = "select", label = L["当前语音包"], originalOptions = BuildPackItemsForGrid(), search = true },
+        { key = "desc_pack_info", type = "description", label = BuildVoicePackInfoBody() },
 
         -- All active configuration choices live together.  User overrides
         -- remain internal and automatically follow their selected Author.
-        { key = "appearanceProfileID", type = "dropdown", x = 71, y = 22, w = 54, h = 4, label = L["外观配置"], items = BuildAppearanceProfileItems(), labelPos = "top", search = true },
-        { key = "author_mplus_tank", type = "dropdown", x = 71, y = 36, w = 54, h = 4, label = L["大秘境坦克 Author"], items = BuildAuthorPresetItems("mplus_tank"), labelPos = "top", search = true },
-        { key = "author_mplus_dps", type = "dropdown", x = 71, y = 48, w = 54, h = 4, label = L["大秘境 DPS Author"], items = BuildAuthorPresetItems("mplus_dps"), labelPos = "top", search = true },
-        { key = "author_mplus_heal", type = "dropdown", x = 71, y = 60, w = 54, h = 4, label = L["大秘境治疗 Author"], items = BuildAuthorPresetItems("mplus_heal"), labelPos = "top", search = true },
-        { key = "author_raid_tank", type = "dropdown", x = 71, y = 76, w = 54, h = 4, label = L["团本坦克 Author"], items = BuildAuthorPresetItems("raid_tank"), labelPos = "top", search = true },
-        { key = "author_raid_dps", type = "dropdown", x = 71, y = 88, w = 54, h = 4, label = L["团本 DPS Author"], items = BuildAuthorPresetItems("raid_dps"), labelPos = "top", search = true },
-        { key = "author_raid_heal", type = "dropdown", x = 71, y = 100, w = 54, h = 4, label = L["团本治疗 Author"], items = BuildAuthorPresetItems("raid_heal"), labelPos = "top", search = true },
+        { key = "appearanceProfileID", type = "select", label = L["外观配置"], originalOptions = BuildAppearanceProfileItems(), search = true },
+        { key = "author_mplus_tank", type = "select", label = L["大秘境坦克 Author"], originalOptions = BuildAuthorPresetItems("mplus_tank"), search = true },
+        { key = "author_mplus_dps", type = "select", label = L["大秘境 DPS Author"], originalOptions = BuildAuthorPresetItems("mplus_dps"), search = true },
+        { key = "author_mplus_heal", type = "select", label = L["大秘境治疗 Author"], originalOptions = BuildAuthorPresetItems("mplus_heal"), search = true },
+        { key = "author_raid_tank", type = "select", label = L["团本坦克 Author"], originalOptions = BuildAuthorPresetItems("raid_tank"), search = true },
+        { key = "author_raid_dps", type = "select", label = L["团本 DPS Author"], originalOptions = BuildAuthorPresetItems("raid_dps"), search = true },
+        { key = "author_raid_heal", type = "select", label = L["团本治疗 Author"], originalOptions = BuildAuthorPresetItems("raid_heal"), search = true },
     }
 
     local manageTop = 11
     local managedConfiguration = FindConfigurationRow(db.selectedConfiguration)
     local builtInDeleteHint = managedConfiguration and managedConfiguration.builtIn == true
         and ApplyStatusColor(L["内置 Author 无法重命名或删除"], false, true) or ""
-    layout[#layout + 1] = { key = "selectedConfiguration", type = "dropdown", x = 137, y = 23, w = 56, h = 4, label = L["选择 Author 配置"], items = allConfigurations, labelPos = "top", search = true }
-    layout[#layout + 1] = { key = "configurationName", type = "input", x = 137, y = 35, w = 56, h = 4, label = L["Author 名称"], labelPos = "top" }
-    layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", x = 137, y = 45, w = 18, h = 4, label = L["复制配置"], func = CopyManagedConfiguration }
-    layout[#layout + 1] = { key = "btn_rename_configuration", type = "button", x = 156, y = 45, w = 18, h = 4, label = L["重命名"], func = RenameManagedConfiguration }
-    layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", x = 175, y = 45, w = 18, h = 4, label = L["删除"], func = DeleteManagedConfiguration }
-    layout[#layout + 1] = { key = "desc_builtin_delete_hint", type = "description", x = 137, y = 51, w = 56, h = 3, label = builtInDeleteHint }
-    layout[#layout + 1] = { key = "desc_config_status", type = "description", x = 137, y = 57, w = 56, h = 4, label = ApplyStatusColor(pageStatus.configText, pageStatus.configOk, pageStatus.configOk == false) }
-    local groups = { picker = {}, details = {}, active = {}, manager = {} }
-    for _, row in ipairs(layout) do
-        local group
-        if row.key == "desc_pack_info" then group = "details"
-        elseif (tonumber(row.x) or 0) >= 135 then group = "manager"
-        elseif (tonumber(row.x) or 0) >= 69 then group = "active"
-        else group = "picker" end
-        local xOffset = group == "manager" and 136 or group == "active" and 70 or 4
-        local yOffset = group == "details" and 64 or group == "manager" and 22 or group == "active" and 21 or 0
-        row.x = math.max(1, (tonumber(row.x) or 1) - xOffset)
-        row.y = math.max(1, (tonumber(row.y) or 1) - yOffset)
-        groups[group][#groups[group] + 1] = row
-    end
-    return { version = 1, title = L["语音 / 配置"], cards = {
-        { id = "pack-picker", key = "card_pack_picker", title = L["语音包"], desc = L["选择当前生效的语音包。"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" }, content = { kind = "grid", items = groups.picker } },
-        { id = "pack-details", key = "card_pack_details", title = tostring(info.displayName or ""), desc = tostring(info.subtitle or ""), collapsible = true,
-            placement = { target = "pack-picker", side = "below", align = "start" }, content = { kind = "grid", items = groups.details } },
-        { id = "active-configurations", key = "card_active_configurations", title = L["当前配置选择"], desc = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"], collapsible = true,
-            placement = { target = "pack-details", side = "below", align = "start" }, content = { kind = "grid", items = groups.active } },
-        { id = "configuration-manager", key = "card_configuration_manager", title = L["Author 配置管理"], desc = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"], collapsible = true,
-            placement = { target = "active-configurations", side = "below", align = "start" }, content = { kind = "grid", items = groups.manager } },
+    layout[#layout + 1] = { key = "selectedConfiguration", type = "select", label = L["选择 Author 配置"], originalOptions = allConfigurations, search = true }
+    layout[#layout + 1] = { key = "configurationName", type = "input", label = L["Author 名称"] }
+    layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", label = L["复制配置"], func = CopyManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_rename_configuration", type = "button", label = L["重命名"], func = RenameManagedConfiguration }
+    layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", label = L["删除"], func = DeleteManagedConfiguration }
+    layout[#layout + 1] = { key = "desc_builtin_delete_hint", type = "description", label = builtInDeleteHint }
+    layout[#layout + 1] = { key = "desc_config_status", type = "description", label = ApplyStatusColor(pageStatus.configText, pageStatus.configOk, pageStatus.configOk == false) }
+    layout[15].description = layout[16]
+    return { version = 1, title = L["语音 / 配置"], sections = {
+        { kind = "settings", id = "pack-picker", title = L["语音包"], description = L["选择当前生效的语音包。"],
+            items = { layout[1], layout[2] } },
+        { kind = "settings", id = "pack-details", title = L["当前语音包"], description = BuildVoicePackDetailsDescription(info),
+            items = {}, footerDescription = layout[3] },
+        { kind = "settings", id = "active-configurations", title = L["当前配置选择"], description = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"],
+            items = { layout[4], layout[5], layout[6], layout[7], layout[8], layout[9], layout[10] } },
+        { kind = "settings", id = "configuration-manager", title = L["Author 配置管理"], description = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"],
+            items = { layout[11], layout[12], layout[13], layout[14], layout[15] }, footerDescription = layout[17] },
     } }
 end
 
@@ -1044,16 +1037,16 @@ local function UpdateLayoutData(layout)
 
     local updates = {
         btn_toggle_grid_edit = { label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"] },
-        selectedVoicePack = { items = BuildPackItemsForGrid() },
-        card_pack_details = { title = tostring(info.displayName or ""), desc = tostring(info.subtitle or "") },
+        selectedVoicePack = { originalOptions = BuildPackItemsForGrid() },
+        ["pack-details"] = { title = L["当前语音包"], description = BuildVoicePackDetailsDescription(info) },
         desc_pack_info = { label = BuildVoicePackInfoBody() },
-        appearanceProfileID = { items = BuildAppearanceProfileItems() },
-        author_mplus_tank = { items = BuildAuthorPresetItems("mplus_tank") },
-        author_mplus_dps = { items = BuildAuthorPresetItems("mplus_dps") },
-        author_mplus_heal = { items = BuildAuthorPresetItems("mplus_heal") },
-        author_raid_tank = { items = BuildAuthorPresetItems("raid_tank") },
-        author_raid_dps = { items = BuildAuthorPresetItems("raid_dps") },
-        author_raid_heal = { items = BuildAuthorPresetItems("raid_heal") },
+        appearanceProfileID = { originalOptions = BuildAppearanceProfileItems() },
+        author_mplus_tank = { originalOptions = BuildAuthorPresetItems("mplus_tank") },
+        author_mplus_dps = { originalOptions = BuildAuthorPresetItems("mplus_dps") },
+        author_mplus_heal = { originalOptions = BuildAuthorPresetItems("mplus_heal") },
+        author_raid_tank = { originalOptions = BuildAuthorPresetItems("raid_tank") },
+        author_raid_dps = { originalOptions = BuildAuthorPresetItems("raid_dps") },
+        author_raid_heal = { originalOptions = BuildAuthorPresetItems("raid_heal") },
         desc_config_status = { label = ApplyStatusColor(configStatusText, configStatusOk, configStatusOk == false) },
     }
 

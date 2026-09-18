@@ -4,6 +4,7 @@ ExBoss.UI.Panel.HomePage = ExBoss.UI.Panel.HomePage or {}
 local Page = ExBoss.UI.Panel.HomePage
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local EXUI = _G.ExwindTools and _G.ExwindTools.UI
+local GC = _G.ExwindTools and _G.ExwindTools.GUIColors
 
 do
     local zhCN = ExBoss.NewLocale and ExBoss:NewLocale("zhCN")
@@ -25,13 +26,6 @@ local missingDepsText = nil
 local RefreshPage = nil
 local pageLayoutData = nil
 local cardSession = nil
-
-local THEME = {
-    gold = { 1.00, 0.82, 0.35 },
-    cyan = { 0.36, 0.82, 1.00 },
-    green = { 0.48, 0.92, 0.72 },
-    red = { 1.00, 0.36, 0.32 },
-}
 
 local VOICE_PACKS = {
     "夏一可(Yike)", "顾衣衿(Guyijin)", "砂糖悠鸣(SatouYumei)", "糖糖酱(Tangtangjiang)",
@@ -57,18 +51,18 @@ local LOCALE_LABELS = {
 }
 
 local LOCALE_OPTIONS = {
-    { L["自动跟随客户端"], "AUTO" },
-    { L["强制 zhCN"], "zhCN" },
-    { L["强制 zhTW"], "zhTW" },
-    { L["强制 enUS"], "enUS" },
-    { L["强制 koKR"], "koKR" },
-    { L["强制 deDE"], "deDE" },
-    { L["强制 esES"], "esES" },
-    { L["强制 esMX"], "esMX" },
-    { L["强制 itIT"], "itIT" },
-    { L["强制 ptBR"], "ptBR" },
-    { L["强制 frFR"], "frFR" },
-    { L["强制 ruRU"], "ruRU" },
+    { value = "AUTO", label = L["自动跟随客户端"] },
+    { value = "zhCN", label = L["强制 zhCN"] },
+    { value = "zhTW", label = L["强制 zhTW"] },
+    { value = "enUS", label = L["强制 enUS"] },
+    { value = "koKR", label = L["强制 koKR"] },
+    { value = "deDE", label = L["强制 deDE"] },
+    { value = "esES", label = L["强制 esES"] },
+    { value = "esMX", label = L["强制 esMX"] },
+    { value = "itIT", label = L["强制 itIT"] },
+    { value = "ptBR", label = L["强制 ptBR"] },
+    { value = "frFR", label = L["强制 frFR"] },
+    { value = "ruRU", label = L["强制 ruRU"] },
 }
 
 local SPECIAL_LINKS = {
@@ -130,10 +124,10 @@ end
 
 local function BuildCreditsText()
     return table.concat({
-        "|cffffce45" .. L["插件作者"] .. "|r  EXWIND",
-        "|cffc8d6e5" .. L["开发协助"] .. "|r  @露露緹婭 @小海牛 @绿色歹人",
-        "|cffc8d6e5" .. L["测试协助"] .. "|r  @誓言 @苏苏 @明日奈奈子",
-        "|cff99aabb" .. L["额外感谢"] .. "|r  @野顾 @永恒 @shun @semage @硬玩复仇 @Sora @毛天使 @末城 @苏帕米",
+        GC.markup.accent .. L["插件作者"] .. "|r  EXWIND",
+        GC.markup.textDim .. L["开发协助"] .. "|r  @露露緹婭 @小海牛 @绿色歹人",
+        GC.markup.textDim .. L["测试协助"] .. "|r  @誓言 @苏苏 @明日奈奈子",
+        GC.markup.placeholder .. L["额外感谢"] .. "|r  @野顾 @永恒 @shun @semage @硬玩复仇 @Sora @毛天使 @末城 @苏帕米",
     }, "\n")
 end
 
@@ -215,20 +209,16 @@ local function BuildLayout()
     return {
         version = 1,
         title = L["首页"],
-        cards = {
-            { id = "locale", title = L["界面语言"], collapsible = true,
-                placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-                content = { kind = "grid", items = {
-                    { key = "localeMode", type = "dropdown", x = 1, y = 1, w = 46, h = 6, label = "", items = LOCALE_OPTIONS, search = true },
-                    { key = "btn_reload_ui", type = "button", x = 51, y = 1, w = 46, h = 6, label = L["立即重载界面"], func = function() ReloadUI() end, frameLevelOffset = 8 },
-                    { key = "desc_locale_status", type = "description", x = 1, y = 9, w = 196, h = 9, label = BuildLocaleStatusText() },
-                } },
+        sections = {
+            { kind = "settings", id = "locale", title = L["界面语言"],
+                items = {
+                    { key = "localeMode", type = "select", label = L["界面语言"], options = LOCALE_OPTIONS, search = true },
+                    { key = "btn_reload_ui", type = "button", label = L["立即重载界面"], func = function() ReloadUI() end },
+                },
+                footerDescription = { key = "desc_locale_status", type = "description", label = BuildLocaleStatusText() },
             },
-            { id = "on-dev", title = "ON DEV", collapsible = true,
-                placement = { target = "locale", side = "below", align = "start" },
-                content = { kind = "grid", items = {
-                    { key = "desc_on_dev", type = "description", x = 1, y = 1, w = 196, h = 6, label = "ON DEV" },
-                } },
+            { kind = "settings", id = "on-dev", title = "ON DEV", items = {},
+                description = { key = "desc_on_dev", type = "description", label = "ON DEV" },
             },
         },
     }
@@ -253,13 +243,13 @@ local function FindLayoutEntry(layout, key)
             end
         end
     end
-    if type(layout.cards) == "table" then
-        for i = 1, #layout.cards do
-            local content = layout.cards[i] and layout.cards[i].content
-            local found = content and FindItems(content.items)
-            if found then
-                return found
-            end
+    if type(layout.sections) == "table" then
+        for i = 1, #layout.sections do
+            local section = layout.sections[i]
+            if section.description and section.description.key == key then return section.description end
+            if section.footerDescription and section.footerDescription.key == key then return section.footerDescription end
+            local found = FindItems(section.items)
+            if found then return found end
         end
     end
     return FindItems(layout)
@@ -269,7 +259,7 @@ local function UpdateLayoutData(layout)
     local db = SyncPageDBFromRuntime()
     local updates = {
         desc_locale_status = { label = BuildLocaleStatusText() },
-        localeMode = { items = LOCALE_OPTIONS },
+        localeMode = { options = LOCALE_OPTIONS },
     }
 
     db.localeMode = tostring(ExBoss.GetLocaleMode and ExBoss:GetLocaleMode() or db.localeMode or "AUTO")
