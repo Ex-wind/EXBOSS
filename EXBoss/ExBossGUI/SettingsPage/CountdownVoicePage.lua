@@ -38,7 +38,7 @@ local LAYOUT = {
         } },
         { kind = "table", id = "digit-voice", title = L["数字语音"],
             columns = {
-                { title = L["数字"] }, { title = L["启用"] }, { title = L["来源"] },
+                { title = L["启用"] }, { title = L["数字"] }, { title = L["来源"] },
                 { title = L["音效选择"] }, { title = L["试听"] },
             },
             supportsAdd = false, records = {},
@@ -84,8 +84,8 @@ local function BuildLayout()
     local rows = layout.sections[2].records
     for i = 1, MAX_COUNTDOWN_DIGIT do
         rows[#rows + 1] = { cells = {
-            { text = string.format(L["数字 %d"], i) },
             { key = "digitEnabled" .. tostring(i), type = "switch", label = string.format(L["数字 %d"], i) },
+            { text = string.format(L["数字 %d"], i) },
             { key = "digitSource" .. tostring(i), type = "select", label = L["来源"], options = SOURCE_ITEMS },
             { key = "digitLSM" .. tostring(i), type = "select", media = "sound", label = L["LSM音效"] },
             { key = "preview" .. tostring(i), type = "button", label = L["试听"] },

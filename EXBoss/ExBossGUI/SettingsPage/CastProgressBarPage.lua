@@ -63,7 +63,7 @@ local COMMON_OPTS = {
 
 -- [卡片/Grid 迁移边界：CastProgressBar 设置页]
 -- 允许：普通 sections 单声明及纯展示排列；Core 统一测量，原语义选项保留。
--- 禁止：修改 key/type/path/opts、字段业务次序、external-left 预览、回调或释放链。
+-- 禁止：修改 key/type/path/opts、字段业务次序、顶部预览内容、回调或释放链。
 -- modulecommonsettings/anchorgroup/timerBarGroup/fontgroup 必须整体引用；旧背景/标题项不自动拥有相邻控件。
 local GRID_LAYOUT = {
     version = 1,
@@ -119,14 +119,6 @@ local StandardPage = EXUI:CreateStandardModulePage({
     layout = GRID_LAYOUT,
     getColumns = 200,
     preview = { height = 1, render = RenderCastProgressPanelPreview, refresh = RefreshCastProgressPanelPreview, release = ReleaseCastProgressPanelPreview },
-    previewDock = {
-        dockPolicy = "external-left",
-        anchorResolver = function(contentFrame)
-            local panel = ExBoss.UI and ExBoss.UI.Panel
-            return (panel and panel._frame) or contentFrame:GetParent() or contentFrame
-        end,
-        width = 310, offsetX = -8, offsetY = 0,
-    },
     applyScrollSkin = function(scrollFrame)
         if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
             ExBoss.UI.ApplyModernScrollBarSkin(scrollFrame)

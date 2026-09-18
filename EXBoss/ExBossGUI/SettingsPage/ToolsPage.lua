@@ -13,7 +13,6 @@ local listScroll
 local listChild
 local contentHostFrame
 local activeButtons = {}
-local buttonPool = {}
 local resetButton = nil
 local searchBox = nil
 local searchText = ""
@@ -85,31 +84,19 @@ end
 
 local function ClearButtons()
     for _, button in ipairs(activeButtons) do
-        button:Hide()
-        button:ClearAllPoints()
-        button:SetScript("OnClick", nil)
-        buttonPool[#buttonPool + 1] = button
+        EXUI:ReleaseSidebarNavigationButton(button)
     end
     wipe(activeButtons)
 end
 
 local function AcquireListButton()
-    local button = table.remove(buttonPool)
-    if button then
-        button:SetParent(listChild)
-        return button
-    end
-
+    local button
     if ExBoss.UI and ExBoss.UI.CreateSidebarModuleButton then
         button = ExBoss.UI.CreateSidebarModuleButton(listChild)
+    elseif EXUI and EXUI.CreateSidebarNavigationButton then
+        button = EXUI:CreateSidebarNavigationButton(listChild, "", nil, { level = 1, height = 28 })
     else
-        button = CreateFrame("Button", nil, listChild, "BackdropTemplate")
-        button:SetHeight(28)
-        button.fs = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontHighlightSmall")
-        button.fs:SetPoint("LEFT", 12, 0)
-        button.fs:SetPoint("RIGHT", -8, 0)
-        button.fs:SetJustifyH("LEFT")
-        button.label = button.fs
+        error("ToolsPage sidebar requires the shared navigation button API", 2)
     end
     return button
 end

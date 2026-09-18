@@ -229,7 +229,7 @@ end
 
 local function CreateSidebarSearchBox(parent, initialText, opts)
     local config = type(opts) == "table" and opts or {}
-    local edit = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+    local edit = EXUI:CreateEditBox(parent, initialText or "", 1, config.height or 28, nil, {})
     edit:SetHeight(config.height or 28)
     if edit.SetAutoFocus then
         edit:SetAutoFocus(false)
@@ -299,78 +299,12 @@ local function CreateSidebarSearchBox(parent, initialText, opts)
 end
 
 local function CreateSidebarCategoryHeader(parent)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetHeight(26)
-
-    btn.label = EXUI:CreateVisualFontString(btn, EXFONTFRAME)
-    btn.label:SetPoint("LEFT", 0, 0)
-    btn.label:SetPoint("RIGHT", 0, 0)
-    btn.label:SetJustifyH("LEFT")
-    btn.label:SetFont(GetSidebarFontPath(), 18, "OUTLINE")
-    btn.label:SetTextColor(unpack(GC.text))
-
-    btn:SetScript("OnEnter", function(self)
-        self.label:SetTextColor(unpack(GC.white))
-    end)
-    btn:SetScript("OnLeave", function(self)
-        self.label:SetTextColor(unpack(GC.text))
-    end)
-
-    return btn
+    return EXUI:CreateSidebarNavigationHeader(parent, "", { height = 26 })
 end
 
 local function CreateSidebarModuleButton(parent)
-    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    local btn = EXUI:CreateSidebarNavigationButton(parent, "", nil, { level = 1, height = 28 })
     btn:SetHeight(28)
-    btn:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 },
-    })
-    btn:SetBackdropColor(unpack(GC.transparent))
-    btn:SetBackdropBorderColor(unpack(GC.transparent))
-
-    btn.rail = EXUI:CreateVisualTexture(btn, EXBACKGROUNDFRAME)
-    btn.rail:SetPoint("TOPLEFT", 10, -2)
-    btn.rail:SetPoint("BOTTOMLEFT", 10, 2)
-    btn.rail:SetWidth(1)
-    btn.rail:SetColorTexture(unpack(GC.panelBorder))
-
-    btn.accent = EXUI:CreateVisualTexture(btn, EXBORDERFRAME)
-    btn.accent:SetPoint("TOPLEFT", 10, -2)
-    btn.accent:SetPoint("BOTTOMLEFT", 10, 2)
-    btn.accent:SetWidth(1)
-    btn.accent:SetColorTexture(unpack(GC.accent))
-    btn.accent:SetAlpha(0)
-
-    btn.dot = EXUI:CreateVisualFontString(btn, EXFONTFRAME)
-    btn.dot:SetPoint("CENTER", btn, "LEFT", 10, 0)
-    btn.dot:SetFont(GetSidebarFontPath(), 15, "OUTLINE")
-    btn.dot:SetText("")
-    btn.dot:SetTextColor(GC.accent[1], GC.accent[2], GC.accent[3], 0)
-
-    btn.label = EXUI:CreateVisualFontString(btn, EXFONTFRAME)
-    btn.label:SetPoint("LEFT", 26, 0)
-    btn.label:SetPoint("RIGHT", -10, 0)
-    btn.label:SetJustifyH("LEFT")
-    btn.label:SetWordWrap(false)
-    btn.label:SetFont(GetSidebarFontPath(), 15, "")
-    btn.label:SetTextColor(unpack(GC.textDim))
-
-    btn:SetScript("OnEnter", function(self)
-        self._hovered = true
-        if ExBoss.UI and ExBoss.UI.ApplySidebarModuleButtonState then
-            ExBoss.UI.ApplySidebarModuleButtonState(self, self.isActive, self.isEnabledState)
-        end
-    end)
-    btn:SetScript("OnLeave", function(self)
-        self._hovered = false
-        if ExBoss.UI and ExBoss.UI.ApplySidebarModuleButtonState then
-            ExBoss.UI.ApplySidebarModuleButtonState(self, self.isActive, self.isEnabledState)
-        end
-    end)
-
     return btn
 end
 
@@ -380,32 +314,7 @@ local function ApplySidebarModuleButtonState(btn, isActive, isEnabled)
     end
     btn.isActive = isActive == true
     btn.isEnabledState = (isEnabled ~= false)
-
-    if btn.isEnabledState == false then
-        btn.label:SetTextColor(unpack(GC.textDisabled))
-        btn.rail:SetColorTexture(unpack(GC.inputDisabledBorder))
-        btn.accent:SetAlpha(0)
-        btn.dot:SetTextColor(GC.accent[1], GC.accent[2], GC.accent[3], 0)
-        return
-    end
-
-    if btn.isActive then
-        btn.label:SetTextColor(unpack(GC.selectedText))
-        btn.rail:SetColorTexture(unpack(GC.panelBorder))
-        btn.accent:SetAlpha(1)
-        btn.dot:SetTextColor(unpack(GC.accent))
-        return
-    end
-
-    if btn._hovered then
-        btn.label:SetTextColor(unpack(GC.text))
-        btn.rail:SetColorTexture(unpack(GC.inputHoverBorder))
-    else
-        btn.label:SetTextColor(unpack(GC.textDim))
-        btn.rail:SetColorTexture(unpack(GC.panelBorder))
-    end
-    btn.accent:SetAlpha(0)
-    btn.dot:SetTextColor(GC.accent[1], GC.accent[2], GC.accent[3], 0)
+    EXUI:SetSidebarNavigationButtonState(btn, btn.isActive, btn.isEnabledState)
 end
 
 ExBoss.UI.NormalizeSidebarSearchText = NormalizeSidebarSearchText
@@ -975,8 +884,7 @@ local function CreatePanel()
     end)
 
     -- 标题栏右上角：编辑模式按钮（沿用 ExwindTools 的全局编辑模式逻辑）
-    local editModeBtn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
-    editModeBtn:SetSize(120, 22)
+    local editModeBtn = EXUI:CreateButton(mainFrame, 120, 22, "", nil, { compact = true })
     editModeBtn:SetPoint("RIGHT", closeBtn, "LEFT", -4, -1)
     editModeBtn:SetScript("OnClick", function()
         local ET = _G.ExwindTools

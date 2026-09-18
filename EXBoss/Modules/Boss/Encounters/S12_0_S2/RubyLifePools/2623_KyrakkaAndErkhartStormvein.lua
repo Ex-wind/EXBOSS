@@ -2,6 +2,7 @@
 
 do
     local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, key) return key end })
+    local EXUI = _G.ExwindTools and _G.ExwindTools.UI
     local ENCOUNTER_ID = 2623
     local EVENT_WIND = 887
     local EVENT_FIRE_A = 894
@@ -143,9 +144,12 @@ do
         panel.FireText = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         panel.FireText:SetPoint("TOP", panel.WindText, "BOTTOM", 0, -4)
 
-        local closeButton = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+        local closeButton = EXUI:CreatePicButton(panel, 24, 24,
+            "Interface\\Buttons\\UI-Panel-CloseButton-Up",
+            "Interface\\Buttons\\UI-Panel-CloseButton-Down",
+            "Interface\\Buttons\\UI-Panel-CloseButton-Highlight",
+            function() panel:Hide() end, true)
         closeButton:SetPoint("TOPRIGHT", 2, 2)
-        closeButton:SetScript("OnClick", function() panel:Hide() end)
 
         panelArea = CreateFrame("Frame", nil, panel)
         panelArea:SetSize(PANEL_SIZE, PANEL_SIZE)

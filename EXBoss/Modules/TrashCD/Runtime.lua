@@ -170,7 +170,11 @@ local function EnsureDebugCopyFrame()
     title:SetPoint("TOP", 0, -16)
     title:SetText("ExBoss Trash Debug Copy")
 
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    local closeButton = ET.UI:CreatePicButton(frame, 24, 24,
+        "Interface\\Buttons\\UI-Panel-CloseButton-Up",
+        "Interface\\Buttons\\UI-Panel-CloseButton-Down",
+        "Interface\\Buttons\\UI-Panel-CloseButton-Highlight",
+        function() frame:Hide() end, true)
     closeButton:SetPoint("TOPRIGHT", -6, -6)
 
     local scrollFrame = ET.UI:CreateScrollFrame(frame)

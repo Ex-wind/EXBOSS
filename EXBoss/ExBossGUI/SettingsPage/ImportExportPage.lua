@@ -40,14 +40,7 @@ local function Trim(value)
 end
 
 local function CreateSmallButton(parent, text, onClick)
-    local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    button:SetSize(120, 28); button:SetBackdrop(BACKDROP_SIMPLE); button:SetBackdropColor(unpack(GC.transparent))
-    local label = EXUI:CreateVisualFontString(button, EXFONTFRAME, "GameFontNormal")
-    label:SetPoint("CENTER"); label:SetText(text); label:SetTextColor(unpack(THEME.TextMain))
-    button:SetScript("OnClick", onClick)
-    button:SetScript("OnEnter", function(self) self:SetBackdropColor(unpack(GC.secondaryHoverFill)) end)
-    button:SetScript("OnLeave", function(self) self:SetBackdropColor(unpack(GC.transparent)) end)
-    return button
+    return EXUI:CreateButton(parent, 120, 28, text, onClick, { compact = true })
 end
 
 local function CreateActionButton(parent, text, onClick, color)
@@ -110,7 +103,12 @@ local function ShowExportPopup(encoded, name)
         if not tContains(UISpecialFrames, "ExBoss_ExportPopup") then table.insert(UISpecialFrames, "ExBoss_ExportPopup") end
         local title = EXUI:CreateVisualFontString(popup, EXFONTFRAME)
         title:SetFont(ExwindTools.MAIN_FONT or "Fonts\\FRIZQT__.TTF", 22, "OUTLINE"); title:SetPoint("TOP", 0, -15); popup.Title = title
-        local close = CreateFrame("Button", nil, popup, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -5, -5); close:SetScript("OnClick", function() popup:Hide() end)
+        local close = EXUI:CreatePicButton(popup, 24, 24,
+            "Interface\\Buttons\\UI-Panel-CloseButton-Up",
+            "Interface\\Buttons\\UI-Panel-CloseButton-Down",
+            "Interface\\Buttons\\UI-Panel-CloseButton-Highlight",
+            function() popup:Hide() end, true)
+        close:SetPoint("TOPRIGHT", -5, -5)
         local hint = EXUI:CreateVisualFontString(popup, EXFONTFRAME, "GameFontHighlight")
         hint:SetPoint("TOP", title, "BOTTOM", 0, -8); hint:SetTextColor(unpack(GC.textDim)); hint:SetText(GC.markup.accent .. "Ctrl+C|r " .. L["复制，或点击"] .. " " .. GC.markup.accent .. L["全选复制"] .. "|r")
         popup.ExportTextInput = CreateMultiLineEditBox(popup, 560, 200)

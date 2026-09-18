@@ -312,7 +312,6 @@ local COMMON_OPTS = {
     bindRoot = true,
     poolType = COMMON_POOL_TYPE,
     presentation = "settings-list",
-    columns = 4,
     fields = COMMON_FIELDS,
 }
 -- 两张额外子元素卡必须复用 TimerBar 的标准控件树；Mythic 仅声明已有 DB 字段
@@ -400,77 +399,41 @@ if GridExporter and GridExporter.RegisterExportReference then
     GridExporter:RegisterExportReference(TIMER_BAR_OPTS, "TIMER_BAR_OPTS")
 end
 
--- [卡片/Grid 迁移边界：MythicCast 设置页]
--- 允许：只按共享规范调整下列设置声明的 x/y/w/h 与外层卡片分组。
+-- [普通 sections 迁移边界：MythicCast 设置页]
+-- 允许：只按共享规范调整纯呈现分区；普通设置分区始终展开。
 -- 禁止：修改业务事件/排序、key/path/opts、StandardConfigBinding、世界/运行时 collection、预览或释放链。
 -- modulecommonsettings/anchorgroup/widgetlayout/timerBarGroup/fontgroup 必须整体引用，不能拆成原子控件重拼。
 local EX_LAYOUT = {
     version = 1,
     title = L["大米怪物施法"],
-    cards = {
-        { id = "module-common", title = L["通用设置"], collapsible = true,
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
-            settingsList = { preserveHeader = true, title = L["通用"], rows = {
-                { key = "moduleCommon", fullWidth = true },
-            } } },
-        { id = "raid-marker", title = L["额外子元素－团队标记"], collapsible = true,
-            placement = { target = "timer-bar", side = "below", align = "start" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "raidMarkerExtra", fullWidth = true },
-            } } },
-        { id = "player-target", title = L["额外子元素－玩家目标提示"], collapsible = true,
-            placement = { target = "raid-marker", side = "below", align = "start" },
-            content = { kind = "composite", component = "modulecommonsettings", key = "playerTargetIndicatorExtra", opts = PLAYER_TARGET_INDICATOR_EXTRA_OPTS },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "playerTargetIndicatorExtra", fullWidth = true },
-            } } },
-        { id = "anchor", title = L["锚点设置"], collapsible = true,
-            placement = { target = "layout", side = "below", align = "start" },
-            content = { kind = "composite", component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
-            settingsList = { preserveHeader = true, title = L["锚点"], rows = {
-                { key = "anchor", fullWidth = true },
-            } } },
-        { id = "layout", title = L["排列设置"], collapsible = true,
-            placement = { target = "module-common", side = "below", align = "start" },
-            content = { kind = "composite", component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "layout", fullWidth = true },
-            } } },
-        { id = "timer-bar", title = L["计时条外观"], collapsible = true,
-            placement = { target = "anchor", side = "below", align = "start" },
-            content = { kind = "composite", component = "timerbargroup", key = "timerGroup", opts = TIMER_BAR_OPTS },
-            settingsList = { preserveHeader = true, title = L["外观"], rows = {
-                { key = "timerGroup", fullWidth = true },
-            } } },
-        { id = "spell-font", title = L["法术名称"], collapsible = true,
-            placement = { target = "player-target", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_spell", opts = {
+    sections = {
+        { kind = "composite", id = "module-common", title = L["通用设置"],
+            component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
+        { kind = "composite", id = "layout", title = L["排列设置"],
+            component = "widgetlayout", key = "layout", opts = LAYOUT_OPTS },
+        { kind = "composite", id = "anchor", title = L["锚点设置"],
+            component = "anchorgroup", key = "anchor", opts = ANCHOR_OPTS },
+        { kind = "composite", id = "timer-bar", title = L["计时条外观"],
+            component = "timerbargroup", key = "timerGroup", opts = TIMER_BAR_OPTS },
+        { kind = "composite", id = "raid-marker", title = L["额外子元素－团队标记"],
+            component = "modulecommonsettings", key = "raidMarkerExtra", opts = RAID_MARKER_EXTRA_OPTS },
+        { kind = "composite", id = "player-target", title = L["额外子元素－玩家目标提示"],
+            component = "modulecommonsettings", key = "playerTargetIndicatorExtra", opts = PLAYER_TARGET_INDICATOR_EXTRA_OPTS },
+        { kind = "composite", id = "spell-font", title = L["法术名称"],
+            component = "fontgroup", key = "font_spell", opts = {
                 offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
                 shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
             } },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_spell", fullWidth = true },
-            } } },
-        { id = "target-font", title = L["施法目标"], collapsible = true,
-            placement = { target = "spell-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_target", opts = {
+        { kind = "composite", id = "target-font", title = L["施法目标"],
+            component = "fontgroup", key = "font_target", opts = {
                 offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
                 shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
             } },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_target", fullWidth = true },
-            } } },
-        { id = "timer-font", title = L["时间文字"], collapsible = true,
-            placement = { target = "target-font", side = "below", align = "start" },
-            content = { kind = "composite", component = "fontgroup", key = "font_timer", opts = {
+        { kind = "composite", id = "timer-font", title = L["时间文字"],
+            component = "fontgroup", key = "font_timer", opts = {
                 offsetMin = FONT_OPTS.offsetMin, offsetMax = FONT_OPTS.offsetMax,
                 shadowOffsetMin = FONT_OPTS.shadowOffsetMin, shadowOffsetMax = FONT_OPTS.shadowOffsetMax,
             } },
-            settingsList = { preserveHeader = true, rows = {
-                { key = "font_timer", fullWidth = true },
-            } } },
     },
 }
 

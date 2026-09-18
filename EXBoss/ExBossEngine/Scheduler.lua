@@ -2260,6 +2260,11 @@ local function GetFixedVoiceTriggerBaseTime(timer, trigger)
         return tonumber(timer.castTime)
     end
     if trigger == 2 then
+        -- 名称播报与数字播报分别启用。数字关闭但名称开启时，名称直接以
+        -- castTime 为基准；最终触发时间在下方明确减 5 秒。
+        if timer.countdownPlayName == true and timer.countdownVoiceEnabled ~= true then
+            return tonumber(timer.castTime)
+        end
         if timer.preAlertEnabled == false then
             return nil
         end
@@ -2275,6 +2280,9 @@ local function GetFixedVoiceTriggerFireTime(timer, trigger)
     end
 
     if tonumber(trigger) == 2 and type(timer) == "table" and timer.countdownPlayName == true then
+        if timer.countdownVoiceEnabled ~= true then
+            return baseTime - 5
+        end
         return baseTime - 1
     end
 

@@ -6,6 +6,7 @@ local ARROW_SIZE = 40
 local ARROW_TRAVEL = PANEL_SIZE - ARROW_SIZE
 local ARROW_DURATION = 1
 local L = (ExBoss and ExBoss.L) or setmetatable({}, { __index = function(_, key) return key end })
+local EXUI = _G.ExwindTools and _G.ExwindTools.UI
 
 local PANEL_TEXTURE_PATH = "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\RubyPanel.png"
 
@@ -107,11 +108,8 @@ local function PlayFire(direction)
 end
 
 local function CreateDemoButton(parent, label, x, y, onClick)
-	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-	button:SetSize(50, 22)
-	button:SetText(label)
+	local button = EXUI:CreateButton(parent, 50, 22, label, onClick, { compact = true })
 	button:SetPoint("BOTTOM", parent, "BOTTOM", x, y)
-	button:SetScript("OnClick", onClick)
 	return button
 end
 
@@ -144,11 +142,12 @@ local function CreateDemoFrame()
 		end
 	end)
 
-	local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+	local closeButton = EXUI:CreatePicButton(frame, 24, 24,
+		"Interface\\Buttons\\UI-Panel-CloseButton-Up",
+		"Interface\\Buttons\\UI-Panel-CloseButton-Down",
+		"Interface\\Buttons\\UI-Panel-CloseButton-Highlight",
+		function() frame:Hide() end, true)
 	closeButton:SetPoint("TOPRIGHT", -4, -4)
-	closeButton:SetScript("OnClick", function()
-		frame:Hide()
-	end)
 
 	animArea = CreateFrame("Frame", nil, frame)
 	animArea:SetSize(PANEL_SIZE, PANEL_SIZE)

@@ -27,12 +27,10 @@ local encounterTimelineDisabledCheck
 local voiceSection
 local voiceChannelDrop
 local voiceVolumeSlider
-local colorSection
-local refreshColorPresentation
-local refreshResetPresentation
+local colorSettingsPage
+local resetSettingsPage
 local embedPlaceholder
 local activeButtons = {}
-local buttonPool = {}
 local headerPool = {}
 local selectedIndex = 1
 local categoryExpanded = {
@@ -53,8 +51,6 @@ local customColorButton
 local extraCustomEnableChecks = {}
 local extraCustomNameInputs = {}
 local extraCustomColorButtons = {}
-local resetSection
-
 local ResetDisplayStylesOnly
 local ResetAllConfigExceptAppearance
 local ResetAllConfigIncludingAppearance
@@ -69,7 +65,7 @@ local ITEMS = {
     { key = "overview",           category = "general", titleKey = "通用设置",         descKey = "全局显示模式与语音输出。",                                                                                                          mode = "embedded", moduleKey = "ExBoss.GeneralOverview", appearanceRoots = { "ui.general", "voice.global", "autoGossip" } },
     { key = "countdownvoice",     category = "general", titleKey = "语音设置",          descKey = "开怪倒数与数字语音。",                                                                                                               mode = "embedded", moduleKey = "ExBoss.CountdownVoiceSettings", appearanceRoots = { "voice.countdown" } },
     { key = "batchedit",          category = "general", titleKey = "批量修改",          descKey = "批量启用/禁用事件功能，并真实写入 override。",                                                                                        mode = "embedded", moduleKey = "ExBoss.BatchEdit" },
-    { key = "color",              category = "general", titleKey = "通用颜色方案",      descKey = "4个固定颜色方案 + 1个自定义方案 + 最多3个额外方案。Boss技能页可直接选择方案或自定义颜色。",                                             mode = "builtin",  moduleKey = "ExBoss.GeneralColor", appearanceRoots = { "voice.colorSchemes", "voice.customColors", "voice.extraCustomColors" } },
+    { key = "color",              category = "general", titleKey = "通用颜色方案",      descKey = "4个固定颜色方案 + 1个自定义方案 + 最多3个额外方案。Boss技能页可直接选择方案或自定义颜色。",                                             mode = "embedded", moduleKey = "ExBoss.GeneralColor", appearanceRoots = { "voice.colorSchemes", "voice.customColors", "voice.extraCustomColors" } },
     { key = "timerbar",           category = "display", titleKey = "计时条",            descKey = "计时条外观、文字、位置。",                                                                                                           mode = "embedded", moduleKey = "ExBoss.TimerBar" },
     { key = "bunbar",             category = "display", titleKey = "束状条",            descKey = "束状条外观、轨道、位置。",                                                                                                           mode = "embedded", moduleKey = "ExBoss.BunBar" },
     { key = "countdown",          category = "display", titleKey = "[文本]5秒倒数",     descKey = "中央倒数文字与字体、位置。",                                                                                                         mode = "embedded", moduleKey = "ExBoss.Countdown" },
@@ -79,7 +75,7 @@ local ITEMS = {
     { key = "castprogressbar",    category = "display", titleKey = "施法进度条",        descKey = "与中央圆环同源的施法/引导进度条。",                                                                                                   mode = "embedded", moduleKey = "ExBoss.CastProgressBar" },
     { key = "extrashieldbar",     category = "display", titleKey = "护盾条",            descKey = "供首领机制复用的单体护盾监控条。",                                                                                                   mode = "embedded", moduleKey = "ExBoss.ExtraShieldBar" },
     { key = "trashcd",            category = "trash",   titleKey = "小怪内置CD姓名版图标", descKey = "小怪内置CD姓名版图标的外观与相对姓名版位置。",                                                                                              mode = "embedded", moduleKey  = "ExBoss.TrashCD.Settings" },
-    { key = "reset",              category = "other",   titleKey = "重置设置",          descKey = "提供四种重置方式：\n1) 仅重置外观设置\n2) 仅重置小怪内置CD设置\n3) 重置所有配置（不包含外观）\n4) 清除全部设置（包含外观）",           mode = "builtin"  },
+    { key = "reset",              category = "other",   titleKey = "重置设置",          descKey = "提供三种重置方式：重置外观、重置配置、重置外观加配置。",                                                                                  mode = "embedded" },
     { key = "dungeonextras", category = "general", titleKey = "副本额外设置", descKey = "统一副本额外提示的位置与开关；血量条共用下方外观设置，风火图保留原有样式。", mode = "embedded", moduleKey = "ExBoss.DungeonExtras" },
 }
 
@@ -606,356 +602,421 @@ local function CreateVoiceSection(parent, anchor, exui)
     voiceSection:Hide()
 end
 
--- [卡片/Grid 迁移边界：内置颜色页]
--- 允许：替换外层视觉容器与控件几何；禁止：修改方案顺序、DB 字段、写回/刷新回调或启用条件。
-local function CreateColorSection(parent, anchor, exui)
-    local Grid = _G.ExwindGrid
-    colorSection = CreateFrame("Frame", nil, parent)
-    colorSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
-    local rawAvailableWidth = math.max(1, (parent:GetWidth() or 1) - 14)
-    colorSection:SetWidth(rawAvailableWidth)
-    colorSection:SetHeight(650)
-    local fixedCard = EXUI:CreateSettingsCard(colorSection, { title = L["通用颜色方案"], collapsible = false })
-    fixedCard:SetPoint("TOPLEFT", colorSection, "TOPLEFT", 0, 0); fixedCard:SetPoint("TOPRIGHT", colorSection, "TOPRIGHT", 0, 0); fixedCard:SetContentHeight(220)
-    local fixedBody = fixedCard:GetBody()
-    local customCard = EXUI:CreateSettingsCard(colorSection, { title = L["自定义方案"], collapsible = false })
-    customCard:SetPoint("TOPLEFT", fixedCard, "BOTTOMLEFT", 0, -10); customCard:SetPoint("TOPRIGHT", fixedCard, "BOTTOMRIGHT", 0, -10); customCard:SetContentHeight(74)
-    local customBody = customCard:GetBody()
-    local extraCard = EXUI:CreateSettingsCard(colorSection, { title = L["额外方案（最多3个）"], collapsible = false })
-    extraCard:SetPoint("TOPLEFT", customCard, "BOTTOMLEFT", 0, -10); extraCard:SetPoint("TOPRIGHT", customCard, "BOTTOMRIGHT", 0, -10); extraCard:SetContentHeight(150)
-    local extraBody = extraCard:GetBody()
+-- [标准设置页边界：通用颜色 / 重置]
+-- 两页只提供原有控件与回调；页标题、说明、section、card、宽度、间距和流式高度全部由 typed sections 公共层负责。
+local COLOR_PAGE_ID = "ExBoss.GeneralColor"
+local RESET_PAGE_ID = "ExBoss.ResetSettings"
+local COLOR_FIXED_FACTORY = "ExBoss.GeneralColor.FixedControls"
+local COLOR_CUSTOM_FACTORY = "ExBoss.GeneralColor.CustomControls"
+local COLOR_EXTRA_FACTORY = "ExBoss.GeneralColor.ExtraControls"
+local RESET_ACTION_FACTORY = "ExBoss.ResetSettings.ActionControls"
+local standardGlobalPagesRegistered = false
 
-    local colorDesc = EXUI:CreateVisualFontString(fixedBody, EXFONTFRAME, "GameFontHighlightSmall")
-    colorDesc:SetPoint("TOPLEFT", 0, -2)
-    colorDesc:SetPoint("RIGHT", fixedBody, "RIGHT", 0, 0)
-    colorDesc:SetText(L["Boss技能页面可选择下列方案；选择“自定义颜色”时使用“自定义方案”。勾选启用的额外方案会出现在技能页下拉。"])
-    colorDesc:SetTextColor(unpack(GC.textDim))
-    colorDesc:SetJustifyH("LEFT")
-
-    local _, schemes, custom, extraSlots = EnsureColorDB()
-    local rowY = -34
-    for _, key in ipairs(GetSchemeOrder()) do
-        local row = schemes and schemes[key]
-
-        local nameFS = EXUI:CreateVisualFontString(fixedBody, EXFONTFRAME, "GameFontHighlight")
-        nameFS:SetPoint("TOPLEFT", 0, rowY)
-        nameFS:SetText(GetSchemeDisplayName(key))
-        nameFS:SetTextColor(unpack(GC.text))
-        fixedColorLabels[key] = nameFS
-
-        if exui and exui.CreateColorButton then
-            local btn = exui:CreateColorButton(fixedBody, L["颜色"], row or { r = 1, g = 1, b = 1 }, "", false, function()
-                ApplyVoiceOverrides()
-            end)
-            btn:SetPoint("TOPLEFT", 168, rowY + 8)
-            btn:SetSize(220, 30)
-            fixedColorButtons[key] = btn
+local function ReleaseFactoryControls(host)
+    local controls = host and host._exBossOwnedControls
+    host._exBossOwnedControls = nil
+    local factory = _G.ExwindFactory
+    for _, control in ipairs(controls or {}) do
+        if control and control._fromPool and factory then
+            factory:Release(control._fromPool, control)
+        elseif control then
+            control:Hide()
+            control:ClearAllPoints()
+            control:SetParent(nil)
         end
-        rowY = rowY - 38
+    end
+end
+
+local function TrackFactoryControl(host, control)
+    host._exBossOwnedControls = host._exBossOwnedControls or {}
+    host._exBossOwnedControls[#host._exBossOwnedControls + 1] = control
+    return control
+end
+
+local function CreateRegisteredGlobalPage(pageId, regionId)
+    local registeredPage = { _renderGeneration = 0 }
+
+    local function SyncScrollChildWidth()
+        local sf = registeredPage._scrollFrame
+        local sc = registeredPage._scrollChild
+        if not sf or not sc then return end
+        local width = tonumber(sf:GetWidth()) or 0
+        if width < 100 then
+            local contentWidth = registeredPage._contentFrame
+                and tonumber(registeredPage._contentFrame:GetWidth()) or 0
+            width = contentWidth >= 100 and (contentWidth - 24) or 804
+        end
+        width = math.max(1, width)
+        if math.abs((sc:GetWidth() or 0) - width) < 0.5 then return end
+        sc:SetWidth(width)
+        local session = registeredPage._cardSession
+        local Grid = _G.ExwindGrid
+        if session and not session.released and Grid and type(Grid.RequestReflow) == "function" then
+            Grid:RequestReflow(sc)
+        end
     end
 
-    rowY = -4
-    if exui and exui.CreateEditBox then
-        customNameInput = exui:CreateEditBox(
-            customBody,
-            (custom and custom.name) or L["自定义方案"],
-            160,
-            28,
-            L["自定义方案名"],
-            {
-                onEditFocusLost = function(text)
-                    local _, _, c = EnsureColorDB()
-                    c.name = TrimOptionalText(text)
-                    RefreshColorControls()
-                end,
-                onEnter = function(text)
-                    local _, _, c = EnsureColorDB()
-                    c.name = TrimOptionalText(text)
-                    RefreshColorControls()
-                end,
-            }
-        )
-        customNameInput:SetPoint("TOPLEFT", 0, rowY - 2)
+    local function ReleaseSession()
+        registeredPage._renderGeneration = registeredPage._renderGeneration + 1
+        if registeredPage._cardSession and type(registeredPage._cardSession.Release) == "function" then
+            registeredPage._cardSession:Release()
+        end
+        registeredPage._cardSession = nil
+        if EXUI.ActivePageFrame == registeredPage._scrollChild then
+            EXUI.ActivePageFrame = nil
+        end
+        if EXUI.ActivePageScrollFrame == registeredPage._scrollFrame then
+            EXUI.ActivePageScrollFrame = nil
+        end
+        if EXUI.CurrentModule == pageId then
+            EXUI.CurrentModule = nil
+        end
     end
 
-    if exui and exui.CreateColorButton then
-        customColorButton = exui:CreateColorButton(customBody, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
-            function()
-                ApplyVoiceOverrides()
+    function registeredPage:Render(contentFrame)
+        local Grid = _G.ExwindGrid
+        if not Grid or not contentFrame then return end
+
+        if not self._scrollFrame then
+            local sf = CreateFrame("ScrollFrame", nil, contentFrame, "ScrollFrameTemplate")
+            if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
+                ExBoss.UI.ApplyModernScrollBarSkin(sf)
             end
-        )
-        customColorButton:SetPoint("TOPLEFT", 168, rowY + 6)
-        customColorButton:SetSize(220, 30)
+            local sc = CreateFrame("Frame", nil, sf)
+            sc:SetHeight(1)
+            sf:SetScrollChild(sc)
+            sf:HookScript("OnHide", ReleaseSession)
+            sf:HookScript("OnSizeChanged", SyncScrollChildWidth)
+            self._scrollFrame = sf
+            self._scrollChild = sc
+        end
+
+        local sf = self._scrollFrame
+        local sc = self._scrollChild
+        self._contentFrame = contentFrame
+        ReleaseSession()
+        local generation = self._renderGeneration
+
+        sf:SetParent(contentFrame)
+        sf:ClearAllPoints()
+        sf:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 4, -4)
+        sf:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24, 4)
+        sf:SetVerticalScroll(0)
+        sf:Show()
+
+        C_Timer.After(0, function()
+            if registeredPage._renderGeneration ~= generation
+                or not sf:IsShown()
+                or sf:GetParent() ~= contentFrame then
+                return
+            end
+            local config = _G.EXBOSS12S2
+            if type(config) ~= "table" then
+                error(pageId .. " requires the existing EXBOSS12S2 configuration", 0)
+            end
+            SyncScrollChildWidth()
+            sc:SetParent(sf)
+            sc:ClearAllPoints()
+            sc:SetPoint("TOPLEFT", 0, 0)
+            sc:Show()
+            EXUI.ActivePageFrame = sc
+            EXUI.ActivePageScrollFrame = sf
+            EXUI.CurrentModule = pageId
+            local declaration = EXUI:GetSettingsPage(pageId)
+            if type(declaration) ~= "table" then
+                error(pageId .. " is not registered as a settings page", 0)
+            end
+            registeredPage._cardSession = Grid:MountSettingsDeclaration(sc, declaration, {
+                pageId = pageId,
+                regionId = regionId,
+                config = config,
+                moduleKey = pageId,
+                scrollFrame = sf,
+            })
+        end)
     end
 
-    rowY = -4
-    for i = 1, GetExtraCustomCount() do
-        local slot = type(extraSlots) == "table" and extraSlots[i] or nil
-        if type(slot) ~= "table" then
-            slot = { enabled = false, name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25 }
-        end
+    function registeredPage:Hide()
+        ReleaseSession()
+        if self._scrollFrame then self._scrollFrame:Hide() end
+    end
 
-        if exui and exui.CreateCheckbox then
-            local cb = exui:CreateCheckbox(extraBody, L["启用"], slot.enabled == true, function(checked)
-                local _, _, _, slots = EnsureColorDB()
-                if type(slots) ~= "table" then return end
-                local row = slots and slots[i]
-                if type(row) ~= "table" then
-                    row = { name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25, enabled = false }
-                    slots[i] = row
-                end
-                row.enabled = (checked == true)
-                RefreshColorControls()
-                ApplyVoiceOverrides()
-            end)
-            cb:SetPoint("TOPLEFT", 0, rowY + 4)
-            extraCustomEnableChecks[i] = cb
-        end
+    return registeredPage
+end
 
-        if exui and exui.CreateEditBox then
-            local nameInput = exui:CreateEditBox(
-                extraBody,
-                slot.name or (L["额外方案"] .. tostring(i)),
-                190,
+local function RegisterStandardGlobalPages()
+    if standardGlobalPagesRegistered then return end
+    local Grid = _G.ExwindGrid
+    if not Grid or type(Grid.RegisterTableControls) ~= "function"
+        or type(Grid.MountSettingsDeclaration) ~= "function"
+        or type(EXUI.RegisterSettingsPage) ~= "function" then
+        error("Global settings pages require the typed settings page APIs", 2)
+    end
+
+    Grid:RegisterTableControls(COLOR_FIXED_FACTORY, {
+        mount = function(host, ctx)
+            local _, schemes = EnsureColorDB()
+            local records = {}
+            for _, key in ipairs(GetSchemeOrder()) do
+                local row = schemes and schemes[key]
+                local label = TrackFactoryControl(host, EXUI:CreateDescription(host, GetSchemeDisplayName(key), 180))
+                local button = TrackFactoryControl(host, EXUI:CreateColorButton(
+                    host, L["颜色"], row or { r = 1, g = 1, b = 1 }, "", false,
+                    function() ApplyVoiceOverrides() end))
+                fixedColorLabels[key] = label.labelText or label.text
+                fixedColorButtons[key] = button
+                records[#records + 1] = { cells = {
+                    { widget = label, type = "text" },
+                    { widget = button, type = "color" },
+                } }
+            end
+            ctx:SetTableControls({ records = records })
+            RefreshColorControls()
+        end,
+        update = function()
+            RefreshColorControls()
+        end,
+        release = function(host)
+            for _, key in ipairs(GetSchemeOrder()) do
+                fixedColorLabels[key] = nil
+                fixedColorButtons[key] = nil
+            end
+            ReleaseFactoryControls(host)
+        end,
+    })
+
+    Grid:RegisterTableControls(COLOR_CUSTOM_FACTORY, {
+        mount = function(host, ctx)
+            local _, _, custom = EnsureColorDB()
+            customNameInput = TrackFactoryControl(host, EXUI:CreateEditBox(
+                host,
+                (custom and custom.name) or L["自定义方案"],
+                160,
                 28,
-                "",
+                L["自定义方案名"],
                 {
                     onEditFocusLost = function(text)
-                        local _, _, _, slots = EnsureColorDB()
-                        if type(slots) ~= "table" then return end
-                        local row = slots and slots[i]
-                        if type(row) ~= "table" then
-                            row = { enabled = false, r = 1, g = 0.82, b = 0.25 }
-                            slots[i] = row
-                        end
-                        row.name = TrimOptionalText(text)
+                        local _, _, c = EnsureColorDB()
+                        c.name = TrimOptionalText(text)
                         RefreshColorControls()
                     end,
                     onEnter = function(text)
-                        local _, _, _, slots = EnsureColorDB()
-                        if type(slots) ~= "table" then return end
-                        local row = slots and slots[i]
-                        if type(row) ~= "table" then
-                            row = { enabled = false, r = 1, g = 0.82, b = 0.25 }
-                            slots[i] = row
-                        end
-                        row.name = TrimOptionalText(text)
+                        local _, _, c = EnsureColorDB()
+                        c.name = TrimOptionalText(text)
                         RefreshColorControls()
                     end,
-                }
-            )
-            nameInput:SetPoint("TOPLEFT", 76, rowY + 2)
-            extraCustomNameInputs[i] = nameInput
-        end
-
-        if exui and exui.CreateColorButton then
-            local colorBtn = exui:CreateColorButton(extraBody, L["颜色"], slot, "", false, function()
-                ApplyVoiceOverrides()
-            end)
-            colorBtn:SetPoint("TOPLEFT", 278, rowY + 6)
-            colorBtn:SetSize(220, 30)
-            extraCustomColorButtons[i] = colorBtn
-        end
-
-        rowY = rowY - 38
-    end
-
-    if Grid and Grid.MountSettingsList and Grid.MountSettingsForm then
-        local fixedRows = {}
-        for _, key in ipairs(GetSchemeOrder()) do
-            fixedRows[#fixedRows + 1] = {
-                cells = {
-                    { widget = fixedColorLabels[key], type = "text" },
-                    { widget = fixedColorButtons[key], type = "color" },
-                },
-            }
-        end
-
-        EXUI:PrepareSettingsListCard(fixedCard, { preserveHeader = false })
-        local fixedList = Grid:MountSettingsForm(fixedBody, {
-            kind = "table", id = "global-colors-fixed", title = L["通用颜色方案"],
-            description = { widget = colorDesc, type = "text" },
-            columns = { { title = L["名称"] }, { title = L["颜色"] } },
-            supportsAdd = false, records = fixedRows,
-        })
-        fixedList.card = fixedCard
-
-        EXUI:PrepareSettingsListCard(customCard, { preserveHeader = false })
-        local customList = Grid:MountSettingsForm(customBody, {
-            kind = "table", id = "global-colors-custom", title = L["自定义方案"],
-            columns = { { title = L["名称"] }, { title = L["颜色"] } },
-            supportsAdd = false,
-            records = { { cells = {
+                }))
+            customColorButton = TrackFactoryControl(host, EXUI:CreateColorButton(
+                host, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
+                function() ApplyVoiceOverrides() end))
+            ctx:SetTableControls({ records = { { cells = {
                 { widget = customNameInput, type = "input" },
                 { widget = customColorButton, type = "color" },
-            } } },
-        })
-        customList.card = customCard
+            } } } })
+            RefreshColorControls()
+        end,
+        update = function()
+            RefreshColorControls()
+        end,
+        release = function(host)
+            customNameInput = nil
+            customColorButton = nil
+            ReleaseFactoryControls(host)
+        end,
+    })
 
-        local extraRows = {}
-        for i = 1, GetExtraCustomCount() do
-            extraRows[#extraRows + 1] = { cells = {
-                { widget = extraCustomEnableChecks[i], type = "switch" },
-                { widget = extraCustomNameInputs[i], type = "input" },
-                { widget = extraCustomColorButtons[i], type = "color" },
-            } }
-        end
-        EXUI:PrepareSettingsListCard(extraCard, { preserveHeader = false })
-        local extraList = Grid:MountSettingsForm(extraBody, {
-            kind = "table", id = "global-colors-extra", title = L["额外方案（最多3个）"],
-            columns = {
-                { title = L["启用"] },
-                { title = L["名称"] },
-                { title = L["颜色"] },
+    Grid:RegisterTableControls(COLOR_EXTRA_FACTORY, {
+        mount = function(host, ctx)
+            local _, _, _, extraSlots = EnsureColorDB()
+            local records = {}
+            for i = 1, GetExtraCustomCount() do
+                local slot = type(extraSlots) == "table" and extraSlots[i] or nil
+                if type(slot) ~= "table" then
+                    slot = { enabled = false, name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25 }
+                end
+                local checkbox = TrackFactoryControl(host, EXUI:CreateCheckbox(host, L["启用"], slot.enabled == true, function(checked)
+                    local _, _, _, slots = EnsureColorDB()
+                    if type(slots) ~= "table" then return end
+                    local row = slots[i]
+                    if type(row) ~= "table" then
+                        row = { name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25, enabled = false }
+                        slots[i] = row
+                    end
+                    row.enabled = (checked == true)
+                    RefreshColorControls()
+                    ApplyVoiceOverrides()
+                end))
+                local nameInput = TrackFactoryControl(host, EXUI:CreateEditBox(
+                    host,
+                    slot.name or (L["额外方案"] .. tostring(i)),
+                    190,
+                    28,
+                    "",
+                    {
+                        onEditFocusLost = function(text)
+                            local _, _, _, slots = EnsureColorDB()
+                            if type(slots) ~= "table" then return end
+                            local row = slots[i]
+                            if type(row) ~= "table" then
+                                row = { enabled = false, r = 1, g = 0.82, b = 0.25 }
+                                slots[i] = row
+                            end
+                            row.name = TrimOptionalText(text)
+                            RefreshColorControls()
+                        end,
+                        onEnter = function(text)
+                            local _, _, _, slots = EnsureColorDB()
+                            if type(slots) ~= "table" then return end
+                            local row = slots[i]
+                            if type(row) ~= "table" then
+                                row = { enabled = false, r = 1, g = 0.82, b = 0.25 }
+                                slots[i] = row
+                            end
+                            row.name = TrimOptionalText(text)
+                            RefreshColorControls()
+                        end,
+                    }))
+                local colorButton = TrackFactoryControl(host, EXUI:CreateColorButton(
+                    host, L["颜色"], slot, "", false, function() ApplyVoiceOverrides() end))
+                extraCustomEnableChecks[i] = checkbox
+                extraCustomNameInputs[i] = nameInput
+                extraCustomColorButtons[i] = colorButton
+                records[#records + 1] = { cells = {
+                    { widget = checkbox, type = "switch" },
+                    { widget = nameInput, type = "input" },
+                    { widget = colorButton, type = "color" },
+                } }
+            end
+            ctx:SetTableControls({ records = records })
+            RefreshColorControls()
+        end,
+        update = function()
+            RefreshColorControls()
+        end,
+        release = function(host)
+            for i = 1, GetExtraCustomCount() do
+                extraCustomEnableChecks[i] = nil
+                extraCustomNameInputs[i] = nil
+                extraCustomColorButtons[i] = nil
+            end
+            ReleaseFactoryControls(host)
+        end,
+    })
+
+    Grid:RegisterTableControls(RESET_ACTION_FACTORY, {
+        mount = function(host, ctx)
+            local resetStyleLabel = TrackFactoryControl(host, EXUI:CreateDescription(host, L["重置外观"], 220))
+            local resetConfigLabel = TrackFactoryControl(host, EXUI:CreateDescription(host, L["重置配置"], 220))
+            local resetAllLabel = TrackFactoryControl(host, EXUI:CreateDescription(host, L["重置外观加配置"], 220))
+            local resetStyleBtn = TrackFactoryControl(host, EXUI:CreateButton(host, 120, 32, L["确认"], function()
+                local popupID = "EXBOSS_RESET_STYLE_ONLY_CONFIRM"
+                if not StaticPopupDialogs[popupID] then
+                    StaticPopupDialogs[popupID] = {
+                        text = L["仅重置计时条/束状条/倒计时/文字公告的外观样式，不删除法术配置。是否继续？"],
+                        button1 = L["确定"],
+                        button2 = L["取消"],
+                        timeout = 0,
+                        whileDead = true,
+                        hideOnEscape = true,
+                        preferredIndex = 3,
+                        OnAccept = function()
+                            ResetDisplayStylesOnly()
+                            ReloadUI()
+                        end,
+                    }
+                end
+                StaticPopup_Show(popupID)
+            end))
+            local resetConfigBtn = TrackFactoryControl(host, EXUI:CreateButton(host, 120, 32, L["确认"], function()
+                local popupID = "EXBOSS_RESET_CONFIG_ONLY_CONFIRM"
+                if not StaticPopupDialogs[popupID] then
+                    StaticPopupDialogs[popupID] = {
+                        text = L["|cffffcc00将清空 EXBoss 的通用设置、语音配置、技能配置与时间轴设置，但保留外观样式。|r\n确认继续？"],
+                        button1 = L["确定重置"],
+                        button2 = L["取消"],
+                        timeout = 0,
+                        whileDead = true,
+                        hideOnEscape = true,
+                        preferredIndex = 3,
+                        OnAccept = function()
+                            ResetAllConfigExceptAppearance()
+                            ReloadUI()
+                        end,
+                    }
+                end
+                StaticPopup_Show(popupID)
+            end))
+            local resetAllBtn = TrackFactoryControl(host, EXUI:CreateButton(host, 120, 32, L["确认"], function()
+                local popupID = "EXBOSS_RESET_ALL_CONFIRM"
+                if not StaticPopupDialogs[popupID] then
+                    StaticPopupDialogs[popupID] = {
+                        text = L["|cffff4444危险：将清空 EXBoss 的全部设置（包含外观）并重载。此操作不可撤销。|r\n确认继续？"],
+                        button1 = L["确定清空"],
+                        button2 = L["取消"],
+                        timeout = 0,
+                        whileDead = true,
+                        hideOnEscape = true,
+                        preferredIndex = 3,
+                        OnAccept = function()
+                            ResetAllConfigIncludingAppearance()
+                            ReloadUI()
+                        end,
+                    }
+                end
+                StaticPopup_Show(popupID)
+            end))
+            ctx:SetTableControls({ records = {
+                { cells = { { widget = resetStyleLabel, type = "text" }, { widget = resetStyleBtn, type = "button" } } },
+                { cells = { { widget = resetConfigLabel, type = "text" }, { widget = resetConfigBtn, type = "button" } } },
+                { cells = { { widget = resetAllLabel, type = "text" }, { widget = resetAllBtn, type = "button" } } },
+            } })
+        end,
+        update = function() end,
+        release = ReleaseFactoryControls,
+    })
+
+    EXUI:RegisterSettingsPage(COLOR_PAGE_ID, {
+        version = 1,
+        title = L["通用颜色方案"],
+        description = L["4个固定颜色方案 + 1个自定义方案 + 最多3个额外方案。Boss技能页可直接选择方案或自定义颜色。"],
+        sections = {
+            {
+                kind = "table", id = "fixed-colors", title = L["固定方案"],
+                description = L["Boss技能页面可选择下列方案；选择“自定义颜色”时使用“自定义方案”。勾选启用的额外方案会出现在技能页下拉。"],
+                columns = { { title = L["名称"] }, { title = L["颜色"] } },
+                supportsAdd = false, controlFactory = COLOR_FIXED_FACTORY, key = "fixedColors",
             },
-            supportsAdd = false,
-            records = extraRows,
-        })
-        extraList.card = extraCard
-
-        refreshColorPresentation = function()
-            local rawWidth = math.max(1, (parent:GetWidth() or 1) - 14)
-            local width = Grid:ResolveSettingsListWidth(rawWidth)
-            colorSection:SetWidth(width)
-
-            fixedCard:ClearAllPoints()
-            fixedCard:SetPoint("TOPLEFT", colorSection, "TOPLEFT", 0, 0)
-            fixedCard:SetPoint("TOPRIGHT", colorSection, "TOPRIGHT", 0, 0)
-            local fixedHeight = fixedList:Relayout(width)
-            fixedCard:SetContentHeight(fixedHeight)
-
-            customCard:ClearAllPoints()
-            customCard:SetPoint("TOPLEFT", fixedCard, "BOTTOMLEFT", 0, 0)
-            customCard:SetPoint("TOPRIGHT", fixedCard, "BOTTOMRIGHT", 0, 0)
-            local customHeight = customList:Relayout(width)
-            customCard:SetContentHeight(customHeight)
-
-            extraCard:ClearAllPoints()
-            extraCard:SetPoint("TOPLEFT", customCard, "BOTTOMLEFT", 0, 0)
-            extraCard:SetPoint("TOPRIGHT", customCard, "BOTTOMRIGHT", 0, 0)
-            local extraHeight = extraList:Relayout(width)
-            extraCard:SetContentHeight(extraHeight)
-            colorSection:SetHeight(fixedCard:GetPreferredHeight()
-                + customCard:GetPreferredHeight()
-                + extraCard:GetPreferredHeight())
-        end
-        refreshColorPresentation()
-    end
-    colorSection:Hide()
-end
-
--- [卡片/Grid 迁移边界：危险操作]
--- 允许：把现有危险区整体接入共享卡；禁止：改按钮含义、StaticPopup、Accept 副作用、ReloadUI 或新增/移除重置动作。
-local function CreateResetSection(parent, anchor)
-    resetSection = CreateFrame("Frame", nil, parent)
-    resetSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
-    resetSection:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -14, 0)
-    resetSection:SetHeight(250)
-    local resetCard = EXUI:CreateSettingsCard(resetSection, { title = L["重置设置"], collapsible = true })
-    resetCard:SetPoint("TOPLEFT", resetSection, "TOPLEFT", 0, 0)
-    resetCard:SetPoint("TOPRIGHT", resetSection, "TOPRIGHT", 0, 0)
-    resetCard:SetContentHeight(190)
-    local resetBody = resetCard:GetBody()
-
-    local resetDesc = EXUI:CreateVisualFontString(resetBody, EXFONTFRAME, "GameFontHighlightSmall")
-    resetDesc:SetPoint("TOPLEFT", 0, -2)
-    resetDesc:SetPoint("RIGHT", resetBody, "RIGHT", 0, 0)
-    resetDesc:SetJustifyH("LEFT")
-    resetDesc:SetText(L["推荐先使用针对性重置：外观问题用“仅重置外观设置”，小怪CD异常用“重置小怪内置CD设置”。\n“重置所有配置（不包含外观）”会清空通用设置、语音配置、技能配置与时间轴设置，但保留外观。\n“清除全部设置”会把 EXBoss 的全部配置都恢复到初始状态。"])
-    resetDesc:SetTextColor(unpack(GC.dangerText))
-
-    local resetStyleBtn = CreateFrame("Button", nil, resetBody, "UIPanelButtonTemplate")
-    resetStyleBtn:SetSize(220, 28)
-    resetStyleBtn:SetPoint("BOTTOMLEFT", resetBody, "BOTTOMLEFT", 0, 108)
-    resetStyleBtn:SetText(L["仅重置外观设置"])
-    resetStyleBtn:SetScript("OnClick", function()
-        local popupID = "EXBOSS_RESET_STYLE_ONLY_CONFIRM"
-        if not StaticPopupDialogs[popupID] then
-            StaticPopupDialogs[popupID] = {
-                text = L["仅重置计时条/束状条/倒计时/文字公告的外观样式，不删除法术配置。是否继续？"],
-                button1 = L["确定"],
-                button2 = L["取消"],
-                timeout = 0,
-                whileDead = true,
-                hideOnEscape = true,
-                preferredIndex = 3,
-                OnAccept = function()
-                    ResetDisplayStylesOnly()
-                    ReloadUI()
-                end,
-            }
-        end
-        StaticPopup_Show(popupID)
-    end)
-
-    local resetConfigBtn = CreateFrame("Button", nil, resetBody, "UIPanelButtonTemplate")
-    resetConfigBtn:SetSize(220, 28)
-    resetConfigBtn:SetPoint("BOTTOMLEFT", resetBody, "BOTTOMLEFT", 0, 40)
-    resetConfigBtn:SetText(L["重置所有配置（不包含外观）"])
-    resetConfigBtn:SetScript("OnClick", function()
-        local popupID = "EXBOSS_RESET_CONFIG_ONLY_CONFIRM"
-        if not StaticPopupDialogs[popupID] then
-            StaticPopupDialogs[popupID] = {
-                text = L["|cffffcc00将清空 EXBoss 的通用设置、语音配置、技能配置与时间轴设置，但保留外观样式。|r\n确认继续？"],
-                button1 = L["确定重置"],
-                button2 = L["取消"],
-                timeout = 0,
-                whileDead = true,
-                hideOnEscape = true,
-                preferredIndex = 3,
-                OnAccept = function()
-                    ResetAllConfigExceptAppearance()
-                    ReloadUI()
-                end,
-            }
-        end
-        StaticPopup_Show(popupID)
-    end)
-
-    local resetAllBtn = CreateFrame("Button", nil, resetBody, "UIPanelButtonTemplate")
-    resetAllBtn:SetSize(220, 28)
-    resetAllBtn:SetPoint("BOTTOMLEFT", resetBody, "BOTTOMLEFT", 0, 4)
-    resetAllBtn:SetText(L["清除全部设置（包含外观）"])
-    resetAllBtn:SetScript("OnClick", function()
-        local popupID = "EXBOSS_RESET_ALL_CONFIRM"
-        if not StaticPopupDialogs[popupID] then
-            StaticPopupDialogs[popupID] = {
-                text = L["|cffff4444危险：将清空 EXBoss 的全部设置（包含外观）并重载。此操作不可撤销。|r\n确认继续？"],
-                button1 = L["确定清空"],
-                button2 = L["取消"],
-                timeout = 0,
-                whileDead = true,
-                hideOnEscape = true,
-                preferredIndex = 3,
-                OnAccept = function()
-                    ResetAllConfigIncludingAppearance()
-                    ReloadUI()
-                end,
-            }
-        end
-        StaticPopup_Show(popupID)
-    end)
-    EXUI:PrepareSettingsListCard(resetCard, { preserveHeader = false })
-    local resetList = _G.ExwindGrid:MountSettingsForm(resetBody, {
-        kind = "table", id = "global-reset", title = L["重置设置"],
-        description = { widget = resetDesc, type = "text" },
-        columns = { { title = "" } }, supportsAdd = false,
-        records = {
-            { cells = { { widget = resetStyleBtn, type = "button" } } },
-            { cells = { { widget = resetConfigBtn, type = "button" } } },
-            { cells = { { widget = resetAllBtn, type = "button" } } },
+            {
+                kind = "table", id = "custom-color", title = L["自定义方案"],
+                columns = { { title = L["名称"] }, { title = L["颜色"] } },
+                supportsAdd = false, controlFactory = COLOR_CUSTOM_FACTORY, key = "customColor",
+            },
+            {
+                kind = "table", id = "extra-colors", title = L["额外方案（最多3个）"],
+                columns = { { title = L["启用"] }, { title = L["名称"] }, { title = L["颜色"] } },
+                supportsAdd = false, controlFactory = COLOR_EXTRA_FACTORY, key = "extraColors",
+            },
         },
     })
-    resetList.card = resetCard
-    refreshResetPresentation = function()
-        local height = resetList:Relayout(math.max(1, resetBody:GetWidth() or 1))
-        resetCard:SetContentHeight(height)
-        resetSection:SetHeight(resetCard:GetPreferredHeight())
-    end
-    refreshResetPresentation()
-    resetSection:Hide()
-end
 
+    EXUI:RegisterSettingsPage(RESET_PAGE_ID, {
+        version = 1,
+        title = L["重置设置"],
+        description = L["提供三种重置方式：重置外观、重置配置、重置外观加配置。"],
+        sections = {
+            {
+                kind = "table", id = "reset-actions", title = L["重置操作"],
+                description = L["“重置外观”保留配置数据；“重置配置”保留外观；“重置外观加配置”恢复全部设置。每项操作仍会先显示原有确认提示。"],
+                columns = { { title = L["名称"] }, { title = L["操作"] } },
+                supportsAdd = false, controlFactory = RESET_ACTION_FACTORY, key = "resetActions",
+            },
+        },
+    })
+
+    colorSettingsPage = CreateRegisteredGlobalPage(COLOR_PAGE_ID, "global-color-settings")
+    resetSettingsPage = CreateRegisteredGlobalPage(RESET_PAGE_ID, "global-reset-settings")
+    standardGlobalPagesRegistered = true
+end
 local function GetVordazaShieldModule()
     return ExBoss and ExBoss.Modules and ExBoss.Modules.Boss and ExBoss.Modules.Boss.VordazaShieldBar or nil
 end
@@ -1346,32 +1407,26 @@ local function ClearButtons()
     for _, b in ipairs(activeButtons) do
         b:Hide()
         b:ClearAllPoints()
-        b:SetScript("OnClick", nil)
+        if b.IsObjectType and b:IsObjectType("Button") then
+            b:SetScript("OnClick", nil)
+        end
         if b._sidebarKind == "header" then
             headerPool[#headerPool + 1] = b
         else
-            buttonPool[#buttonPool + 1] = b
+            EXUI:ReleaseSidebarNavigationButton(b)
         end
     end
     wipe(activeButtons)
 end
 
 local function AcquireListButton()
-    local b = table.remove(buttonPool)
-    if b then
-        b:SetParent(listChild)
-        return b
-    end
-
+    local b
     if ExBoss.UI and ExBoss.UI.CreateSidebarModuleButton then
         b = ExBoss.UI.CreateSidebarModuleButton(listChild)
+    elseif EXUI and EXUI.CreateSidebarNavigationButton then
+        b = EXUI:CreateSidebarNavigationButton(listChild, "", nil, { level = 1, height = 28 })
     else
-        b = CreateFrame("Button", nil, listChild)
-        b.fs = EXUI:CreateVisualFontString(b, EXFONTFRAME, "GameFontHighlightSmall")
-        b.fs:SetPoint("LEFT", 14, 0)
-        b.fs:SetPoint("RIGHT", -8, 0)
-        b.fs:SetJustifyH("LEFT")
-        b.label = b.fs
+        error("GlobalSettings sidebar requires the shared navigation button API", 2)
     end
     b._sidebarKind = "item"
     return b
@@ -1385,11 +1440,10 @@ local function AcquireHeaderButton()
     end
     if ExBoss.UI and ExBoss.UI.CreateSidebarCategoryHeader then
         b = ExBoss.UI.CreateSidebarCategoryHeader(listChild)
+    elseif EXUI and EXUI.CreateSidebarNavigationHeader then
+        b = EXUI:CreateSidebarNavigationHeader(listChild, "", { height = 26 })
     else
-        b = CreateFrame("Button", nil, listChild)
-        b.label = EXUI:CreateVisualFontString(b, EXFONTFRAME, "GameFontNormal")
-        b.label:SetAllPoints()
-        b.label:SetJustifyH("LEFT")
+        error("GlobalSettings sidebar requires the shared navigation header API", 2)
     end
     b._sidebarKind = "header"
     return b
@@ -1402,7 +1456,7 @@ local function SetupListButton(button, height, leftInset)
     label:SetPoint("LEFT", leftInset or 14, 0)
     label:SetPoint("RIGHT", -8, 0)
     label:SetJustifyH("LEFT")
-    button:Enable()
+    if button.Enable then button:Enable() end
 end
 
 local function ItemMatchesSearch(item)
@@ -1422,6 +1476,8 @@ local function HideEmbeddedPages()
     -- 目录切换只直接隐藏各页 _scrollFrame 并在下方清 ActivePageFrame/CurrentModule，不调用 page:Hide()。
     -- StandardModulePage 依靠 ScrollFrame OnHide 进入 teardown；非标准页只执行各自已有的 OnHide。迁移不得把预期的完整释放写成现状或另造第二条释放链。
     local pages = {
+        colorSettingsPage,
+        resetSettingsPage,
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.GeneralOverviewPage,
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.CountdownVoicePage,
         ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.BatchEditPage,
@@ -1467,8 +1523,6 @@ local function RefreshRight()
     HideEmbeddedPages()
     if overviewSection then overviewSection:Hide() end
     if voiceSection then voiceSection:Hide() end
-    if colorSection then colorSection:Hide() end
-    if resetSection then resetSection:Hide() end
     if embedPlaceholder then embedPlaceholder:Hide() end
 
     if item and item.mode == "embedded" then
@@ -1481,6 +1535,8 @@ local function RefreshRight()
         ShowBuiltinLayout(false)
 
         local pageMap = {
+            color = colorSettingsPage,
+            reset = resetSettingsPage,
             overview = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.GeneralOverviewPage,
             countdownvoice = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.CountdownVoicePage,
             batchedit = ExBoss and ExBoss.UI and ExBoss.UI.Panel and ExBoss.UI.Panel.BatchEditPage,
@@ -1515,6 +1571,9 @@ local function RefreshRight()
     ShowBuiltinLayout(true)
     if titleText then
         titleText:SetText(item and GetTitle(item) or L["通用设置"])
+        titleText:ClearAllPoints()
+        titleText:SetPoint("TOPLEFT", rightRoot, "TOPLEFT", 14, -14)
+        titleText:SetPoint("TOPRIGHT", rightRoot, "TOPRIGHT", -14, -14)
     end
     if descText then
         descText:SetText(item and GetDesc(item) or "")
@@ -1524,24 +1583,14 @@ local function RefreshRight()
         titleSep:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -8)
         descText:ClearAllPoints()
         descText:SetPoint("TOPLEFT", titleSep, "BOTTOMLEFT", 0, -10)
-        if key == "color" and colorSection then
-            local width = colorSection:GetWidth()
-            titleSep:SetWidth(width)
-            descText:SetWidth(width)
-        else
-            titleSep:SetPoint("TOPRIGHT", rightRoot, "TOPRIGHT", -12, -8)
-            descText:SetPoint("RIGHT", rightRoot, "RIGHT", -14, 0)
-        end
+        titleSep:SetPoint("TOPRIGHT", rightRoot, "TOPRIGHT", -12, -8)
+        descText:SetPoint("RIGHT", rightRoot, "RIGHT", -14, 0)
     end
 
     if key == "overview" then
         if overviewSection then overviewSection:Show() end
     elseif key == "voice" then
         if voiceSection then voiceSection:Show() end
-    elseif key == "color" then
-        if colorSection then colorSection:Show() end
-    elseif key == "reset" then
-        if resetSection then resetSection:Show() end
     end
 end
 
@@ -1565,7 +1614,6 @@ local function RefreshList()
             header:SetPoint("TOPLEFT", 10, y)
             header:SetPoint("RIGHT", listChild, "RIGHT", -8, 0)
             header.label:SetText(GetTitle(category))
-            header:SetScript("OnClick", nil)
             activeButtons[#activeButtons + 1] = header
             header:Show()
             y = y - 30
@@ -1623,6 +1671,7 @@ end
 
 -- [混合函数边界] EnsureUI 内只可调整目录/宿主/内置区的几何与外观；搜索、ITEMS 顺序、embedded host、回调和释放链禁止修改。
 local function EnsureUI(leftFrame, contentFrame)
+    RegisterStandardGlobalPages()
     if leftRoot and rightRoot then return end
 
     leftRoot = CreateFrame("Frame", nil, leftFrame)
@@ -1703,8 +1752,6 @@ local function EnsureUI(leftFrame, contentFrame)
 
     CreateOverviewSection(rightRoot, descText, EXUI)
     CreateVoiceSection(rightRoot, descText, EXUI)
-    CreateColorSection(rightRoot, descText, EXUI)
-    CreateResetSection(rightRoot, descText)
 end
 
 function Page:Render(leftFrame, contentFrame)
@@ -1726,9 +1773,6 @@ function Page:Render(leftFrame, contentFrame)
     rightScrollFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     rightScrollFrame:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -24, 0)
     rightRoot:SetWidth(math.max((contentFrame:GetWidth() or 0) - 28, 760))
-    if refreshColorPresentation then refreshColorPresentation() end
-    if refreshResetPresentation then refreshResetPresentation() end
-
     RefreshList()
     RefreshGeneralControls()
     RefreshVoiceControls()
