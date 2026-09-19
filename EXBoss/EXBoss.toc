@@ -126,6 +126,7 @@ ExBossVoice\CountdownVoice.lua
 Modules\AuraSound\Runtime.lua
 TargetAlert\Runtime.lua
 ExBossTest\TemporaryBossPreview.lua
+ExBossTest\TemporaryColorComparison.lua
 
 # ── 6. GUI 层
 Modules\TrashCD\Bootstrap.lua

@@ -4553,16 +4553,21 @@ local function SetBossPlayButtonVisual(button, withLabel)
         button._exBossPlayIcon:SetTexture("Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\EXBossPlayTriangleWhite32.tga")
     end
     button._exBossPlayIconActive = true
+    button._exBossPlayIconWithLabel = withLabel == true
     if not button._exBossPlayHoverHooked then
         button._exBossPlayHoverHooked = true
         button:HookScript("OnEnter", function(self)
             if self._exBossPlayIconActive and self._exBossPlayIcon then
-                self._exBossPlayIcon:SetVertexColor(1, 1, 1, 1)
+                self._exBossPlayIcon:SetVertexColor(unpack(
+                    not self:IsEnabled() and GC.textDisabled
+                        or (self._exBossPlayIconWithLabel and GC.white or GC.accentHover)))
             end
         end)
         button:HookScript("OnLeave", function(self)
             if self._exBossPlayIconActive and self._exBossPlayIcon then
-                self._exBossPlayIcon:SetVertexColor(0.72, 0.76, 0.80, 1)
+                self._exBossPlayIcon:SetVertexColor(unpack(
+                    not self:IsEnabled() and GC.textDisabled
+                        or (self._exBossPlayIconWithLabel and GC.white or GC.textDim)))
             end
         end)
     end
@@ -4580,10 +4585,14 @@ local function SetBossPlayButtonVisual(button, withLabel)
     else
         icon:SetPoint("CENTER", button, "CENTER", 0, 0)
     end
-    if MouseIsOver and MouseIsOver(button) then
-        icon:SetVertexColor(1, 1, 1, 1)
+    if not button:IsEnabled() then
+        icon:SetVertexColor(unpack(GC.textDisabled))
+    elseif withLabel then
+        icon:SetVertexColor(unpack(GC.white))
+    elseif MouseIsOver and MouseIsOver(button) then
+        icon:SetVertexColor(unpack(GC.accentHover))
     else
-        icon:SetVertexColor(0.72, 0.76, 0.80, 1)
+        icon:SetVertexColor(unpack(GC.textDim))
     end
     icon:Show()
 end
@@ -4815,7 +4824,7 @@ local function LayoutVoiceSettingsCard(session)
     surface:SetPoint("TOPLEFT", body, "TOPLEFT", 12, -86)
     surface:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", -12, 10)
     surface:SetFrameLevel(body:GetFrameLevel() or 1)
-    EXUI:SetControlSurface(surface, 6, GC.card, GC.panelBorder)
+    EXUI:SetControlSurface(surface, 6, GC.subcard, GC.subcardBorder)
     surface:Show()
 
     local heading = session:GetWidget("voice", "description_countdown_group")
@@ -4857,6 +4866,17 @@ local function LayoutVoiceSettingsCard(session)
         divider:ClearAllPoints()
         divider:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -120)
         divider:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -120)
+        -- Decoration follows the existing preview divider's visibility/owner.
+        -- Keep the subcard border and every control's geometry untouched.
+        local background = card._exBossVoicePreviewBackground
+        local pixel = PixelUtil.GetNearestPixelSize(1, surface:GetEffectiveScale(), 1)
+        background:SetFrameLevel(surface:GetFrameLevel())
+        background:ClearAllPoints()
+        background:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", pixel, 0)
+        background:SetPoint("BOTTOMRIGHT", surface, "BOTTOMRIGHT", -pixel, pixel)
+        background:SetCornerRadius(math.max(0, 4 - pixel))
+        background:SetVertexColor(unpack(GC.panel))
+        background.TopFill:SetColorTexture(unpack(GC.panel))
     end
     if previewVisible then AnchorBossWidget(previewHeading, surface, 14, 126, 160, 28) end
     if previewHeading and previewHeading.text then
@@ -4922,13 +4942,13 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
                 backing:SetPoint("LEFT", header, "LEFT", 12, 12)
                 backing:SetSize(math.ceil((title and title:GetUnboundedStringWidth()) or 0) + 14,
                     PixelUtil.GetNearestPixelSize(2, header:GetEffectiveScale(), 1))
-                backing:SetColorTexture(unpack(GC.card))
+                backing:SetColorTexture(unpack(GC.panel))
                 backing:Show()
             end
             body:ClearAllPoints()
             body:SetPoint("TOPLEFT", card, "TOPLEFT", 0, -13)
             body:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", 0, 0)
-            EXUI:SetControlSurface(card, 10, GC.card, GC.panelBorder)
+            EXUI:SetControlSurface(card, 10, GC.card, GC.cardBorder)
             EXUI:ClearControlSurface(body)
         end
     end
@@ -4942,6 +4962,17 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
         local voiceSurface = voiceCard._exBossVoiceTimingSurface
         voiceCard._exBossVoicePreviewDivider = voiceCard._exBossVoicePreviewDivider
             or EXUI:CreateSettingsSeparator(voiceSurface, 1)
+        if not voiceCard._exBossVoicePreviewBackground then
+            local background = EXUI:CreateRoundedImage(voiceCard._exBossVoicePreviewDivider, 4)
+            background:SetTexture("Interface\\Buttons\\WHITE8X8")
+            -- The result area shares the subcard's lower rounded corners;
+            -- its upper edge meets the existing straight divider.
+            background.TopFill = EXUI:CreateVisualTexture(background, EXBASEFRAME)
+            background.TopFill:SetPoint("TOPLEFT")
+            background.TopFill:SetPoint("TOPRIGHT")
+            background.TopFill:SetHeight(4)
+            voiceCard._exBossVoicePreviewBackground = background
+        end
         voiceCard._exBossVoiceRuleDivider = voiceCard._exBossVoiceRuleDivider
             or EXUI:CreateSettingsSeparator(voiceSurface, 1)
         if not voiceCard._exBossVoicePrimaryDividers then
