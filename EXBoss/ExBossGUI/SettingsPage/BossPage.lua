@@ -3046,6 +3046,7 @@ local function AcquireBossCard()
     b.nameText:SetPoint("TOPLEFT", b.creature, "TOPRIGHT", 12, -8)
     b.nameText:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     b.nameText:SetJustifyH("LEFT")
+    b.nameText:SetJustifyV("TOP")
     b.nameText:SetWordWrap(true)
     b.nameText:SetFont(ExwindTools.MAIN_FONT, 16, "OUTLINE")
 
@@ -3055,7 +3056,9 @@ local function AcquireBossCard()
     b.detailBadge:EnableMouse(false)
     EXUI:SetControlSurface(b.detailBadge, 4, GC.panel, GC.cardBorder)
 
-    b.detailText = EXUI:CreateVisualFontString(b, EXFONTFRAME, "GameFontDisableSmall")
+    -- FontString must share the badge's Frame owner: draw layers cannot cross
+    -- from the parent card over a child Frame's surface textures.
+    b.detailText = EXUI:CreateVisualFontString(b.detailBadge, EXFONTFRAME, "GameFontDisableSmall")
     b.detailText:SetPoint("CENTER", b.detailBadge, "CENTER", 0, 0)
     b.detailText:SetJustifyH("CENTER")
     b.detailText:SetFont(ExwindTools.MAIN_FONT, 13, "")
@@ -3838,9 +3841,11 @@ local function RelayoutBossNavigation()
         card.creature:SetPoint("LEFT", inset, 0)
         card.nameText:SetFont(ExwindTools.MAIN_FONT, compact and 15 or 16, "")
         card.nameText:ClearAllPoints()
-        card.nameText:SetPoint("TOPLEFT", card, "TOPLEFT", inset + portraitWidth + gap, card._dungeonCommon and -21 or -8)
-        card.nameText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -inset, card._dungeonCommon and -21 or -8)
+        local nameTop = card._dungeonCommon and -21 or -6
+        card.nameText:SetPoint("TOPLEFT", card, "TOPLEFT", inset + portraitWidth + gap, nameTop)
+        card.nameText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -inset, nameTop)
         card.nameText:SetHeight(card._dungeonCommon and 20 or (compact and 30 or 34))
+        card.nameText:SetJustifyV("TOP")
         if card.nameText.SetMaxLines then card.nameText:SetMaxLines(card._dungeonCommon and 1 or 2) end
         card.detailBadge:ClearAllPoints()
         card.detailBadge:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", inset + portraitWidth + gap, 7)
