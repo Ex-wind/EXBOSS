@@ -14,7 +14,6 @@ local L                                   = (ExBoss and ExBoss.L) or
 local root                                = nil
 local packDropdown                        = nil
 local ui                                  = {}
-local RefreshInfo                         = nil
 local RefreshPage                         = nil
 local UpdateConfigurationManagerButtonState = nil
 local DEFAULT_VOICE_PACK                  = "EXWIND(默认)"
@@ -224,181 +223,6 @@ local function SetPack(packName)
     return true
 end
 
-local PACK_META = {
-    ["英文(ENG)"] = {
-        displayName = "English (ENG)",
-        subtitle    = "English Voice Pack",
-        description = "English voice pack with the same standard labels and filenames.",
-        addonName   = "EXBOSS-ENG",
-    },
-    ["EXWIND(默认)"] = {
-        displayName = "EXWIND (Default)",
-        subtitle    = L["ExBoss 官方默认语音包"],
-        description = L["覆盖常见首领与大秘境语音标签，标准参考实现。"],
-        addonName   = "EXBOSS-EXWIND",
-    },
-    ["忘忧景久"] = {
-        displayName = "忘忧景久",
-        subtitle    = L["中文配音语音包"],
-        description = L["忘忧景久语音包，标签与默认包兼容，可直接替换全局语音。"],
-        addonName   = "EXBOSS-WYJJ",
-    },
-    ["顾衣衿-少女音"] = {
-        displayName = "顾衣衿 · 少女音",
-        subtitle    = L["中文配音语音包"],
-        description = L["顾衣衿少女音版本，保留同一套标签结构，便于统一切换。"],
-        addonName   = "EXBOSS-GUYIJIN-GIRL",
-    },
-    ["顾衣衿-御姐音"] = {
-        displayName = "顾衣衿 · 御姐音",
-        subtitle    = L["中文配音语音包"],
-        description = L["顾衣衿御姐音版本，保持标签兼容，适配现有副本方案。"],
-        addonName   = "EXBOSS-GUYIJIN-LADY",
-    },
-    ["Kele"] = {
-        displayName = "Kele",
-        subtitle    = L["中文配音语音包"],
-        description = L["Kele 语音包，标签兼容默认方案，可直接用于副本配置。"],
-        addonName   = "EXBOSS-KELE",
-    },
-    ["夏一可"] = {
-        displayName = "夏一可",
-        subtitle    = L["中文配音语音包"],
-        description = L["夏一可语音包，保持标准标签兼容，可直接切换使用。"],
-        addonName   = "EXBOSS-XIAYIKE",
-    },
-    ["然然"] = {
-        displayName = "然然",
-        subtitle    = L["中文配音语音包"],
-        description = L["然然语音包，包含标准标签与倒数语音。"],
-        addonName   = "EXBOSS-RANRAN",
-    },
-    ["糖糖酱"] = {
-        displayName = "糖糖酱",
-        subtitle    = L["中文配音语音包"],
-        description = L["糖糖酱语音包，标签结构与默认包兼容。"],
-        addonName   = "EXBOSS-TANGTANGJIANG",
-    },
-    ["小羊(Yagi)"] = {
-        displayName = "小羊 (Yagi)",
-        subtitle    = L["中文配音语音包"],
-        description = L["小羊 Yagi 语音包，包含标准标签与倒数语音。"],
-        addonName   = "EXBOSS-YAGI",
-    },
-    ["你好牛(niuniu)"] = {
-        displayName = "你好牛 (niuniu)",
-        subtitle    = L["中文配音语音包"],
-        description = L["你好牛语音包，来源目录为牛师傅，包含标准标签与倒数语音。"],
-        addonName   = "EXBOSS-NIUNIU",
-    },
-    ["绫零(Ayarei)"] = {
-        displayName = "绫零 (Ayarei)",
-        subtitle    = L["中文配音语音包"],
-        description = L["绫零语音包，使用标准标签结构，兼容默认包配置。"],
-        addonName   = "EXBOSS-AYAREI",
-    },
-    ["露露緹婭"] = {
-        displayName = "露露緹婭",
-        subtitle    = L["中文配音语音包"],
-        description = L["露露緹婭语音包，标签结构与默认包兼容。"],
-        addonName   = "EXBOSS-RURU",
-    },
-}
-
-local function NormalizePackKey(name)
-    name = tostring(name or "")
-    if PACK_META[name] then return name end
-    local u = name:upper()
-    if name:find("英文", 1, true) or u:find("EXBOSS%-ENG", 1, true) or u:find("%(ENG%)", 1, true) then return "英文(ENG)" end
-    if name:find("忘忧景久", 1, true) or u:find("WYJJ", 1, true) then return "忘忧景久" end
-    if name:find("少女音", 1, true) or u:find("GUYIJIN%-GIRL", 1, true) then return "顾衣衿-少女音" end
-    if name:find("御姐音", 1, true) or u:find("GUYIJIN%-LADY", 1, true) then return "顾衣衿-御姐音" end
-    if u:find("KELE", 1, true) then return "Kele" end
-    if name:find("夏一可", 1, true) or u:find("XIAYIKE", 1, true) then return "夏一可" end
-    if name:find("然然", 1, true) or u:find("RANRAN", 1, true) then return "然然" end
-    if name:find("糖糖酱", 1, true) or u:find("TANGTANGJIANG", 1, true) then return "糖糖酱" end
-    if name:find("小羊", 1, true) or u:find("YAGI", 1, true) then return "小羊(Yagi)" end
-    if name:find("你好牛", 1, true) or name:find("牛师傅", 1, true) or u:find("NIUNIU", 1, true) then return "你好牛(niuniu)" end
-    if name:find("绫零", 1, true) or u:find("AYAREI", 1, true) then return "绫零(Ayarei)" end
-    if name:find("露露", 1, true) or name:find("緹婭", 1, true) or u:find("RURU", 1, true) or u:find("RURUTIA", 1, true) then
-        return
-        "露露緹婭"
-    end
-    if u:find("EXWIND", 1, true) then return "EXWIND(默认)" end
-    return name
-end
-
-local function GetPackInfo(packName)
-    local Registry = ExBoss and ExBoss.Voice and ExBoss.Voice.PackRegistry
-    local registered = Registry and Registry.GetPack and Registry.GetPack(packName)
-    local key   = NormalizePackKey(packName)
-    local base  = PACK_META[key] or {}
-    local addon = (registered and registered.addon) or base.addonName
-    local title, notes, author, version
-    if addon and GetAddOnMetadata then
-        title   = GetAddOnMetadata(addon, "Title")
-        notes   = GetAddOnMetadata(addon, "Notes")
-        author  = GetAddOnMetadata(addon, "Author")
-        version = GetAddOnMetadata(addon, "Version")
-    end
-    local labelCount = 0
-    local Catalog = ExBoss and ExBoss.Voice and ExBoss.Voice.LabelCatalog
-    if Catalog and Catalog.GetPackLabels then
-        local t = Catalog.GetPackLabels(packName)
-        if type(t) == "table" then labelCount = #t end
-    end
-    return {
-        displayName = (registered and registered.displayName) or (title ~= "" and title) or base.displayName or key,
-        subtitle    = base.subtitle or "Voice Pack",
-        description = (notes ~= "" and notes) or base.description or L["暂无描述"],
-        author      = (author ~= "" and author) or L["—"],
-        version     = version or L["—"],
-        labelCount  = labelCount,
-    }
-end
-
-local function BuildLabelSet(labels)
-    local set = {}
-    for i = 1, #(labels or {}) do
-        local label = tostring(labels[i] or "")
-        if label ~= "" then
-            set[label] = true
-        end
-    end
-    return set
-end
-
-local MISSING_LABEL_IGNORE = {
-    ["54321"] = true,
-    ["准备跑圈"] = true,
-    ["准备追人"] = true,
-    ["召唤小怪"] = true,
-    ["坦克击退"] = true,
-    ["注意击飞"] = true,
-    ["集合放圈"] = true,
-}
-
-local function GetMissingLabelsForPack(packName)
-    local Catalog = ExBoss and ExBoss.Voice and ExBoss.Voice.LabelCatalog
-    if not (Catalog and Catalog.GetPackLabels) then
-        return nil, L["标签目录未加载"]
-    end
-
-    local baseline = Catalog.GetPackLabels("EXWIND(默认)") or {}
-    local current = Catalog.GetPackLabels(packName) or {}
-    local currentSet = BuildLabelSet(current)
-
-    local missing, seen = {}, {}
-    for i = 1, #baseline do
-        local label = tostring(baseline[i] or "")
-        if label ~= "" and not MISSING_LABEL_IGNORE[label] and not currentSet[label] and not seen[label] then
-            seen[label] = true
-            missing[#missing + 1] = label
-        end
-    end
-    return missing, nil
-end
-
 local function GetProfiles()
     return ExBoss and ExBoss.Voice and ExBoss.Voice.Profiles
 end
@@ -533,10 +357,6 @@ local lastSyncedConfigurationRef = nil
 -- ModuleDB：语音包、职责 Author 选择和 User 实体本身各有自己的 authority，
 -- 持久 ModuleDB 会在重新打开页面时拿旧镜像覆盖这些真实状态。
 local pageDraft = nil
-local pageStatus = {
-    configText = "",
-    configOk = nil,
-}
 
 local function GetPageDBDefaults()
     return {
@@ -590,41 +410,15 @@ local function BuildPackItemsForGrid()
     return items
 end
 
-local function GetCurrentPackName()
-    local db = GetPageDB()
-    local value = tostring(db.selectedVoicePack or "")
-    if value == "" then
-        value = tostring(EnsureDB().selectedVoicePack or ResolveDefaultVoicePack())
-    end
-    return value
-end
-
-local function GetCurrentPackInfo()
-    return GetPackInfo(GetCurrentPackName())
-end
-
-local function BuildMissingVoiceText()
-    local missing, err = GetMissingLabelsForPack(GetCurrentPackName())
-    if err then
-        return string.format("|cffff6666%s|r\n%s", L["缺少语音：?"], tostring(err))
-    end
-    if type(missing) == "table" and #missing > 0 then
-        return string.format("|cffffaa55%s|r\n%s", string.format(L["缺少语音：%d"], #missing), table.concat(missing, L["、"]))
-    end
-    return "|cff33dd88" .. L["缺少语音：0"] .. "|r\n" .. L["已覆盖默认语音标签"]
-end
-
-local function BuildDefaultConfigStatusText()
-    local bossCfg = GetBossConfig()
-    if not bossCfg then
-        return L["Boss 配置模块未加载"], false
-    end
-    return L["各职责只选择 Author；对应的 User 覆盖始终自动绑定该 Author，不能独立选择。"], nil
-end
-
 local function SetStatus(text, ok)
-    pageStatus.configText = tostring(text or "")
-    pageStatus.configOk = ok
+    local message = ApplyStatusColor(text, ok, ok == false)
+    if message ~= "" then
+        if ExBoss.Print and type(ExBoss.Print.Say) == "function" then
+            ExBoss.Print.Say(message)
+        else
+            print(message)
+        end
+    end
     if type(RefreshPage) == "function" then
         RefreshPage(false)
     end
@@ -908,21 +702,13 @@ local function DeleteManagedConfiguration()
     end
 end
 
-local function BuildVoicePackInfoBody()
-    local info = GetCurrentPackInfo()
-    local lines = {
-        string.format("%s%s|r", GC.markup.textDim, tostring(info.description or "")),
-        "",
-        string.format("%s%s|r  %s", GC.markup.accent, L["标签"], string.format(L["%d 标签"], tonumber(info.labelCount) or 0)),
-        string.format("%s%s|r  %s", GC.markup.accent, L["作者"], tostring(info.author or L["—"])),
-        string.format("%s%s|r  %s", GC.markup.accent, L["版本"], tostring(info.version or L["—"])),
-        "",
-        BuildMissingVoiceText(),
-    }
-    return table.concat(lines, "\n")
-end
-
 local function FindLayoutEntry(items, key)
+    if type(items) == "table" and type(items.cards) == "table" then
+        for _, card in ipairs(items.cards) do
+            local found = FindLayoutEntry(card.content and card.content.items, key)
+            if found then return found end
+        end
+    end
     if type(items) == "table" and type(items.sections) == "table" then
         for i = 1, #items.sections do
             local section = items.sections[i]
@@ -951,71 +737,100 @@ local function FindLayoutEntry(items, key)
     return nil
 end
 
--- [卡片/Grid 迁移边界：语音包与配置]
--- 允许：四组使用共享单声明表单；原选项表直接引用，仅布局与说明归属由 Core 呈现。
--- 禁止：修改职责槽/Author/外观的业务顺序、稳定 key、确认/重载/复制/改名/删除回调或页面 DB 投影。
--- 四组的标题、说明与排列由 Core 统一拥有；原选项生成时机、参数和次数保持。
-local function BuildVoicePackDetailsDescription(info)
-    local displayName = tostring(info.displayName or "")
-    local subtitle = tostring(info.subtitle or "")
-    if displayName == "" then return subtitle end
-    if subtitle == "" then return displayName end
-    return displayName .. "\n" .. subtitle
+-- Choice and management cards share the existing draft; documentation is display-only.
+local DOCUMENTATION_URL = "https://exwind.net/exboss/config"
+local DOCUMENTATION_RENDERER = "ExBoss.VoicePackDocumentation"
+
+local function RegisterDocumentationRenderer(Grid)
+    if Grid:GetCustomRenderer(DOCUMENTATION_RENDERER) then return end
+    Grid:RegisterCustomRenderer(DOCUMENTATION_RENDERER, {
+        mount = function(host)
+            local input = EXUI:CreateEditBox(host, DOCUMENTATION_URL, 280, 28, nil, {})
+            input:SetPoint("TOPLEFT", 0, 0)
+            input:SetPoint("TOPRIGHT", 0, 0)
+            local edit = input.editBox or input
+            edit:SetScript("OnTextChanged", function(self)
+                if self:GetText() ~= DOCUMENTATION_URL then
+                    self:SetText(DOCUMENTATION_URL)
+                    self:HighlightText()
+                end
+            end)
+            edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+            edit:SetScript("OnMouseUp", function(self) self:HighlightText() end)
+            host.documentationInput = input
+        end,
+        layout = function() return 28 end,
+        release = function(host)
+            local input = host.documentationInput
+            if input then
+                local edit = input.editBox or input
+                edit:SetScript("OnMouseUp", nil)
+                edit:SetScript("OnEditFocusGained", nil)
+                edit:ClearFocus()
+                if input._fromPool and _G.ExwindFactory then
+                    _G.ExwindFactory:Release(input._fromPool, input)
+                else
+                    input:Hide()
+                    input:SetParent(nil)
+                end
+            end
+            host.documentationInput = nil
+        end,
+    })
 end
 
 local function BuildConfigurationLayout()
-    local info = GetCurrentPackInfo()
-    local db = GetPageDB()
-    local allConfigurations = BuildAllConfigurationItems()
-    local layout = {
-        {
-            key = "btn_toggle_grid_edit", type = "button",
-            label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"],
-            func = function()
-                local Grid = _G.ExwindGrid
-                if Grid and scrollChild then
-                    Grid:ToggleLiveEdit(scrollChild)
-                    C_Timer.After(0, function() if RefreshPage then RefreshPage(false) end end)
+    local function Card(id, title, placement, items)
+        local rows = {}
+        local actions
+        for index, item in ipairs(items) do
+            item.x, item.y, item.w, item.h = 1, index, 200, 1
+            item.measure = { preferredHeight = 28, minHeight = 28 }
+            if item.type == "select" then
+                item.items, item.originalOptions = item.originalOptions, nil
+            end
+            if item.type == "select" or item.type == "input" then
+                rows[#rows + 1] = { key = item.key, label = item.label }
+            elseif item.type == "button" then
+                if not actions then
+                    actions = { controls = {} }
+                    rows[#rows + 1] = actions
                 end
-            end,
-        },
-
-        -- 左栏：语音包保持现状，后续单独调整。
-        { key = "selectedVoicePack", type = "select", label = L["当前语音包"], originalOptions = BuildPackItemsForGrid(), search = true },
-        { key = "desc_pack_info", type = "description", label = BuildVoicePackInfoBody() },
-
-        -- All active configuration choices live together.  User overrides
-        -- remain internal and automatically follow their selected Author.
+                local width = item.key == "btn_copy_configuration" and 140
+                    or item.key == "btn_rename_configuration" and 100 or 80
+                actions.controls[#actions.controls + 1] = { key = item.key, width = width }
+            else
+                rows[#rows + 1] = { controls = { { key = item.key } } }
+            end
+        end
+        return { id = id, title = title, placement = placement,
+            content = { kind = "grid", items = items },
+            settingsList = { title = title, preserveHeader = false, rows = rows } }
+    end
+    local halfWidth = { ratio = 0.5, offset = -8 }
+    local choices = {
         { key = "appearanceProfileID", type = "select", label = L["外观配置"], originalOptions = BuildAppearanceProfileItems(), search = true },
-        { key = "author_mplus_tank", type = "select", label = L["大秘境坦克 Author"], originalOptions = BuildAuthorPresetItems("mplus_tank"), search = true },
-        { key = "author_mplus_dps", type = "select", label = L["大秘境 DPS Author"], originalOptions = BuildAuthorPresetItems("mplus_dps"), search = true },
-        { key = "author_mplus_heal", type = "select", label = L["大秘境治疗 Author"], originalOptions = BuildAuthorPresetItems("mplus_heal"), search = true },
-        { key = "author_raid_tank", type = "select", label = L["团本坦克 Author"], originalOptions = BuildAuthorPresetItems("raid_tank"), search = true },
-        { key = "author_raid_dps", type = "select", label = L["团本 DPS Author"], originalOptions = BuildAuthorPresetItems("raid_dps"), search = true },
-        { key = "author_raid_heal", type = "select", label = L["团本治疗 Author"], originalOptions = BuildAuthorPresetItems("raid_heal"), search = true },
+        { key = "author_mplus_tank", type = "select", label = L["大秘境 · 坦克"], originalOptions = BuildAuthorPresetItems("mplus_tank"), search = true },
+        { key = "author_mplus_dps", type = "select", label = L["大秘境 · 输出"], originalOptions = BuildAuthorPresetItems("mplus_dps"), search = true },
+        { key = "author_mplus_heal", type = "select", label = L["大秘境 · 治疗"], originalOptions = BuildAuthorPresetItems("mplus_heal"), search = true },
+        { key = "author_raid_tank", type = "select", label = L["团本 · 坦克"], originalOptions = BuildAuthorPresetItems("raid_tank"), search = true },
+        { key = "author_raid_dps", type = "select", label = L["团本 · 输出"], originalOptions = BuildAuthorPresetItems("raid_dps"), search = true },
+        { key = "author_raid_heal", type = "select", label = L["团本 · 治疗"], originalOptions = BuildAuthorPresetItems("raid_heal"), search = true },
+        { key = "selectedVoicePack", type = "select", label = L["当前语音包"], originalOptions = BuildPackItemsForGrid(), search = true },
     }
-
-    local manageTop = 11
-    local managedConfiguration = FindConfigurationRow(db.selectedConfiguration)
-    local builtInDeleteHint = managedConfiguration and managedConfiguration.builtIn == true
-        and ApplyStatusColor(L["内置 Author 无法重命名或删除"], false, true) or ""
-    layout[#layout + 1] = { key = "selectedConfiguration", type = "select", label = L["选择 Author 配置"], originalOptions = allConfigurations, search = true }
-    layout[#layout + 1] = { key = "configurationName", type = "input", label = L["Author 名称"] }
-    layout[#layout + 1] = { key = "btn_copy_configuration", type = "button", label = L["复制配置"], func = CopyManagedConfiguration }
-    layout[#layout + 1] = { key = "btn_rename_configuration", type = "button", label = L["重命名"], func = RenameManagedConfiguration }
-    layout[#layout + 1] = { key = "btn_delete_configuration", type = "button", label = L["删除"], func = DeleteManagedConfiguration }
-    layout[#layout + 1] = { key = "desc_builtin_delete_hint", type = "description", label = builtInDeleteHint }
-    layout[#layout + 1] = { key = "desc_config_status", type = "description", label = ApplyStatusColor(pageStatus.configText, pageStatus.configOk, pageStatus.configOk == false) }
-    layout[15].description = layout[16]
-    return { version = 1, title = L["语音 / 配置"], sections = {
-        { kind = "settings", id = "pack-picker", title = L["语音包"], description = L["选择当前生效的语音包。"],
-            items = { layout[1], layout[2] } },
-        { kind = "settings", id = "pack-details", title = L["当前语音包"], description = BuildVoicePackDetailsDescription(info),
-            items = {}, footerDescription = layout[3] },
-        { kind = "settings", id = "active-configurations", title = L["当前配置选择"], description = L["外观配置与六个职责的当前 Author 配置。切换任一项会在确认后重载界面。"],
-            items = { layout[4], layout[5], layout[6], layout[7], layout[8], layout[9], layout[10] } },
-        { kind = "settings", id = "configuration-manager", title = L["Author 配置管理"], description = L["这里只管理 Author。输入新名称后可复制为独立配置；User 覆盖始终绑定 Author。"],
-            items = { layout[11], layout[12], layout[13], layout[14], layout[15] }, footerDescription = layout[17] },
+    local manager = {
+        { key = "selectedConfiguration", type = "select", label = L["选择配置"], originalOptions = BuildAllConfigurationItems(), search = true },
+        { key = "configurationName", type = "input", label = L["新名称"] },
+        { key = "btn_copy_configuration", type = "button", label = L["复制为新配置"], variant = "primary", func = CopyManagedConfiguration },
+        { key = "btn_rename_configuration", type = "button", label = L["重命名"], func = RenameManagedConfiguration },
+        { key = "btn_delete_configuration", type = "button", label = L["删除"], variant = "danger", func = DeleteManagedConfiguration },
+    }
+    return { version = 1, title = L["语音 / 配置"], settingsListWidthPercent = 100, cards = {
+        Card("active-configurations", L["配置与语音选择"], { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = halfWidth }, choices),
+        Card("configuration-manager", L["配置管理"], { target = "active-configurations", side = "right", align = "start", gap = 16, width = halfWidth }, manager),
+        Card("configuration-documentation", L["配置说明"], { target = "configuration-manager", side = "below", align = "end", gap = 16, width = halfWidth }, {
+            { key = "config_documentation", type = "custom", renderer = DOCUMENTATION_RENDERER },
+        }),
     } }
 end
 
@@ -1028,26 +843,15 @@ local function UpdateLayoutData(layout)
         return
     end
 
-    local info = GetCurrentPackInfo()
-    local configStatusText, configStatusOk = BuildDefaultConfigStatusText()
-    if pageStatus.configText ~= "" then
-        configStatusText = pageStatus.configText
-        configStatusOk = pageStatus.configOk
-    end
-
     local updates = {
-        btn_toggle_grid_edit = { label = IsGridEditActive() and L["退出布局编辑"] or L["开启布局编辑"] },
-        selectedVoicePack = { originalOptions = BuildPackItemsForGrid() },
-        ["pack-details"] = { title = L["当前语音包"], description = BuildVoicePackDetailsDescription(info) },
-        desc_pack_info = { label = BuildVoicePackInfoBody() },
-        appearanceProfileID = { originalOptions = BuildAppearanceProfileItems() },
-        author_mplus_tank = { originalOptions = BuildAuthorPresetItems("mplus_tank") },
-        author_mplus_dps = { originalOptions = BuildAuthorPresetItems("mplus_dps") },
-        author_mplus_heal = { originalOptions = BuildAuthorPresetItems("mplus_heal") },
-        author_raid_tank = { originalOptions = BuildAuthorPresetItems("raid_tank") },
-        author_raid_dps = { originalOptions = BuildAuthorPresetItems("raid_dps") },
-        author_raid_heal = { originalOptions = BuildAuthorPresetItems("raid_heal") },
-        desc_config_status = { label = ApplyStatusColor(configStatusText, configStatusOk, configStatusOk == false) },
+        selectedVoicePack = { items = BuildPackItemsForGrid() },
+        appearanceProfileID = { items = BuildAppearanceProfileItems() },
+        author_mplus_tank = { items = BuildAuthorPresetItems("mplus_tank") },
+        author_mplus_dps = { items = BuildAuthorPresetItems("mplus_dps") },
+        author_mplus_heal = { items = BuildAuthorPresetItems("mplus_heal") },
+        author_raid_tank = { items = BuildAuthorPresetItems("raid_tank") },
+        author_raid_dps = { items = BuildAuthorPresetItems("raid_dps") },
+        author_raid_heal = { items = BuildAuthorPresetItems("raid_heal") },
     }
 
     for key, fields in pairs(updates) do
@@ -1074,6 +878,7 @@ local function RenderGrid(contentFrame, resetScroll)
         return
     end
 
+    RegisterDocumentationRenderer(Grid)
     local layout = GetOrBuildLayout()
     ExwindTools:RegisterModuleLayout(MODULE_KEY, layout)
 

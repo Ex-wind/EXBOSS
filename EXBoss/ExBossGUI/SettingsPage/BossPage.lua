@@ -2178,20 +2178,21 @@ RefreshSpellDetailHeaderLayout = function()
     end
 
     local compact = headerW <= 820
-    local iconSize = compact and 56 or 60
-    local inset, topInset = 12, 8
+    local iconSize = compact and 60 or 64
+    local leftRailWidth = compact and 74 or 78
+    local inset, topInset = 8, 8
     UI.spellDetailTitle:SetFont(ExwindTools.MAIN_FONT, compact and 18 or 20, "")
     UI.spellDetailIcon:SetSize(iconSize, iconSize)
     UI.spellDetailIcon:ClearAllPoints()
-    UI.spellDetailIcon:SetPoint("TOPLEFT", 8 + (90 - iconSize) / 2, -topInset - 6)
+    UI.spellDetailIcon:SetPoint("TOPLEFT", inset + (leftRailWidth - iconSize) / 2, -topInset)
     local iconInset = PixelUtil.GetNearestPixelSize(1, UI.spellDetailHeader:GetEffectiveScale(), 1)
     UI.spellDetailIcon:SetCornerRadius(10 - iconInset)
-    UI.spellDetailIconBorder:SetSize(90, C.SPELL_DETAIL_HEIGHT - 14)
+    UI.spellDetailIconBorder:SetSize(iconSize + iconInset * 2, iconSize + iconInset * 2)
     UI.spellDetailIconBorder:ClearAllPoints()
-    UI.spellDetailIconBorder:SetPoint("TOPLEFT", UI.spellDetailHeader, "TOPLEFT", 8, -8)
-    EXUI:SetControlSurface(UI.spellDetailIconBorder, 8, GC.panel, GC.cardBorder)
+    UI.spellDetailIconBorder:SetPoint("TOPLEFT", UI.spellDetailIcon, "TOPLEFT", -iconInset, iconInset)
+    EXUI:SetControlSurface(UI.spellDetailIconBorder, 10, GC.transparent, GC.cardBorder)
 
-    local contentX = 8 + 90 + 12
+    local contentX = inset + leftRailWidth + 10
     local actionWidth = compact and 246 or 286
     local chipGap = 6
     local identityWidth = math.max(140, headerW - contentX - inset - actionWidth - 12)
@@ -2241,9 +2242,12 @@ RefreshSpellDetailHeaderLayout = function()
     UI.spellDetailBodyScroll:SetPoint("TOPLEFT", UI.spellDetailCastChip, "BOTTOMLEFT", 0, -8)
     UI.spellDetailBodyScroll:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "BOTTOMRIGHT", -inset, 10)
     UI.spellDetailBody:SetWidth(bodyWidth)
-    UI.spellDetailHeader:SetHeight(C.SPELL_DETAIL_HEIGHT)
+    local bodyTextHeight = math.max(20, math.ceil(UI.spellDetailBody:GetStringHeight() or 0))
+    local detailHeight = math.max(C.SPELL_DETAIL_HEIGHT, 83 + bodyTextHeight)
+    UI.spellDetailHeader:SetHeight(detailHeight)
     if UI.spellDetailBodyChild then
-        UI.spellDetailBodyChild:SetSize(bodyWidth, math.max(1, UI.spellDetailBodyScroll:GetHeight()))
+        UI.spellDetailBodyChild:SetSize(bodyWidth,
+            math.max(bodyTextHeight, math.max(1, UI.spellDetailBodyScroll:GetHeight())))
         UI.spellDetailBodyScroll:UpdateScrollChildRect()
         UI.spellDetailBodyScroll:SetVerticalScroll(0)
     end
@@ -2276,7 +2280,7 @@ local function ApplyBossRightPanelLayout()
     UI.spellDetailHeader:SetPoint("TOPRIGHT", UI.rightRoot, "TOPRIGHT", -16, -(GetSpellListViewportHeight() + 8 + C.SPELL_LIST_TOP_INSET))
     if UI.spellSummaryEnableHost then
         UI.spellSummaryEnableHost:ClearAllPoints()
-        UI.spellSummaryEnableHost:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 8, 6)
+        UI.spellSummaryEnableHost:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 8, 7)
     end
     UI.spellSettingsFrame:SetPoint("TOPLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 0, -8)
     UI.spellSettingsFrame:SetPoint("BOTTOMRIGHT", UI.rightRoot, "BOTTOMRIGHT", -16, 0)
@@ -2511,7 +2515,6 @@ local function SetSpellDetailHeaderEmpty(message)
     UI.spellDetailBody:SetText("")
     UI.spellDetailBodyScroll:SetVerticalScroll(0)
     if UI.spellSummaryEnableHost then UI.spellSummaryEnableHost:Hide() end
-    if UI.spellDetailOffNote then UI.spellDetailOffNote:Hide() end
     UI.spellDetailHeader:SetHeight(C.SPELL_DETAIL_HEIGHT)
 end
 
@@ -3044,14 +3047,19 @@ local function AcquireBossCard()
     b.nameText:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     b.nameText:SetJustifyH("LEFT")
     b.nameText:SetWordWrap(true)
-    b.nameText:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
+    b.nameText:SetFont(ExwindTools.MAIN_FONT, 16, "OUTLINE")
+
+    b.detailBadge = CreateFrame("Frame", nil, b, "BackdropTemplate")
+    b.detailBadge:SetPoint("BOTTOMLEFT", b.creature, "BOTTOMRIGHT", 12, 7)
+    b.detailBadge:SetSize(46, 21)
+    b.detailBadge:EnableMouse(false)
+    EXUI:SetControlSurface(b.detailBadge, 4, GC.panel, GC.cardBorder)
 
     b.detailText = EXUI:CreateVisualFontString(b, EXFONTFRAME, "GameFontDisableSmall")
-    b.detailText:SetPoint("TOPLEFT", b.nameText, "BOTTOMLEFT", 0, -4)
-    b.detailText:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-    b.detailText:SetJustifyH("LEFT")
-    b.detailText:SetFont(ExwindTools.MAIN_FONT, 12, "")
-    b.detailText:SetWordWrap(true)
+    b.detailText:SetPoint("CENTER", b.detailBadge, "CENTER", 0, 0)
+    b.detailText:SetJustifyH("CENTER")
+    b.detailText:SetFont(ExwindTools.MAIN_FONT, 13, "")
+    b.detailText:SetWordWrap(false)
 
     b:SetScript("OnEnter", function(self)
         self._hovered = true
@@ -3461,8 +3469,8 @@ local function EnsureUI(leftFrame, contentFrame)
     end)
 
     UI.spellSummaryEnableHost = CreateFrame("Frame", nil, UI.spellDetailHeader)
-    UI.spellSummaryEnableHost:SetSize(90, 28)
-    UI.spellSummaryEnableHost:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 8, 6)
+    UI.spellSummaryEnableHost:SetSize(76, 26)
+    UI.spellSummaryEnableHost:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 8, 7)
     UI.spellSummaryEnableHost:Hide()
 
     -- 触发模式与测试按钮属于摘要第二行，和射程/施法信息并列。
@@ -3493,7 +3501,7 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailIconBorder:SetSize(48, 48)
     UI.spellDetailIconBorder:SetPoint("TOPLEFT", UI.spellDetailIcon, "TOPLEFT", -1, 1)
     UI.spellDetailIconBorder:SetFrameLevel(UI.spellDetailHeader:GetFrameLevel())
-    EXUI:SetControlSurface(UI.spellDetailIconBorder, 10, { 0, 0, 0, 0 }, GC.accent)
+    EXUI:SetControlSurface(UI.spellDetailIconBorder, 10, GC.transparent, GC.cardBorder)
 
     UI.spellDetailTitle = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontNormal")
     UI.spellDetailTitle:SetPoint("TOPLEFT", UI.spellDetailIcon, "TOPRIGHT", 8, -1)
@@ -3555,16 +3563,6 @@ local function EnsureUI(leftFrame, contentFrame)
     UI.spellDetailBody:SetSpacing(3)
     UI.spellDetailBody:SetFont(ExwindTools.MAIN_FONT, 15, "")
     UI.spellDetailBody:SetTextColor(unpack(GC.textDim))
-
-    UI.spellDetailOffNote = EXUI:CreateVisualFontString(UI.spellDetailHeader, EXFONTFRAME, "GameFontHighlightSmall")
-    -- Keep the disabled-state note in the footer strip reserved by
-    -- RefreshSpellDetailHeaderLayout, below the scrollable description.
-    UI.spellDetailOffNote:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 88, 16)
-    UI.spellDetailOffNote:SetPoint("RIGHT", UI.spellDetailHeader, "RIGHT", -34, 0)
-    UI.spellDetailOffNote:SetJustifyH("LEFT")
-    UI.spellDetailOffNote:SetText(L["技能已停用，配置仍保留；重新启用后生效。"])
-    UI.spellDetailOffNote:SetTextColor(unpack(GC.textDisabled))
-    UI.spellDetailOffNote:Hide()
 
     UI.spellDetailDivider = EXUI:CreateSettingsSeparator(UI.spellDetailHeader, 1)
     UI.spellDetailDivider:SetPoint("BOTTOMLEFT", UI.spellDetailHeader, "BOTTOMLEFT", 14, 10)
@@ -3828,7 +3826,7 @@ local function RelayoutBossNavigation()
     local compact = UI.leftRoot:GetWidth() <= 220
     local inset, gap = compact and 6 or 8, compact and 8 or 10
     local portraitWidth, portraitHeight = compact and 54 or 60, compact and 54 or 60
-    local cardHeight = compact and 62 or 66
+    local cardHeight = compact and 66 or 70
     local y = 4
     for _, card in ipairs(CARD_CACHE.activeBossCards) do
         if card._dungeonCommon then y = y + 19 end
@@ -3838,13 +3836,20 @@ local function RelayoutBossNavigation()
         card.creature:SetSize(portraitWidth, portraitHeight)
         card.creature:ClearAllPoints()
         card.creature:SetPoint("LEFT", inset, 0)
-        card.nameText:SetFont(ExwindTools.MAIN_FONT, compact and 14 or 15, "")
+        card.nameText:SetFont(ExwindTools.MAIN_FONT, compact and 15 or 16, "")
         card.nameText:ClearAllPoints()
         card.nameText:SetPoint("TOPLEFT", card, "TOPLEFT", inset + portraitWidth + gap, card._dungeonCommon and -21 or -8)
         card.nameText:SetPoint("TOPRIGHT", card, "TOPRIGHT", -inset, card._dungeonCommon and -21 or -8)
+        card.nameText:SetHeight(card._dungeonCommon and 20 or (compact and 30 or 34))
+        if card.nameText.SetMaxLines then card.nameText:SetMaxLines(card._dungeonCommon and 1 or 2) end
+        card.detailBadge:ClearAllPoints()
+        card.detailBadge:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", inset + portraitWidth + gap, 7)
         card.detailText:ClearAllPoints()
-        card.detailText:SetPoint("TOPLEFT", card.nameText, "BOTTOMLEFT", 0, -2)
-        card.detailText:SetPoint("TOPRIGHT", card.nameText, "BOTTOMRIGHT", 0, -2)
+        card.detailText:SetPoint("CENTER", card.detailBadge, "CENTER", 0, 0)
+        card.detailText:SetJustifyH("CENTER")
+        card.detailText:SetFont(ExwindTools.MAIN_FONT, 13, "")
+        card.detailText:SetWordWrap(false)
+        card.detailBadge:SetShown(not card._dungeonCommon)
         card:SetHeight(cardHeight)
         y = y + cardHeight + 3
     end
@@ -4025,16 +4030,10 @@ RefreshSettingsDynamicWidgets = function(mdb)
         return
     end
     ApplyBossSettingsLabelSafety(widgets)
-    if UI.spellDetailOffNote then
-        local shown = mdb.enabled == false
-        if UI.spellDetailOffNote:IsShown() ~= shown then
-            UI.spellDetailOffNote:SetShown(shown)
-            RefreshSpellDetailHeaderLayout()
-        end
-        if UI.spellDetailIcon then
-            UI.spellDetailIcon:SetDesaturated(shown)
-            UI.spellDetailIcon:SetAlpha(shown and 0.65 or 1)
-        end
+    local spellDisabled = mdb.enabled == false
+    if UI.spellDetailIcon then
+        UI.spellDetailIcon:SetDesaturated(spellDisabled)
+        UI.spellDetailIcon:SetAlpha(spellDisabled and 0.65 or 1)
     end
 
     local modeDropdownWidget = widgets["eventColorMode"]
@@ -4405,34 +4404,43 @@ RefreshVoicePreviewTimeline = function(sequence)
     local timeline = UI.voicePreviewTimeline
     if not timeline then return end
     sequence = type(sequence) == "table" and sequence or {}
-    local count = math.max(1, #sequence)
+    local sequenceBySecond = {}
+    for _, entry in ipairs(sequence) do
+        local second = tonumber(entry.seconds)
+        if second and second >= 0 and second <= 6 and entry.kind ~= "silent" then
+            sequenceBySecond[second] = entry
+        end
+    end
     for index, node in ipairs(timeline.nodes or {}) do
-        local entry = sequence[index]
-        node:SetShown(entry ~= nil)
+        local second = 7 - index
+        local entry = sequenceBySecond[second]
+        node:Show()
+        node.time:SetText(tostring(second) .. L["秒"])
+        node._previewSecond = second
         if entry then
-            if entry.seconds == 0 then
-                node.time:SetText("0 " .. L["秒"])
-            else
-                node.time:SetText(L["前"] .. " " .. tostring(entry.seconds) .. " " .. L["秒"])
-            end
-            node.value:SetText(entry.text or L["静默"])
             node._previewKind = entry.kind
-            if entry.kind == "silent" then
-                EXUI:ClearControlSurface(node.valueHost)
-                node.value:SetFont(ExwindTools.MAIN_FONT, 13, "")
-                node.value:SetTextColor(unpack(GC.textDim))
-            elseif entry.kind == "digit" then
+            node._previewTriggerIndex = entry.triggerIndex
+            if entry.kind == "digit" then
+                node.value:SetText(entry.text or tostring(second))
                 EXUI:ClearControlSurface(node.valueHost)
                 node.value:SetFont(ExwindTools.MAIN_FONT, 18, "")
                 node.value:SetTextColor(1, 1, 1, 1)
             else
-                EXUI:SetControlSurface(node.valueHost, 4, { 0.12, 0.36, 0.61, 1 }, GC.accent)
+                node.value:SetText(tostring(entry.text or L["未选择"]))
+                EXUI:SetControlSurface(node.valueHost, 4, GC.panel, GC.cardBorder)
                 node.value:SetFont(ExwindTools.MAIN_FONT, 14, "")
-                node.value:SetTextColor(1, 1, 1, 1)
+                node.value:SetTextColor(unpack(GC.selectedText))
             end
+        else
+            node._previewKind = "empty"
+            node._previewTriggerIndex = nil
+            node.value:SetText("")
+            node.value:SetFont(ExwindTools.MAIN_FONT, 14, "")
+            node.value:SetTextColor(unpack(GC.textDim))
+            EXUI:ClearControlSurface(node.valueHost)
         end
     end
-    timeline._visibleNodeCount = count
+    timeline._visibleNodeCount = 7
     if timeline._layout then timeline:_layout() end
 end
 
@@ -4491,6 +4499,24 @@ end
 
 local function ReleaseSpellSettingsCardSession()
     if UI.spellSettingsCardSession and UI.spellSettingsCardSession.byId then
+        local centralLead = UI.spellSettingsCardSession:GetWidget("text", "centralLead")
+        if centralLead and centralLead._exBossUnitInside then
+            centralLead:SetTextInsets(9, 9, 0, 0)
+            if centralLead.label then
+                centralLead.label:ClearAllPoints()
+                centralLead.label:SetPoint("LEFT", centralLead, "RIGHT", 5, 0)
+                centralLead.label:SetJustifyH("LEFT")
+                centralLead.label:SetText(centralLead._exBossUnitOriginalText or L["(秒)"])
+            end
+            centralLead._exBossUnitInside = nil
+            centralLead._exBossUnitOriginalText = nil
+        end
+        local countdownSelector = UI.spellSettingsCardSession:GetWidget("voice", "tr2CountdownLead")
+        if countdownSelector and countdownSelector._exBossSelectedOutline then
+            countdownSelector._exBossSelectedOutline:SetScript("OnUpdate", nil)
+            countdownSelector._exBossSelectedOutline._exBossSelectedButton = nil
+            countdownSelector._exBossSelectedOutline:Hide()
+        end
         local enabled = UI.spellSettingsCardSession:GetWidget("master", "enabled")
         local visual = enabled and enabled._exBossEnableSegments
         if visual then
@@ -4526,6 +4552,9 @@ local function ReleaseSpellSettingsCardSession()
             end
             if card and card._exBossVoicePrimaryDividers then
                 for _, divider in ipairs(card._exBossVoicePrimaryDividers) do divider:Hide() end
+            end
+            if card and card._exBossVoiceRuleDivider then
+                card._exBossVoiceRuleDivider:Hide()
             end
             if card and card._exBossTargetDividers then
                 for _, divider in ipairs(card._exBossTargetDividers) do divider:Hide() end
@@ -4715,6 +4744,18 @@ local function LayoutTextSettingsCard(session)
     AnchorBossWidget(centralLead, body, controlLeft, 52, leadWidth, 30)
     AnchorBossWidget(centralText, body, controlLeft + leadWidth + gap, 52,
         math.max(1, controlWidth - leadWidth - gap), 30)
+    if centralLead and centralLead.label then
+        if not centralLead._exBossUnitInside then
+            centralLead._exBossUnitOriginalText = centralLead.label:GetText()
+        end
+        centralLead._exBossUnitInside = true
+        centralLead:SetTextInsets(9, 30, 0, 0)
+        centralLead.label:ClearAllPoints()
+        centralLead.label:SetPoint("RIGHT", centralLead, "RIGHT", -8, 0)
+        centralLead.label:SetJustifyH("RIGHT")
+        centralLead.label:SetText(L["秒"])
+        centralLead.label:Show()
+    end
 
     AnchorBossWidget(countdownEnabled, body, inset, 100, labelWidth, 30)
     AnchorBossWidget(preAlertText, body, controlLeft, 100, controlWidth, 30)
@@ -4819,15 +4860,15 @@ local function LayoutTargetSettingsCard(session)
     end
     local choiceWidth = math.max(68, ((body:GetWidth() or 380) - 40) / 3)
     for index, widget in ipairs({ ring, textChoice, icon }) do
-        AnchorBossWidget(widget, body, 12 + (index - 1) * (choiceWidth + 8), 54, choiceWidth, 36)
+        AnchorBossWidget(widget, body, 12 + (index - 1) * (choiceWidth + 8), 64, choiceWidth, 36)
     end
-    AnchorBossWidget(stealth, body, 12, 100, nil, 40, 12)
-    AnchorBossWidget(voice, body, 12, 157, nil, 30, 12)
-    LayoutBossAudioControls(session, "target", "targetAlertStart", body, 194, 12, 110, 12)
+    AnchorBossWidget(stealth, body, 12, 118, nil, 44, 12)
+    AnchorBossWidget(voice, body, 12, 186, nil, 30, 12)
+    LayoutBossAudioControls(session, "target", "targetAlertStart", body, 232, 12, 110, 12)
     if voice then
         voice:ClearAllPoints()
-        voice:SetPoint("TOPLEFT", body, "TOPLEFT", 12, -157)
-        voice:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -157)
+        voice:SetPoint("TOPLEFT", body, "TOPLEFT", 12, -186)
+        voice:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -186)
         voice:SetHeight(32)
     end
 
@@ -4837,28 +4878,27 @@ local function LayoutTargetSettingsCard(session)
             card._exBossTargetDividers[index] = EXUI:CreateSettingsSeparator(body, 1)
         end
     end
-    for index, top in ipairs({ 100, 149 }) do
+    for index, top in ipairs({ 118, 174 }) do
         local divider = card._exBossTargetDividers[index]
         divider:ClearAllPoints()
         divider:SetPoint("TOPLEFT", body, "TOPLEFT", 12, -top)
         divider:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -top)
         divider:SetShown(index == 2)
     end
-    return 236
+    return 274
 end
 
 local function SetBossVoicePreviewVisibility(session)
     local state = session and session.byId.voice
     local card = state and state.card
     if not card then return false end
-    local draft = STATE.spellEditorDraft
-    local visible = type(draft) == "table"
-        and (draft.tr2Enabled == true or draft.tr2PlayTextEnabled == true)
+    -- 预览区属于只读说明，始终保留；未启用的时刻由现有 sequence 显示为空。
+    local visible = true
     local previewHeading = session:GetWidget("voice", "description_voice_preview_heading")
     if previewHeading then previewHeading:Hide() end
     local previewButton = session:GetWidget("voice", "voiceSequencePreview")
     if previewButton then previewButton:SetShown(visible) end
-    if card._exBossVoicePreviewDivider then card._exBossVoicePreviewDivider:SetShown(visible) end
+    if card._exBossVoicePreviewDivider then card._exBossVoicePreviewDivider:Hide() end
     if card._exBossVoicePreviewBackground then card._exBossVoicePreviewBackground:SetShown(visible) end
     if card._exBossVoicePreviewTimeline then card._exBossVoicePreviewTimeline:SetShown(visible) end
     if card._exBossVoiceBranchV then card._exBossVoiceBranchV:Hide() end
@@ -4867,7 +4907,7 @@ local function SetBossVoicePreviewVisibility(session)
 end
 
 local function GetBossVoiceContentHeight(visible, timelineHeight)
-    return visible and (94 + 136 + (timelineHeight or 51) + 22) or 218
+    return visible and (200 + (timelineHeight or 70)) or 218
 end
 
 local function LayoutVoiceSettingsCard(session)
@@ -4910,66 +4950,60 @@ local function LayoutVoiceSettingsCard(session)
     local previewHeading = session:GetWidget("voice", "description_voice_preview_heading")
     local previewButton = session:GetWidget("voice", "voiceSequencePreview")
     local previewSequence = session:GetWidget("voice", "description_voice_preview_sequence")
-    AnchorBossWidget(heading, surface, 2, 4, 160, 24)
+    if heading then heading:Hide() end
     if note then note:Hide() end
     local controlLeft = labelWidth + 2
-    AnchorBossWidget(digit, surface, 2, 40, controlLeft - 2, 30)
+    AnchorBossWidget(digit, surface, 2, 4, controlLeft - 2, 30)
     if segmented then
         segmented:ClearAllPoints()
-        segmented:SetPoint("TOPLEFT", surface, "TOPLEFT", controlLeft, -40)
-        segmented:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -40)
+        segmented:SetPoint("TOPLEFT", surface, "TOPLEFT", controlLeft, -4)
+        segmented:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -4)
         segmented:SetHeight(30)
         segmented:Show()
     end
-    AnchorBossWidget(playName, surface, 2, 84, controlLeft - 2, 30)
-    LayoutBossAudioControls(session, "voice", "tr2", surface, 84, controlLeft, sourceWidth, 0)
+    AnchorBossWidget(playName, surface, 2, 44, controlLeft - 2, 30)
+    LayoutBossAudioControls(session, "voice", "tr2", surface, 44, controlLeft, sourceWidth, 0)
     if card._exBossVoiceRuleDivider then
-        card._exBossVoiceRuleDivider:ClearAllPoints()
-        card._exBossVoiceRuleDivider:SetPoint("TOPLEFT", surface, "TOPLEFT", 2, -68)
-        card._exBossVoiceRuleDivider:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -68)
         card._exBossVoiceRuleDivider:Hide()
     end
 
     local previewVisible = SetBossVoicePreviewVisibility(session)
     local divider = card._exBossVoicePreviewDivider
     if divider then
-        divider:ClearAllPoints()
-        divider:SetPoint("TOPLEFT", surface, "TOPLEFT", 2, -121)
-        divider:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -2, -121)
-        divider:SetShown(previewVisible)
+        divider:Hide()
     end
     if previewHeading then previewHeading:Hide() end
     local background = card._exBossVoicePreviewBackground
     if background then
         background:ClearAllPoints()
-        background:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -124)
+        background:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -82)
         background:SetPoint("BOTTOMRIGHT", surface, "BOTTOMRIGHT", 0, 0)
-        background:SetVertexColor(unpack(GC.panel))
         EXUI:SetControlSurface(background, 5, GC.panel, GC.cardBorder)
-        background.TopFill:Hide()
         background:SetShown(previewVisible)
+    end
+    if previewSequence then previewSequence:Hide() end
+    local timeline = card._exBossVoicePreviewTimeline
+    local timelineHeight = 68
+    if timeline then
+        timeline:ClearAllPoints()
+        timeline:SetPoint("TOPLEFT", surface, "TOPLEFT", 10, -94)
+        timeline:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -10, -94)
+        if timeline._layout then timeline:_layout() end
+        timelineHeight = timeline:GetHeight() or timelineHeight
     end
     if previewButton then
         previewButton:ClearAllPoints()
-        previewButton:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -10, -145)
+        previewButton:SetPoint("BOTTOMRIGHT", surface, "BOTTOMRIGHT", -8, 8)
         previewButton._exBossPreviewOriginalFrameLevel = previewButton._exBossPreviewOriginalFrameLevel
             or previewButton:GetFrameLevel()
         previewButton:SetFrameLevel(surface:GetFrameLevel() + 6)
         previewButton._exButtonVariant = "secondary"
         EXUI:ApplyControlAppearance(previewButton)
         SetBossPlayButtonVisual(previewButton, false)
-        previewButton:SetSize(34, 34)
+        previewButton:SetSize(28, 28)
         previewButton:SetShown(previewVisible)
     end
-    if previewSequence then previewSequence:Hide() end
-    local timeline = card._exBossVoicePreviewTimeline
-    if timeline then
-        timeline:ClearAllPoints()
-        timeline:SetPoint("TOPLEFT", surface, "TOPLEFT", 10, -136)
-        timeline:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -56, -136)
-        if timeline._layout then timeline:_layout() end
-    end
-    local contentHeight = GetBossVoiceContentHeight(previewVisible, timeline and timeline:GetHeight())
+    local contentHeight = GetBossVoiceContentHeight(previewVisible, timelineHeight)
     -- The existing geometry report must track resize measurements as well as
     -- text changes, so its next comparison cannot use an older narrow width.
     state.reportedHeight = contentHeight
@@ -4984,7 +5018,7 @@ ApplyBossCustomCardLayouts = function(session)
     LayoutTargetSettingsCard(session)
     local summaryEnabled = session:GetWidget("master", "enabled")
     if summaryEnabled and UI.spellSummaryEnableHost then
-        UI.spellSummaryEnableHost:SetSize(90, 28)
+        UI.spellSummaryEnableHost:SetSize(76, 26)
         summaryEnabled:ClearAllPoints()
         summaryEnabled:SetAllPoints(UI.spellSummaryEnableHost)
     end
@@ -5111,21 +5145,18 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
             or CreateFrame("Frame", nil, voiceBody, "BackdropTemplate")
         voiceCard._exBossVoiceTimingSurface:EnableMouse(false)
         local voiceSurface = voiceCard._exBossVoiceTimingSurface
-        voiceCard._exBossVoicePreviewDivider = voiceCard._exBossVoicePreviewDivider
-            or EXUI:CreateSettingsSeparator(voiceSurface, 1)
+        if voiceCard._exBossVoicePreviewDivider then
+            voiceCard._exBossVoicePreviewDivider:Hide()
+        end
         if not voiceCard._exBossVoicePreviewBackground then
-            local background = EXUI:CreateRoundedImage(voiceCard._exBossVoicePreviewDivider, 4)
-            background:SetTexture("Interface\\Buttons\\WHITE8X8")
-            -- The result area shares the subcard's lower rounded corners;
-            -- its upper edge meets the existing straight divider.
-            background.TopFill = EXUI:CreateVisualTexture(background, EXBASEFRAME)
-            background.TopFill:SetPoint("TOPLEFT")
-            background.TopFill:SetPoint("TOPRIGHT")
-            background.TopFill:SetHeight(4)
+            local background = CreateFrame("Frame", nil, voiceSurface)
+            background:EnableMouse(false)
             voiceCard._exBossVoicePreviewBackground = background
         end
-        voiceCard._exBossVoiceRuleDivider = voiceCard._exBossVoiceRuleDivider
-            or EXUI:CreateSettingsSeparator(voiceSurface, 1)
+        voiceCard._exBossVoicePreviewBackground:SetParent(voiceSurface)
+        if voiceCard._exBossVoiceRuleDivider then
+            voiceCard._exBossVoiceRuleDivider:Hide()
+        end
         if not voiceCard._exBossVoicePrimaryDividers then
             voiceCard._exBossVoicePrimaryDividers = {}
             for index = 1, 2 do
@@ -5133,10 +5164,48 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
             end
         end
         UI.voiceCountdownSelector = session:GetWidget("voice", "tr2CountdownLead")
+        local countdownSelector = UI.voiceCountdownSelector
+        if countdownSelector and countdownSelector.viewport then
+            local outline = countdownSelector._exBossSelectedOutline
+            if not outline then
+                outline = CreateFrame("Frame", nil, countdownSelector.viewport)
+                outline:EnableMouse(false)
+                countdownSelector._exBossSelectedOutline = outline
+            end
+            outline:SetScript("OnUpdate", function(self)
+                local selected = countdownSelector.GetValue and countdownSelector:GetValue() or nil
+                local selectedButton
+                for _, button in ipairs(countdownSelector.buttons or {}) do
+                    if button._choiceItem and button._choiceItem.id == selected then
+                        selectedButton = button
+                        break
+                    end
+                end
+                if not selectedButton or countdownSelector.disabled then
+                    -- 保持 observer 可见以继续接收 OnUpdate；仅隐藏绘制结果，
+                    -- 这样重新启用或重新取得选中项时能够自行恢复描边。
+                    self:SetAlpha(0)
+                    return
+                end
+                if self._exBossSelectedButton ~= selectedButton then
+                    self._exBossSelectedButton = selectedButton
+                    self:ClearAllPoints()
+                    self:SetAllPoints(selectedButton)
+                    self:SetFrameLevel(selectedButton:GetFrameLevel() + 5)
+                    EXUI:SetControlSurface(self, 4, GC.transparent, GC.checkboxChecked)
+                end
+                self:SetAlpha(1)
+                self:Show()
+            end)
+            outline:Show()
+        end
 
         if not voiceCard._exBossVoicePreviewTimeline then
             local timeline = CreateFrame("Frame", nil, voiceBody)
             timeline:SetFrameLevel((voiceBody:GetFrameLevel() or 1) + 3)
+            timeline.axis = EXUI:CreateVisualTexture(timeline, EXBASEFRAME)
+            timeline.axis:SetColorTexture(unpack(GC.cardBorder))
+            timeline.axis:SetHeight(PixelUtil.GetNearestPixelSize(1, timeline:GetEffectiveScale(), 1))
             timeline.nodes = {}
             for index = 1, 7 do
                 local node = CreateFrame("Frame", nil, timeline)
@@ -5144,8 +5213,7 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
                 node.time:SetPoint("TOPLEFT", node, "TOPLEFT", 0, 0)
                 node.time:SetPoint("TOPRIGHT", node, "TOPRIGHT", 0, 0)
                 node.time:SetJustifyH("CENTER")
-                node.time:SetWordWrap(true)
-                node.time:SetNonSpaceWrap(true)
+                node.time:SetWordWrap(false)
                 node.time:SetFont(ExwindTools.MAIN_FONT, 11, "")
                 node.valueHost = CreateFrame("Frame", nil, node, "BackdropTemplate")
                 node.valueHost:SetPoint("TOPLEFT", node.time, "BOTTOMLEFT", 0, -5)
@@ -5156,51 +5224,109 @@ local function ApplyPrototypeSettingsCardSurfaces(session)
                 node.value:SetJustifyH("CENTER")
                 node.value:SetWordWrap(true)
                 node.value:SetNonSpaceWrap(true)
-                node.arrow = EXUI:CreateVisualFontString(node, EXFONTFRAME, "GameFontDisableSmall")
-                node.arrow:SetPoint("LEFT", node, "RIGHT", 8, 0)
-                node.arrow:SetText("›")
-                node.arrow:SetTextColor(unpack(GC.textDisabled))
+                node.tick = EXUI:CreateVisualTexture(timeline, EXBASEFRAME)
+                node.tick:SetColorTexture(unpack(GC.cardBorder))
+                node.tick:SetSize(PixelUtil.GetNearestPixelSize(1, timeline:GetEffectiveScale(), 1), 6)
                 timeline.nodes[index] = node
             end
             timeline._layout = function(self)
                 if self._layoutBusy then return end
                 self._layoutBusy = true
-                local count = math.max(1, math.min(#self.nodes, self._visibleNodeCount or 1))
+                local count = 7
                 local width = math.max(1, self:GetWidth() or 1)
-                local digitCount = 0
-                for index = 1, count do
-                    if self.nodes[index]._previewKind == "digit" then digitCount = digitCount + 1 end
-                end
-                local textCount = count - digitCount
-                local digitWidth = math.min(44, width / count)
-                local textWidth = textCount > 0 and (width - digitCount * digitWidth) / textCount or digitWidth
-                local timelineHeight, cursor = 51, 0
+                -- 右下角只为试听按钮保留轴线空间；上方名称仍可使用完整宽度。
+                local axisWidth = math.max(1, width - 38)
+                local slotWidth = axisWidth / count
+                local occupied = {}
                 for index, node in ipairs(self.nodes) do
                     node:ClearAllPoints()
-                    local slotWidth = node._previewKind == "digit" and digitWidth or textWidth
-                    local available = math.max(1, slotWidth - 12)
-                    local valueWidth = math.min(available,
-                        math.max(28, math.ceil(node.value:GetUnboundedStringWidth() or 0) + 18))
-                    local nodeWidth = available
-                    node.valueHost:SetWidth(valueWidth)
-                    node.valueHost:ClearAllPoints()
-                    node.valueHost:SetPoint("TOP", node.time, "BOTTOM", 0, -5)
-                    node:SetWidth(nodeWidth)
-                    node.time:SetHeight(0)
-                    node.value:SetHeight(0)
-                    local timeHeight = math.max(14, math.ceil(node.time:GetStringHeight()))
-                    local valueHeight = math.max(32, math.ceil(node.value:GetStringHeight()) + 10)
-                    node.time:SetHeight(timeHeight)
-                    node.valueHost:SetHeight(valueHeight)
-                    local nodeHeight = timeHeight + 5 + valueHeight
-                    node:SetHeight(nodeHeight)
-                    if index <= count then timelineHeight = math.max(timelineHeight, nodeHeight) end
-                    node:SetPoint("TOPLEFT", self, "TOPLEFT", cursor + (slotWidth - nodeWidth) / 2, 0)
-                    node.arrow:ClearAllPoints()
-                    node.arrow:SetPoint("CENTER", self, "TOPLEFT", cursor + slotWidth, -35)
-                    node.arrow:SetShown(index < count)
-                    if index <= count then cursor = cursor + slotWidth end
+                    node:SetPoint("TOPLEFT", self, "TOPLEFT", (index - 1) * slotWidth, 0)
+                    node:SetSize(slotWidth, 1)
+                    if node._previewKind == "trigger" or node._previewKind == "digit" then
+                        occupied[#occupied + 1] = {
+                            node = node,
+                            index = index,
+                            center = (index - 0.5) * slotWidth,
+                        }
+                    end
                 end
+
+                -- 名称与倒数数字共用同一条内容行。名称优先按真实内容宽度排布，
+                -- 相邻触发项才在同一行内收窄并换行，不再拆成上下两条轨道。
+                local placements, rowHeight = {}, 32
+                for position, item in ipairs(occupied) do
+                    local node = item.node
+                    local previous = occupied[position - 1]
+                    local following = occupied[position + 1]
+                    local leftBound = 0
+                    local rightBound = width
+                    if previous then
+                        if previous.node._previewKind == "digit" then
+                            leftBound = previous.center + 21
+                        else
+                            leftBound = (previous.center + item.center) / 2 + 3
+                        end
+                    end
+                    if following then
+                        if following.node._previewKind == "digit" then
+                            rightBound = following.center - 21
+                        else
+                            rightBound = (item.center + following.center) / 2 - 3
+                        end
+                    end
+                    local availableWidth = math.max(24, rightBound - leftBound)
+                    local desiredWidth
+                    if node._previewKind == "digit" then
+                        desiredWidth = math.min(36, availableWidth)
+                    else
+                        desiredWidth = math.min(availableWidth,
+                            math.max(64, math.ceil(node.value:GetUnboundedStringWidth() or 0) + 18))
+                    end
+                    local left = math.max(leftBound,
+                        math.min(rightBound - desiredWidth, item.center - desiredWidth / 2))
+                    node.valueHost:ClearAllPoints()
+                    node.valueHost:SetWidth(desiredWidth)
+                    node.value:SetHeight(0)
+                    local valueHeight = math.max(32, math.ceil(node.value:GetStringHeight() or 0) + 10)
+                    rowHeight = math.max(rowHeight, valueHeight)
+                    placements[#placements + 1] = {
+                        node = node,
+                        left = left,
+                        width = desiredWidth,
+                    }
+                end
+                for _, node in ipairs(self.nodes) do
+                    node.valueHost:Hide()
+                end
+                for _, placement in ipairs(placements) do
+                    local node = placement.node
+                    node.valueHost:ClearAllPoints()
+                    node.valueHost:SetPoint("TOPLEFT", self, "TOPLEFT", placement.left, 0)
+                    node.valueHost:SetSize(placement.width, rowHeight)
+                    node.value:ClearAllPoints()
+                    node.value:SetPoint("TOPLEFT", node.valueHost, "TOPLEFT", 5, -5)
+                    node.value:SetPoint("TOPRIGHT", node.valueHost, "TOPRIGHT", -5, -5)
+                    node.value:SetHeight(rowHeight - 10)
+                    node.value:SetJustifyH("CENTER")
+                    node.value:SetJustifyV("MIDDLE")
+                    node.valueHost:Show()
+                end
+
+                local axisTop = rowHeight + 10
+                self.axis:ClearAllPoints()
+                self.axis:SetPoint("TOPLEFT", self, "TOPLEFT", slotWidth / 2, -axisTop)
+                self.axis:SetPoint("TOPRIGHT", self, "TOPRIGHT",
+                    -(width - axisWidth + slotWidth / 2), -axisTop)
+                for index, node in ipairs(self.nodes) do
+                    local centerX = (index - 0.5) * slotWidth
+                    node.tick:ClearAllPoints()
+                    node.tick:SetPoint("TOP", self, "TOPLEFT", centerX, -axisTop + 2)
+                    node.time:ClearAllPoints()
+                    node.time:SetPoint("TOP", self, "TOPLEFT", centerX, -(axisTop + 7))
+                    node.time:SetWidth(slotWidth)
+                    node.time:SetHeight(16)
+                end
+                local timelineHeight = axisTop + 28
                 local heightChanged = self:GetHeight() ~= timelineHeight
                 if heightChanged then self:SetHeight(timelineHeight) end
                 self._layoutBusy = nil
@@ -5309,7 +5435,6 @@ local function RefreshSpellSettingsPanel(expectedRevision)
         UI.spellDetailBody:SetText(extra.description or "")
         UI.spellDetailBodyScroll:SetVerticalScroll(0)
         if UI.spellSummaryEnableHost then UI.spellSummaryEnableHost:Hide() end
-        if UI.spellDetailOffNote then UI.spellDetailOffNote:Hide() end
         if UI.titleControlHost then UI.titleControlHost:Hide() end
         RefreshSpellDetailHeaderLayout()
         local rendered = Page.Extras:Render(UI.spellSettingsGridChild, scene, slot, encounterID, extraKey, function()
@@ -5781,7 +5906,14 @@ RefreshBossList = function(resetScroll)
         b.index = entry.index
 
         b.nameText:SetText(tostring(boss and boss.name or (L["未知首领 "] .. tostring(entry.index))))
-        b.detailText:SetText("ID: " .. tostring(boss and boss.encounterID or "-"))
+        b.detailText:SetText(tostring(boss and boss.encounterID or "-"))
+        b.detailText:ClearAllPoints()
+        b.detailText:SetPoint("CENTER", b.detailBadge, "CENTER", 0, 0)
+        b.detailText:SetJustifyH("CENTER")
+        b.detailText:SetFont(ExwindTools.MAIN_FONT, 13, "")
+        b.detailBadge:SetWidth(math.max(46,
+            math.ceil(b.detailText:GetUnboundedStringWidth() or 0) + 16))
+        b.detailBadge:Show()
 
         if b.noPortraitText then
             b.noPortraitText:Hide()
@@ -5844,6 +5976,7 @@ RefreshBossList = function(resetScroll)
         b._applyVisual = ApplyVisual
         b.nameText:SetText(L["副本光环语音"])
         b.detailText:SetText("")
+        b.detailBadge:Hide()
         b._displayID = nil
         b._appliedDisplayID = nil
         if b.creature then
