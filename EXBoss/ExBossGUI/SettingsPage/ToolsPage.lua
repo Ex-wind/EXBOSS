@@ -122,7 +122,7 @@ local function RefreshList()
             local button = AcquireListButton()
             local active = item.key == selectedKey
             button:SetPoint("TOPLEFT", listChild, "TOPLEFT", 10, y)
-            button:SetPoint("RIGHT", listChild, "RIGHT", -8, 0)
+            button:SetPoint("RIGHT", listChild, "RIGHT", -14, 0)
             if button.label then
                 button.label:SetText(GetTitle(item))
             else
@@ -150,7 +150,7 @@ local function RefreshList()
     if shown == 0 then
         local empty = AcquireListButton()
         empty:SetPoint("TOPLEFT", listChild, "TOPLEFT", 10, y)
-        empty:SetPoint("RIGHT", listChild, "RIGHT", -8, 0)
+        empty:SetPoint("RIGHT", listChild, "RIGHT", -14, 0)
         if empty.label then
             empty.label:SetText(L["没有匹配项"])
         else
@@ -200,7 +200,7 @@ local function EnsureUI(leftFrame)
                 RefreshList()
             end,
         })
-        searchBox:SetPoint("TOPLEFT", leftRoot, "TOPLEFT", 0, -5)
+        searchBox:SetPoint("TOPLEFT", leftRoot, "TOPLEFT", 10, -5)
         searchBox:SetPoint("TOPRIGHT", leftRoot, "TOPRIGHT", -22, -5)
     end
 

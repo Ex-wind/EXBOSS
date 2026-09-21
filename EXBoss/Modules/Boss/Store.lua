@@ -506,11 +506,35 @@ function BossConfig:GetRuntimeEncounterOption(id, option)
     return type(row) == "table" and row[tostring(option or "")] or nil
 end
 
+-- Activation owns initialization and Author -> User resolution. Reads only
+-- compare the editor slot with that existing state; stale slots cannot read
+-- another configuration, and no per-action EnsureDB/ListAuthors is needed.
+local function CurrentAuraSoundUser(slot)
+    slot = NormalizeSlot(slot) or BossConfig:GetRuntimeSlotForScene("mplus")
+    if SlotCategory(slot) ~= "mplus" then return nil end
+    local api = API()
+    local context = api and api.GetCurrentConfiguration("mplus")
+    local db = EXBossDataDB and EXBossDataDB.bossConfig
+    local selected = type(db) == "table" and db.authorSelection
+    local bindings = type(db) == "table" and db.userByAuthor
+    local users = type(bindings) == "table" and bindings.mplus
+    if not context or context.category ~= "mplus"
+        or type(selected) ~= "table" or selected[slot] ~= context.authorID
+        or type(users) ~= "table" or users[context.authorID] ~= context.userID then
+        return nil
+    end
+    return context.userID
+end
+
 function BossConfig:GetMplusDungeonAuraSoundView(dungeonKey, slot)
-    return API().GetMplusDungeonAuraSoundView(Selected(NormalizeSlot(slot) or self:GetRuntimeSlotForScene("mplus")), dungeonKey)
+    local userID = CurrentAuraSoundUser(slot)
+    if not userID then return nil end
+    return API().GetMplusDungeonAuraSoundView(userID, dungeonKey)
 end
 function BossConfig:GetMplusDungeonAuraSoundActionView(dungeonKey, actionID, slot)
-    return API().GetMplusDungeonAuraSoundActionView(Selected(NormalizeSlot(slot) or self:GetRuntimeSlotForScene("mplus")), dungeonKey, actionID)
+    local userID = CurrentAuraSoundUser(slot)
+    if not userID then return nil end
+    return API().GetMplusDungeonAuraSoundActionView(userID, dungeonKey, actionID)
 end
 function BossConfig:SetMplusDungeonAuraSoundActionFields(slot, dungeonKey, actionID, fields)
     local api = API()

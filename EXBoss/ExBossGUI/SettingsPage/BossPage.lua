@@ -3641,7 +3641,8 @@ local function RefreshActiveBossCardVisuals()
             if card._dungeonCommon == true then
                 card._selected = selectedBossCommonSettings == true
             else
-                card._selected = tonumber(card.index) == tonumber(selectedBossIndex)
+                card._selected = selectedBossCommonSettings ~= true
+                    and tonumber(card.index) == tonumber(selectedBossIndex)
             end
             if card._applyVisual then
                 card:_applyVisual()
@@ -4607,6 +4608,17 @@ local function SetBossPlayButtonVisual(button, withLabel)
     end
     button._exBossPlayIconActive = true
     button._exBossPlayIconWithLabel = withLabel == true
+    if not button._exBossPlayReleaseAttached then
+        local previousRelease = button._exPoolRelease
+        button._exBossPlayReleaseAttached = true
+        ExwindFactory:AttachPoolRelease(button, function(frame)
+            frame._exBossPlayIcon:Hide()
+            frame._exBossPlayIconActive = nil
+            frame._exBossPlayIconWithLabel = nil
+            frame._exBossPlayReleaseAttached = nil
+            if previousRelease then previousRelease(frame) end
+        end)
+    end
     if not button._exBossPlayHoverHooked then
         button._exBossPlayHoverHooked = true
         button:HookScript("OnEnter", function(self)
@@ -5905,7 +5917,7 @@ RefreshBossList = function(resetScroll)
         b:SetHeight(66)
         b:Show()
 
-        b._selected = (entry.index == selectedBossIndex)
+        b._selected = selectedBossCommonSettings ~= true and (entry.index == selectedBossIndex)
         b._hovered = false
         b._applyVisual = ApplyVisual
         b.index = entry.index

@@ -1698,7 +1698,7 @@ local function EnsureUI(leftFrame, contentFrame)
                 RefreshList()
             end,
         })
-        searchBox:SetPoint("TOPLEFT", leftRoot, "TOPLEFT", 0, -5)
+        searchBox:SetPoint("TOPLEFT", leftRoot, "TOPLEFT", 10, -5)
         searchBox:SetPoint("TOPRIGHT", leftRoot, "TOPRIGHT", -22, -5)
     end
 

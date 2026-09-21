@@ -25,8 +25,8 @@ local C = {
         cols = 1,
         gapX = 0,
         gapY = 2,
-        height = 46,
-        titleFontSizes = { 15, 14, 13, 11 },
+        height = 40,
+        titleFontSizes = { 16, 15, 14, 12 },
     },
     SPELL_DETAIL_HEIGHT = 148,
 }
@@ -102,6 +102,7 @@ local detailBodyChild
 local detailInfo
 local detailDivider
 local detailEnableHost
+local detailOutputHost
 local detailRangeChip
 local detailRangeValue
 local detailFirstChip
@@ -134,6 +135,7 @@ local GetSelectedSpellRow
 local _asyncHandler
 local _spellListBuildToken = 0
 local _selectionRefreshToken = 0
+local LayoutTrashQuickRow
 
 local function RegisterSpellSettingsGridAsActive(moduleKey)
     if not (Page._visible and settingsScrollChild and ExwindTools and ExwindTools.UI) then
@@ -649,10 +651,13 @@ local function RefreshDetailCardLayout()
     EXUI:ClearControlSurface(detailIconBorder)
 
     local contentX = inset + iconSize + 12
-    local bodyWidth = math.max(1, width - contentX - inset)
+    local outputWidth = math.min(330, math.max(270, math.floor(width * 0.36)))
+    local outputGap = 12
+    local headerWidth = math.max(120, width - contentX - inset)
+    local bodyWidth = math.max(120, width - contentX - inset - outputWidth - outputGap)
     detailTitle:ClearAllPoints()
     detailTitle:SetPoint("TOPLEFT", detailPane, "TOPLEFT", contentX, -topInset - 1)
-    detailTitle:SetWidth(math.max(60, math.min(bodyWidth,
+    detailTitle:SetWidth(math.max(60, math.min(headerWidth,
         math.ceil(detailTitle:GetUnboundedStringWidth() or 0) + 6)))
     detailTitle:SetWordWrap(false)
     detailMeta:Hide()
@@ -677,9 +682,17 @@ local function RefreshDetailCardLayout()
         detailEnableHost:SetPoint("BOTTOMLEFT", detailPane, "BOTTOMLEFT", inset, 6)
         detailEnableHost:SetSize(90, 28)
     end
+    if detailOutputHost and detailOutputHost:IsShown() then
+        detailOutputHost:ClearAllPoints()
+        detailOutputHost:SetPoint("BOTTOMRIGHT", detailPane, "BOTTOMRIGHT", -inset, 9)
+        detailOutputHost:SetSize(outputWidth, 34)
+        if LayoutTrashQuickRow and Page._settingsCardSession then
+            LayoutTrashQuickRow(Page._settingsCardSession)
+        end
+    end
     detailBodyScroll:ClearAllPoints()
     detailBodyScroll:SetPoint("TOPLEFT", detailPane, "TOPLEFT", contentX, -71)
-    detailBodyScroll:SetPoint("BOTTOMRIGHT", detailPane, "BOTTOMRIGHT", -inset,
+    detailBodyScroll:SetPoint("BOTTOMRIGHT", detailPane, "BOTTOMRIGHT", -(inset + outputWidth + outputGap),
         detailInfo:IsShown() and 31 or 10)
     detailBody:SetWidth(bodyWidth)
     detailBodyChild:SetSize(bodyWidth, math.max(1, detailBodyScroll:GetHeight()))
@@ -687,7 +700,7 @@ local function RefreshDetailCardLayout()
     detailBodyScroll:SetVerticalScroll(0)
     detailInfo:ClearAllPoints()
     detailInfo:SetPoint("BOTTOMLEFT", detailPane, "BOTTOMLEFT", contentX, 12)
-    detailInfo:SetPoint("RIGHT", detailPane, "RIGHT", -inset, 0)
+    detailInfo:SetPoint("RIGHT", detailPane, "RIGHT", -(inset + outputWidth + outputGap), 0)
     detailPane:SetHeight(C.SPELL_DETAIL_HEIGHT)
     detailDivider:Hide()
 end
@@ -712,6 +725,7 @@ local function SetDetailCardEmpty(message)
     end
     if detailDivider then detailDivider:Hide() end
     if detailEnableHost then detailEnableHost:Hide() end
+    if detailOutputHost then detailOutputHost:Hide() end
     detailPane:SetHeight(C.SPELL_DETAIL_HEIGHT)
 end
 
@@ -1094,11 +1108,13 @@ local function BuildSettingsLayout()
         { key = "showTimerBar", type = "checkbox", x = 134, y = 1, w = 20, h = 5, label = L["计时条"] },
         { key = "showNameplate", type = "checkbox", x = 166, y = 1, w = 20, h = 5, label = L["姓名版"] },
 
-        { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["施法圆环"] },
-        { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["施法读条"] },
+        { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["显示圆环"] },
+        { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["显示读条"] },
         { key = "castProgressBarRenameEnabled", type = "checkbox", x = 107, y = 28, w = 20, h = 5, label = L["读条改名"] },
         { key = "castProgressBarRenameText", type = "input", x = 132, y = 28, w = 54, h = 5, label = "" },
         { key = "ringCastCheckEnabled", type = "checkbox", x = 107, y = 36, w = 30, h = 5, label = L["施法检测"] },
+        { key = "description_cast_check", type = "description", x = 107, y = 40, w = 79, h = 5,
+            label = L["检测当前读条能否完成，来不及时以红色提示。"] },
         { key = "targetAlertStartEnabled", type = "checkbox", x = 107, y = 85, w = 35, h = 5, label = L["启用"] },
         { key = "targetAlertStartLSM", type = "lsm_sound", x = 144, y = 85, w = 42, h = 5, label = "", labelPos = "left", search = true },
         { key = "targetAlertStartValueTest", type = "button", x = 189, y = 85, w = 10, h = 5, label = "▶", tooltip = L["试听"] },
@@ -1106,9 +1122,9 @@ local function BuildSettingsLayout()
         { key = "targetVisualHeading", type = "description", x = 107, y = 101, w = 79, h = 5,
             label = GC.markup.textDim .. L["视觉提示"] .. "|r" },
         { key = "targetAlertRingEnabled", type = "checkbox", x = 107, y = 107, w = 20, h = 7, label = L["圆环"] },
-        { key = "targetAlertIconEnabled", type = "checkbox", x = 127, y = 107, w = 20, h = 7, label = "|TInterface\\AddOns\\ExwindCore\\Textures\\umage.png:14:14:0:0|t" .. L["图标"] },
+        { key = "targetAlertIconEnabled", type = "checkbox", x = 127, y = 107, w = 20, h = 7, label = L["图标"] },
         { key = "targetAlertTextEnabledV2", type = "checkbox", x = 149, y = 107, w = 17, h = 7, label = L["文本"] },
-        { key = "targetAlertStealthEnabledV2", type = "checkbox", x = 166, y = 107, w = 30, h = 7, label = "|T132089:16:16|t" .. L["隐遁提示"], labelSize = 17 },
+        { key = "targetAlertStealthEnabledV2", type = "checkbox", x = 166, y = 107, w = 30, h = 7, label = "|T132089:18:18|t " .. L["隐遁提示"] },
         { key = "targetAudioHeading", type = "description", x = 107, y = 113, w = 79, h = 5,
             label = GC.markup.textDim .. L["语音提示"] .. "|r" },
         { key = "targetPresentationNote", type = "description", x = 107, y = 116, w = 92, h = 5,
@@ -1118,7 +1134,7 @@ local function BuildSettingsLayout()
     local quickKeys = { showBunBar = true, showTimerBar = true, showNameplate = true }
     local textKeys = { eventColorEnabled = true, eventColorMode = true, eventColor = true }
     local castKeys = { ringEnabled = true, castProgressBarEnabled = true, castProgressBarRenameEnabled = true,
-        castProgressBarRenameText = true, ringCastCheckEnabled = true }
+        castProgressBarRenameText = true, ringCastCheckEnabled = true, description_cast_check = true }
     local targetKeys = { targetAlertStartEnabled = true, targetAlertStartLSM = true, targetAlertStartValueTest = true,
         targetAlertTankEnabled = true, targetAlertRingEnabled = true, targetAlertIconEnabled = true,
         targetAlertTextEnabledV2 = true, targetAlertStealthEnabledV2 = true, targetVisualHeading = true,
@@ -1146,7 +1162,7 @@ local function BuildSettingsLayout()
         end
     end
     local cardGap = 6
-    local topRowBodyHeight = 176
+    local topRowBodyHeight = 196
     local wideColumnRatio = 1.57 / 2.57
     local narrowColumnRatio = 1 / 2.57
     local wideColumn = { ratio = wideColumnRatio, offset = -cardGap * wideColumnRatio }
@@ -1161,13 +1177,13 @@ local function BuildSettingsLayout()
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = { ratio = 1 } },
             content = { kind = "grid", items = groups.quick },
             settingsList = { rows = {
-                { controls = { { key = "showBunBar", presentation = "card" },
-                    { key = "showTimerBar", presentation = "card" },
-                    { key = "showNameplate", presentation = "card" } } },
+                { controls = { { key = "showBunBar" },
+                    { key = "showTimerBar" },
+                    { key = "showNameplate" } } },
             } } },
         { id = "text", title = L["文本设置"], collapsible = false,
             equalHeightGroup = "trash-settings-top", minBodyHeight = topRowBodyHeight,
-            placement = { target = "quick", side = "below", align = "start", gap = 8, width = wideColumn,
+            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = wideColumn,
                 narrow = { target = "$container", width = { ratio = 1 } } },
             content = { kind = "grid", items = groups.text },
             settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
@@ -1177,7 +1193,7 @@ local function BuildSettingsLayout()
                     { controlsLayout = "fieldRow", controls = { { key = "timerBarRenameEnabled", role = "label" }, { key = "timerBarRenameText" } } },
                 } } },
         { id = "voice", title = L["语音设置"], collapsible = false,
-            equalHeightGroup = "trash-settings-bottom", minBodyHeight = 308,
+            equalHeightGroup = "trash-settings-bottom",
             placement = { target = "text", side = "below", align = "start", gap = cardGap + 10, width = wideColumn,
                 rowAfter = { "text", "cast" },
                 narrow = { target = "cast", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
@@ -1199,11 +1215,11 @@ local function BuildSettingsLayout()
             settingsList = { cardPresentation = "exbossSkill", preserveHeader = true, rows = {
                 { controls = { { key = "ringEnabled", presentation = "card" },
                     { key = "castProgressBarEnabled", presentation = "card" } } },
-                { key = "ringCastCheckEnabled", presentation = "card" },
+                { key = "ringCastCheckEnabled", presentation = "card", descriptionKey = "description_cast_check" },
                 { key = "castProgressBarRenameEnabled", children = { { key = "castProgressBarRenameText", indent = 28 } } },
             } } },
         { id = "target", title = L["被点名提示"], collapsible = false,
-            equalHeightGroup = "trash-settings-bottom", minBodyHeight = 308,
+            equalHeightGroup = "trash-settings-bottom",
             placement = { target = "voice", side = "right", align = "start", gap = cardGap, width = narrowColumn,
                 narrow = { target = "voice", side = "below", align = "start", gap = cardGap, width = { ratio = 1 } } },
             content = { kind = "grid", items = groups.target },
@@ -1388,20 +1404,37 @@ local function StartTrashVoiceSequencePreview()
     end
 end
 
-local function LayoutTrashQuickRow(session)
+LayoutTrashQuickRow = function(session)
     local state = session.byId.quick
     local card, body = state and state.card, state and state.body
-    if not (card and body) then return end
+    if not (card and body and detailOutputHost) then return end
     HideTrashSettingsRowDividers(body)
-    local inset, gap = 12, 8
-    local width = math.max(1, body:GetWidth() or 760)
-    local itemWidth = math.max(96, (width - inset * 2 - gap * 2) / 3)
-    for index, key in ipairs({ "showBunBar", "showTimerBar", "showNameplate" }) do
-        AnchorTrashWidget(session:GetWidget("quick", key), body,
-            inset + (index - 1) * (itemWidth + gap), 8, itemWidth, 40)
+    -- The three controls are rendered in the detail card, so keep the source
+    -- card hidden through the CardSession state.  Calling card:Hide() here
+    -- fights Core's relayout (which restores state.visible) and creates an
+    -- endless Show -> OnShow reflow -> Hide loop while this page is visible.
+    if state.visible ~= false then
+        session:SetCardVisible("quick", false)
     end
-    state.reportedHeight = 56
-    return 56
+    local inset, gap = 8, 4
+    local width = math.max(1, detailOutputHost:GetWidth() or 330)
+    local itemWidth = math.max(78, (width - inset * 2 - gap * 2) / 3)
+    for index, key in ipairs({ "showBunBar", "showTimerBar", "showNameplate" }) do
+        local widget = session:GetWidget("quick", key)
+        if widget then
+            widget:SetParent(detailOutputHost)
+            if widget.SetFrameLevel then
+                widget:SetFrameLevel((detailOutputHost:GetFrameLevel() or 0) + 1)
+            end
+            if widget.checkbox and widget.checkbox.SetFrameLevel then
+                widget.checkbox:SetFrameLevel((widget:GetFrameLevel() or 0) + 1)
+            end
+            AnchorTrashWidget(widget, detailOutputHost,
+                inset + (index - 1) * (itemWidth + gap), 2, itemWidth, 30)
+        end
+    end
+    state.reportedHeight = 0
+    return 0
 end
 
 local function LayoutTrashTextCard(session)
@@ -1417,6 +1450,16 @@ local function LayoutTrashTextCard(session)
     local modeWidth = math.max(132, math.floor((controlWidth - gap) * 0.56))
     local leadWidth = 70
 
+    for index, top in ipairs({ 43, 91, 139 }) do
+        local divider = card._exTrashTextDividers and card._exTrashTextDividers[index]
+        if divider then
+            divider:ClearAllPoints()
+            divider:SetPoint("TOPLEFT", body, "TOPLEFT", 14, -top)
+            divider:SetPoint("TOPRIGHT", body, "TOPRIGHT", -14, -top)
+            divider:Show()
+        end
+    end
+
     AnchorTrashWidget(session:GetWidget("text", "eventColorEnabled"), body, inset, 4, labelWidth, 30)
     AnchorTrashWidget(session:GetWidget("text", "eventColorMode"), body, controlLeft, 4, modeWidth, 30)
     local eventColor = session:GetWidget("text", "eventColor")
@@ -1425,10 +1468,10 @@ local function LayoutTrashTextCard(session)
         eventColor:SetPoint("TOPLEFT", body, "TOPLEFT", controlLeft + modeWidth + gap, -4)
         eventColor:SetSize(math.max(1, controlWidth - modeWidth - gap), 30)
     end
-    AnchorTrashWidget(session:GetWidget("text", "centralEnabled"), body, inset, 46, labelWidth, 30)
+    AnchorTrashWidget(session:GetWidget("text", "centralEnabled"), body, inset, 52, labelWidth, 30)
     local centralLead = session:GetWidget("text", "centralLead")
-    AnchorTrashWidget(centralLead, body, controlLeft, 46, leadWidth, 30)
-    AnchorTrashWidget(session:GetWidget("text", "centralText"), body, controlLeft + leadWidth + gap, 46,
+    AnchorTrashWidget(centralLead, body, controlLeft, 52, leadWidth, 30)
+    AnchorTrashWidget(session:GetWidget("text", "centralText"), body, controlLeft + leadWidth + gap, 52,
         math.max(1, controlWidth - leadWidth - gap), 30)
     if centralLead and centralLead.label then
         if not centralLead._exTrashUnitInside then
@@ -1442,30 +1485,63 @@ local function LayoutTrashTextCard(session)
         centralLead.label:SetText(L["秒"])
         centralLead.label:Show()
     end
-    AnchorTrashWidget(session:GetWidget("text", "countdownEnabled"), body, inset, 88, labelWidth, 30)
-    AnchorTrashWidget(session:GetWidget("text", "preAlertText"), body, controlLeft, 88, controlWidth, 30)
-    AnchorTrashWidget(session:GetWidget("text", "timerBarRenameEnabled"), body, inset, 130, labelWidth, 30)
-    AnchorTrashWidget(session:GetWidget("text", "timerBarRenameText"), body, controlLeft, 130, controlWidth, 30)
-    state.reportedHeight = 176
-    return 176
+    AnchorTrashWidget(session:GetWidget("text", "countdownEnabled"), body, inset, 100, labelWidth, 30)
+    AnchorTrashWidget(session:GetWidget("text", "preAlertText"), body, controlLeft, 100, controlWidth, 30)
+    AnchorTrashWidget(session:GetWidget("text", "timerBarRenameEnabled"), body, inset, 148, labelWidth, 30)
+    AnchorTrashWidget(session:GetWidget("text", "timerBarRenameText"), body, controlLeft, 148, controlWidth, 30)
+    state.reportedHeight = 196
+    return 196
 end
 
 local function LayoutTrashCastCard(session)
     local state = session.byId.cast
     local card, body = state and state.card, state and state.body
     if not (card and body) then return end
-    HideTrashSettingsRowDividers(body)
     local inset, gap = 14, 8
     local choiceWidth = math.max(1, ((body:GetWidth() or 400) - inset * 2 - gap) / 2)
     AnchorTrashWidget(session:GetWidget("cast", "ringEnabled"), body, inset, 6, choiceWidth, 40)
     AnchorTrashWidget(session:GetWidget("cast", "castProgressBarEnabled"), body,
         inset + choiceWidth + gap, 6, choiceWidth, 40)
-    AnchorTrashWidget(session:GetWidget("cast", "ringCastCheckEnabled"), body, inset, 54, nil, 48, inset)
-    AnchorTrashWidget(session:GetWidget("cast", "castProgressBarRenameEnabled"), body, inset, 112, choiceWidth, 30)
+    HideTrashSettingsRowDividers(body)
+    local castCheck = session:GetWidget("cast", "ringCastCheckEnabled")
+    local castDescription = session:GetWidget("cast", "description_cast_check")
+    if not card._exTrashCastCheckHelp then
+        local ringTexture = "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\RingWhiteThin2.tga"
+        local help = EXUI:CreatePicButton(body, 11, 11,
+            ringTexture, ringTexture, ringTexture, nil, true)
+        card._exTrashCastCheckHelp = help
+        help.label = EXUI:CreateVisualFontString(help, EXFONTFRAME, "GameFontDisableSmall")
+        help.label:SetPoint("CENTER", 0, 0)
+        help.label:SetFont(ExwindTools.MAIN_FONT, 9, "")
+        help.label:SetText("?")
+        help.label:SetTextColor(unpack(GC.textDim))
+        help:SetScript("OnEnter", function(self)
+            if not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(L["检测当前读条能否完成，来不及时以红色提示。"], 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        help:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+    end
+    AnchorTrashWidget(castCheck, body, inset, 62, nil, 64, inset)
+    if castDescription then
+        AnchorTrashWidget(castDescription, castCheck, 38, 33, nil, 23, 14)
+        if castDescription.text then
+            castDescription.text:SetFont(ExwindTools.MAIN_FONT, 11, "")
+            castDescription.text:SetTextColor(unpack(GC.textDim))
+        end
+    end
+    card._exTrashCastCheckHelp:ClearAllPoints()
+    card._exTrashCastCheckHelp:SetPoint("TOPRIGHT", castCheck, "TOPRIGHT", -8, -7)
+    card._exTrashCastCheckHelp:SetFrameLevel(castCheck:GetFrameLevel() + 3)
+    card._exTrashCastCheckHelp:Show()
+    AnchorTrashWidget(session:GetWidget("cast", "castProgressBarRenameEnabled"), body, inset, 148, choiceWidth, 30)
     AnchorTrashWidget(session:GetWidget("cast", "castProgressBarRenameText"), body,
-        inset + choiceWidth + gap, 112, nil, 30, inset)
-    state.reportedHeight = 176
-    return 176
+        inset + choiceWidth + gap, 148, nil, 30, inset)
+    state.reportedHeight = 196
+    return 196
 end
 
 local function SetTrashPlayButtonVisual(button)
@@ -1475,11 +1551,39 @@ local function SetTrashPlayButtonVisual(button)
         button._exTrashPlayIcon:SetTexture(
             "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\EXBossPlayTriangleWhite32.tga")
     end
+    button._exTrashPlayIconActive = true
+    if not button._exTrashPlayReleaseAttached then
+        local previousRelease = button._exPoolRelease
+        button._exTrashPlayReleaseAttached = true
+        ExwindFactory:AttachPoolRelease(button, function(frame)
+            frame._exTrashPlayIcon:Hide()
+            frame._exTrashPlayIconActive = nil
+            frame._exTrashPlayReleaseAttached = nil
+            if previousRelease then previousRelease(frame) end
+        end)
+    end
+    if not button._exTrashPlayHoverHooked then
+        button._exTrashPlayHoverHooked = true
+        button:HookScript("OnEnter", function(self)
+            if self._exTrashPlayIconActive and self._exTrashPlayIcon then
+                self._exTrashPlayIcon:SetVertexColor(unpack(
+                    not self:IsEnabled() and GC.textDisabled or GC.accentHover))
+            end
+        end)
+        button:HookScript("OnLeave", function(self)
+            if self._exTrashPlayIconActive and self._exTrashPlayIcon then
+                self._exTrashPlayIcon:SetVertexColor(unpack(
+                    not self:IsEnabled() and GC.textDisabled or GC.textDim))
+            end
+        end)
+    end
     button:SetText("")
     button._exTrashPlayIcon:ClearAllPoints()
     button._exTrashPlayIcon:SetPoint("CENTER", button, "CENTER", 0, 0)
     button._exTrashPlayIcon:SetSize(14, 14)
-    button._exTrashPlayIcon:SetVertexColor(unpack(button:IsEnabled() and GC.textDim or GC.textDisabled))
+    button._exTrashPlayIcon:SetVertexColor(unpack(
+        not button:IsEnabled() and GC.textDisabled
+            or (MouseIsOver and MouseIsOver(button) and GC.accentHover or GC.textDim)))
     button._exTrashPlayIcon:Show()
 end
 
@@ -1532,6 +1636,11 @@ local function LayoutTrashAudioControls(session, prefix, parent, top, left, sour
     end
 end
 
+local function GetTrashVoiceContentHeight(timelineHeight)
+    -- Boss 页的语音卡高度减去小怪页唯一缺少的“中央文本”一行（44px）。
+    return 156 + (timelineHeight or 70)
+end
+
 local function LayoutTrashVoiceCard(session)
     local state = session.byId.voice
     local card, body = state and state.card, state and state.body
@@ -1557,30 +1666,28 @@ local function LayoutTrashVoiceCard(session)
     EXUI:ClearControlSurface(surface)
     surface:Show()
 
-    AnchorTrashWidget(session:GetWidget("voice", "description_trash_voice_2"), surface, 2, 4, 160, 24)
+    local heading = session:GetWidget("voice", "description_trash_voice_2")
+    if heading then heading:Hide() end
     local controlLeft = labelWidth + 2
-    AnchorTrashWidget(session:GetWidget("voice", "tr2Enabled"), surface, 2, 40, controlLeft - 2, 30)
+    AnchorTrashWidget(session:GetWidget("voice", "tr2Enabled"), surface, 2, 4, controlLeft - 2, 30)
     local segmented = session:GetWidget("voice", "tr2CountdownLead")
     if segmented then
         segmented:ClearAllPoints()
-        segmented:SetPoint("TOPLEFT", surface, "TOPLEFT", controlLeft, -40)
-        segmented:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -40)
+        segmented:SetPoint("TOPLEFT", surface, "TOPLEFT", controlLeft, -4)
+        segmented:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -4)
         segmented:SetHeight(30)
         segmented:Show()
     end
     local playName = session:GetWidget("voice", "tr2PlayTextEnabled")
-    AnchorTrashWidget(playName, surface, 2, 84, controlLeft - 2, 30)
-    LayoutTrashAudioControls(session, "tr2", surface, 84, controlLeft, sourceWidth, 0)
+    AnchorTrashWidget(playName, surface, 2, 44, controlLeft - 2, 30)
+    LayoutTrashAudioControls(session, "tr2", surface, 44, controlLeft, sourceWidth, 0)
 
     if card._exTrashVoicePreviewDivider then
-        card._exTrashVoicePreviewDivider:ClearAllPoints()
-        card._exTrashVoicePreviewDivider:SetPoint("TOPLEFT", surface, "TOPLEFT", 2, -121)
-        card._exTrashVoicePreviewDivider:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -2, -121)
-        card._exTrashVoicePreviewDivider:Show()
+        card._exTrashVoicePreviewDivider:Hide()
     end
     if card._exTrashVoicePreviewBackground then
         card._exTrashVoicePreviewBackground:ClearAllPoints()
-        card._exTrashVoicePreviewBackground:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -124)
+        card._exTrashVoicePreviewBackground:SetPoint("TOPLEFT", surface, "TOPLEFT", 0, -82)
         card._exTrashVoicePreviewBackground:SetPoint("BOTTOMRIGHT", surface, "BOTTOMRIGHT", 0, 0)
         EXUI:SetControlSurface(card._exTrashVoicePreviewBackground, 5, GC.panel, GC.cardBorder)
         card._exTrashVoicePreviewBackground:Show()
@@ -1592,21 +1699,26 @@ local function LayoutTrashVoiceCard(session)
     local previewButton = session:GetWidget("voice", "voiceSequencePreview")
     if previewButton then
         previewButton:ClearAllPoints()
-        previewButton:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -10, -145)
+        previewButton:SetPoint("BOTTOMRIGHT", surface, "BOTTOMRIGHT", -8, 8)
         previewButton:SetFrameLevel(surface:GetFrameLevel() + 6)
-        previewButton:SetSize(34, 34)
+        previewButton._exButtonVariant = "secondary"
+        EXUI:ApplyControlAppearance(previewButton)
+        previewButton:SetSize(28, 28)
         SetTrashPlayButtonVisual(previewButton)
         previewButton:Show()
     end
+    local timelineHeight = 68
     if voicePreviewTimeline then
         voicePreviewTimeline:ClearAllPoints()
-        voicePreviewTimeline:SetPoint("TOPLEFT", surface, "TOPLEFT", 10, -136)
-        voicePreviewTimeline:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -56, -136)
+        voicePreviewTimeline:SetPoint("TOPLEFT", surface, "TOPLEFT", 10, -94)
+        voicePreviewTimeline:SetPoint("TOPRIGHT", surface, "TOPRIGHT", -10, -94)
         voicePreviewTimeline:Show()
         if voicePreviewTimeline._layout then voicePreviewTimeline:_layout() end
+        timelineHeight = voicePreviewTimeline:GetHeight() or timelineHeight
     end
-    state.reportedHeight = 308
-    return 308
+    local contentHeight = GetTrashVoiceContentHeight(timelineHeight)
+    state.reportedHeight = contentHeight
+    return contentHeight
 end
 
 local function LayoutTrashTargetCard(session)
@@ -1625,27 +1737,44 @@ local function LayoutTrashTargetCard(session)
             start.label:SetPoint("RIGHT", start.checkbox, "LEFT", -8, 0)
         end
     end
-    AnchorTrashWidget(session:GetWidget("target", "targetVisualHeading"), body, 12, 48, nil, 20, 12)
+    local visualHeading = session:GetWidget("target", "targetVisualHeading")
+    if visualHeading then visualHeading:Hide() end
     local choiceWidth = math.max(68, ((body:GetWidth() or 380) - 40) / 3)
     for index, key in ipairs({ "targetAlertRingEnabled", "targetAlertTextEnabledV2", "targetAlertIconEnabled" }) do
         AnchorTrashWidget(session:GetWidget("target", key), body,
-            12 + (index - 1) * (choiceWidth + 8), 72, choiceWidth, 36)
+            12 + (index - 1) * (choiceWidth + 8), 64, choiceWidth, 36)
     end
-    AnchorTrashWidget(session:GetWidget("target", "targetAlertStealthEnabledV2"), body, 12, 116, nil, 40, 12)
-    AnchorTrashWidget(session:GetWidget("target", "targetAlertTankEnabled"), body, 12, 164, nil, 30, 12)
-    AnchorTrashWidget(session:GetWidget("target", "targetAudioHeading"), body, 12, 202, nil, 20, 12)
+    AnchorTrashWidget(session:GetWidget("target", "targetAlertStealthEnabledV2"), body, 12, 118, nil, 44, 12)
+    AnchorTrashWidget(session:GetWidget("target", "targetAlertTankEnabled"), body, 12, 186, nil, 30, 12)
+    local audioHeading = session:GetWidget("target", "targetAudioHeading")
+    if audioHeading then audioHeading:Hide() end
     local sound = session:GetWidget("target", "targetAlertStartLSM")
     local test = session:GetWidget("target", "targetAlertStartValueTest")
-    AnchorTrashWidget(sound, body, 12, 228, nil, 30, 52)
+    AnchorTrashWidget(sound, body, 12, 232, nil, 30, 52)
     if test then
         test:ClearAllPoints()
-        test:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -228)
+        test:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -232)
         test:SetSize(28, 30)
+        SetTrashPlayButtonVisual(test)
         test:Show()
     end
-    AnchorTrashWidget(session:GetWidget("target", "targetPresentationNote"), body, 12, 266, nil, 30, 12)
-    state.reportedHeight = 308
-    return 308
+    local note = session:GetWidget("target", "targetPresentationNote")
+    if note then note:Hide() end
+    if not card._exTrashTargetDividers then
+        card._exTrashTargetDividers = {}
+        for index = 1, 2 do
+            card._exTrashTargetDividers[index] = EXUI:CreateSettingsSeparator(body, 1)
+        end
+    end
+    for index, top in ipairs({ 118, 174 }) do
+        local divider = card._exTrashTargetDividers[index]
+        divider:ClearAllPoints()
+        divider:SetPoint("TOPLEFT", body, "TOPLEFT", 12, -top)
+        divider:SetPoint("TOPRIGHT", body, "TOPRIGHT", -12, -top)
+        divider:SetShown(index == 2)
+    end
+    state.reportedHeight = 274
+    return 274
 end
 
 local function ApplyTrashCustomCardLayouts(session)
@@ -1678,8 +1807,11 @@ local function ApplyTrashSettingsCardSurfaces(session)
         end
         quickBody:ClearAllPoints()
         quickBody:SetAllPoints(quickCard)
-        EXUI:SetControlSurface(quickCard, 10, GC.card, GC.cardBorder)
+        EXUI:ClearControlSurface(quickCard)
         EXUI:ClearControlSurface(quickBody)
+        if quickState.visible ~= false then
+            session:SetCardVisible("quick", false)
+        end
     end
     for _, id in ipairs({ "text", "cast", "voice", "target" }) do
         local state = session.byId[id]
@@ -1711,6 +1843,15 @@ local function ApplyTrashSettingsCardSurfaces(session)
             EXUI:ClearControlSurface(body)
         end
     end
+    local textState = session.byId.text
+    local textCard = textState and textState.card
+    local textBody = textState and textState.body
+    if textCard and textBody and not textCard._exTrashTextDividers then
+        textCard._exTrashTextDividers = {}
+        for index = 1, 3 do
+            textCard._exTrashTextDividers[index] = EXUI:CreateSettingsSeparator(textBody, 1)
+        end
+    end
     local voiceState = session.byId.voice
     local voiceCard = voiceState and voiceState.card
     local voiceBody = voiceState and voiceState.body
@@ -1724,10 +1865,11 @@ local function ApplyTrashSettingsCardSurfaces(session)
         voiceCard._exTrashVoicePreviewDivider = voiceCard._exTrashVoicePreviewDivider
             or EXUI:CreateSettingsSeparator(voiceSurface, 1)
         if not voiceCard._exTrashVoicePreviewBackground then
-            local background = CreateFrame("Frame", nil, voiceCard._exTrashVoicePreviewDivider, "BackdropTemplate")
+            local background = CreateFrame("Frame", nil, voiceSurface, "BackdropTemplate")
             background:EnableMouse(false)
             voiceCard._exTrashVoicePreviewBackground = background
         end
+        voiceCard._exTrashVoicePreviewBackground:SetParent(voiceSurface)
         local countdownSelector = session:GetWidget("voice", "tr2CountdownLead")
         if countdownSelector and countdownSelector.viewport then
             local outline = countdownSelector._exTrashSelectedOutline
@@ -1764,6 +1906,9 @@ local function ApplyTrashSettingsCardSurfaces(session)
         if not voiceCard._exTrashVoicePreviewTimeline then
             local timeline = CreateFrame("Frame", nil, voiceBody)
             timeline:SetFrameLevel((voiceBody:GetFrameLevel() or 1) + 3)
+            timeline.axis = EXUI:CreateVisualTexture(timeline, EXBASEFRAME)
+            timeline.axis:SetColorTexture(unpack(GC.cardBorder))
+            timeline.axis:SetHeight(PixelUtil.GetNearestPixelSize(1, timeline:GetEffectiveScale(), 1))
             timeline.nodes = {}
             for index = 1, 7 do
                 local node = CreateFrame("Frame", nil, timeline)
@@ -1782,9 +1927,9 @@ local function ApplyTrashSettingsCardSurfaces(session)
                 node.value:SetJustifyH("CENTER")
                 node.value:SetWordWrap(true)
                 node.value:SetNonSpaceWrap(true)
-                node.arrow = EXUI:CreateVisualFontString(node, EXFONTFRAME, "GameFontDisableSmall")
-                node.arrow:SetText("›")
-                node.arrow:SetTextColor(unpack(GC.textDisabled))
+                node.tick = EXUI:CreateVisualTexture(timeline, EXBASEFRAME)
+                node.tick:SetColorTexture(unpack(GC.cardBorder))
+                node.tick:SetSize(PixelUtil.GetNearestPixelSize(1, timeline:GetEffectiveScale(), 1), 6)
                 timeline.nodes[index] = node
             end
             timeline._layout = function(self)
@@ -1792,38 +1937,109 @@ local function ApplyTrashSettingsCardSurfaces(session)
                 self._layoutBusy = true
                 local count = 7
                 local width = math.max(1, self:GetWidth() or 1)
-                local slotWidth = width / count
-                local timelineHeight, cursor = 51, 0
+                local axisWidth = math.max(1, width - 38)
+                local slotWidth = axisWidth / count
+                local occupied = {}
                 for index, node in ipairs(self.nodes) do
                     node:ClearAllPoints()
-                    local available = math.max(1, slotWidth - 12)
-                    local valueWidth = math.min(available,
-                        math.max(28, math.ceil(node.value:GetUnboundedStringWidth() or 0) + 18))
-                    node.valueHost:SetWidth(valueWidth)
-                    node.valueHost:ClearAllPoints()
-                    node.valueHost:SetPoint("TOP", node.time, "BOTTOM", 0, -5)
-                    node:SetWidth(available)
-                    node.time:SetHeight(0)
-                    node.value:SetHeight(0)
-                    local timeHeight = math.max(14, math.ceil(node.time:GetStringHeight()))
-                    local valueHeight = math.max(32, math.ceil(node.value:GetStringHeight()) + 10)
-                    node.time:SetHeight(timeHeight)
-                    node.valueHost:SetHeight(valueHeight)
-                    local nodeHeight = timeHeight + 5 + valueHeight
-                    node:SetHeight(nodeHeight)
-                    if index <= count then timelineHeight = math.max(timelineHeight, nodeHeight) end
-                    node:SetPoint("TOPLEFT", self, "TOPLEFT", cursor + (slotWidth - available) / 2, 0)
-                    node.arrow:ClearAllPoints()
-                    node.arrow:SetPoint("CENTER", self, "TOPLEFT", cursor + slotWidth, -35)
-                    node.arrow:SetShown(index < count)
-                    if index <= count then cursor = cursor + slotWidth end
+                    node:SetPoint("TOPLEFT", self, "TOPLEFT", (index - 1) * slotWidth, 0)
+                    node:SetSize(slotWidth, 1)
+                    if node._previewKind == "trigger" or node._previewKind == "digit" then
+                        occupied[#occupied + 1] = {
+                            node = node,
+                            index = index,
+                            center = (index - 0.5) * slotWidth,
+                        }
+                    end
                 end
-                self:SetHeight(timelineHeight)
+                local placements, rowHeight = {}, 32
+                for position, item in ipairs(occupied) do
+                    local node = item.node
+                    local previous = occupied[position - 1]
+                    local following = occupied[position + 1]
+                    local leftBound = 0
+                    local rightBound = width
+                    if previous then
+                        if previous.node._previewKind == "digit" then
+                            leftBound = previous.center + 21
+                        else
+                            leftBound = (previous.center + item.center) / 2 + 3
+                        end
+                    end
+                    if following then
+                        if following.node._previewKind == "digit" then
+                            rightBound = following.center - 21
+                        else
+                            rightBound = (item.center + following.center) / 2 - 3
+                        end
+                    end
+                    local availableWidth = math.max(24, rightBound - leftBound)
+                    local desiredWidth
+                    if node._previewKind == "digit" then
+                        desiredWidth = math.min(36, availableWidth)
+                    else
+                        desiredWidth = math.min(availableWidth,
+                            math.max(64, math.ceil(node.value:GetUnboundedStringWidth() or 0) + 18))
+                    end
+                    local left = math.max(leftBound,
+                        math.min(rightBound - desiredWidth, item.center - desiredWidth / 2))
+                    node.valueHost:ClearAllPoints()
+                    node.value:SetHeight(0)
+                    local valueHeight = math.max(32, math.ceil(node.value:GetStringHeight()) + 10)
+                    rowHeight = math.max(rowHeight, valueHeight)
+                    placements[#placements + 1] = {
+                        node = node,
+                        left = left,
+                        width = desiredWidth,
+                    }
+                end
+                for _, node in ipairs(self.nodes) do
+                    node.valueHost:Hide()
+                end
+                for _, placement in ipairs(placements) do
+                    local node = placement.node
+                    node.valueHost:ClearAllPoints()
+                    node.valueHost:SetPoint("TOPLEFT", self, "TOPLEFT", placement.left, 0)
+                    node.valueHost:SetSize(placement.width, rowHeight)
+                    node.value:ClearAllPoints()
+                    node.value:SetPoint("TOPLEFT", node.valueHost, "TOPLEFT", 5, -5)
+                    node.value:SetPoint("TOPRIGHT", node.valueHost, "TOPRIGHT", -5, -5)
+                    node.value:SetHeight(rowHeight - 10)
+                    node.value:SetJustifyH("CENTER")
+                    node.value:SetJustifyV("MIDDLE")
+                    node.valueHost:Show()
+                end
+                local axisTop = rowHeight + 10
+                self.axis:ClearAllPoints()
+                self.axis:SetPoint("TOPLEFT", self, "TOPLEFT", slotWidth / 2, -axisTop)
+                self.axis:SetPoint("TOPRIGHT", self, "TOPRIGHT",
+                    -(width - axisWidth + slotWidth / 2), -axisTop)
+                for index, node in ipairs(self.nodes) do
+                    local centerX = (index - 0.5) * slotWidth
+                    node.tick:ClearAllPoints()
+                    node.tick:SetPoint("TOP", self, "TOPLEFT", centerX, -axisTop + 2)
+                    node.time:ClearAllPoints()
+                    node.time:SetPoint("TOP", self, "TOPLEFT", centerX, -(axisTop + 7))
+                    node.time:SetWidth(slotWidth)
+                    node.time:SetHeight(16)
+                end
+                local timelineHeight = axisTop + 28
+                if self:GetHeight() ~= timelineHeight then self:SetHeight(timelineHeight) end
                 self._layoutBusy = nil
+                local list = _G.ExwindGrid:GetSettingsListSession(voiceBody)
+                local owner = self._exTrashCardSession
+                local state = self._exTrashCardState
+                local contentHeight = GetTrashVoiceContentHeight(timelineHeight)
+                if state and state.reportedHeight ~= contentHeight and list and owner and not owner.released
+                    and not list.visualLayoutBusy and not owner.reflowBusy then
+                    owner:_SetReportedContentHeight(state, contentHeight)
+                end
             end
             timeline:SetScript("OnSizeChanged", function(self) self:_layout() end)
             voiceCard._exTrashVoicePreviewTimeline = timeline
         end
+        voiceCard._exTrashVoicePreviewTimeline._exTrashCardSession = session
+        voiceCard._exTrashVoicePreviewTimeline._exTrashCardState = voiceState
         voicePreviewTimeline = voiceCard._exTrashVoicePreviewTimeline
     end
     local summaryEnabled = session:GetWidget("master", "enabled")
@@ -1909,6 +2125,15 @@ end
 
 local function ReleaseTrashSettingsCardSession()
     local session = Page._settingsCardSession
+    local quickState = session and session.byId and session.byId.quick
+    local quickBody = quickState and quickState.body
+    if quickBody and session.GetWidget then
+        for _, key in ipairs({ "showBunBar", "showTimerBar", "showNameplate" }) do
+            local widget = session:GetWidget("quick", key)
+            if widget then widget:SetParent(quickBody) end
+        end
+    end
+    if detailOutputHost then detailOutputHost:Hide() end
     local centralLead = session and session.GetWidget and session:GetWidget("text", "centralLead")
     if centralLead and centralLead._exTrashUnitInside then
         centralLead:SetTextInsets(9, 9, 0, 0)
@@ -1936,6 +2161,14 @@ local function ReleaseTrashSettingsCardSession()
             enableSegments.originalHitInsets = nil
         end
     end
+    for _, spec in ipairs({ { "voice", "tr1ValueTest" }, { "voice", "tr2ValueTest" },
+        { "voice", "voiceSequencePreview" }, { "target", "targetAlertStartValueTest" } }) do
+        local button = session and session.GetWidget and session:GetWidget(spec[1], spec[2])
+        if button and button._exTrashPlayIcon then
+            button._exTrashPlayIconActive = nil
+            button._exTrashPlayIcon:Hide()
+        end
+    end
     local voiceState = session and session.byId and session.byId.voice
     local voiceCard = voiceState and voiceState.card
     if voiceCard then
@@ -1950,6 +2183,23 @@ local function ReleaseTrashSettingsCardSession()
             if visual then
                 visual:Hide()
                 visual._layoutBusy = nil
+            end
+        end
+    end
+    for _, id in ipairs({ "text", "cast", "target" }) do
+        local state = session and session.byId and session.byId[id]
+        local card = state and state.card
+        if card then
+            for _, key in ipairs({
+                "_exTrashCastCheckHelp",
+            }) do
+                local visual = card[key]
+                if visual then visual:Hide() end
+            end
+            for _, collectionKey in ipairs({ "_exTrashTextDividers", "_exTrashTargetDividers" }) do
+                for _, visual in ipairs(card[collectionKey] or {}) do
+                    visual:Hide()
+                end
             end
         end
     end
@@ -2400,13 +2650,14 @@ local function AcquireSpellRow()
     row.navDivider:Hide()
 
     local check = EXUI:CreateCheckbox(row, "", false, nil)
-    check:SetSize(28, 28)
+    check:SetSize(26, 26)
     check:SetPoint("LEFT", 0, 0)
+    check:Hide()
     row.check = check
 
     local icon = EXUI:CreateVisualTexture(row, EXBASEFRAME)
-    icon:SetSize(38, 38)
-    icon:SetPoint("LEFT", check, "RIGHT", -1, 0)
+    icon:SetSize(30, 30)
+    icon:SetPoint("LEFT", row, "LEFT", 4, 0)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.iconMask = row:CreateMaskTexture()
     row.iconMask:SetTexture("Interface\\Common\\common-iconmask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
@@ -2421,23 +2672,23 @@ local function AcquireSpellRow()
     row.alertIcon = alertIcon
 
     local textBlock = CreateFrame("Frame", nil, row)
-    textBlock:SetPoint("LEFT", icon, "RIGHT", 4, 0)
+    textBlock:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     textBlock:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     textBlock:SetPoint("CENTER", row, "CENTER", 0, 0)
-    textBlock:SetHeight(36)
+    textBlock:SetHeight(34)
     row.textBlock = textBlock
 
     local label = EXUI:CreateVisualFontString(row, EXFONTFRAME, "GameFontHighlightSmall")
     label:SetJustifyH("LEFT")
-    label:SetJustifyV("TOP")
+    label:SetJustifyV("MIDDLE")
     label:SetWordWrap(false)
     label:SetMaxLines(1)
     label:SetSpacing(0)
-    label:SetFont(ExwindTools.MAIN_FONT, 15, "")
+    label:SetFont(ExwindTools.MAIN_FONT, 17, "")
     row.label = label
 
     local atlasHolder = CreateFrame("Frame", nil, row)
-    atlasHolder:SetPoint("RIGHT", textBlock, "RIGHT", 0, -1)
+    atlasHolder:SetPoint("RIGHT", textBlock, "RIGHT", 0, 0)
     atlasHolder:SetSize(18, 18)
     atlasHolder:EnableMouse(true)
     atlasHolder:Hide()
@@ -2462,16 +2713,16 @@ local function AcquireSpellRow()
     end)
 
     local npcCard = CreateFrame("Frame", nil, textBlock, "BackdropTemplate")
-    npcCard:SetPoint("TOPLEFT", textBlock, "TOPLEFT", 0, -21)
+    npcCard:SetPoint("BOTTOMRIGHT", textBlock, "BOTTOMRIGHT", 0, 0)
     npcCard:SetWidth(96)
-    npcCard:SetHeight(17)
+    npcCard:SetHeight(15)
     EXUI:SetControlSurface(npcCard, 4, GC.input, GC.panelBorder)
     row.npcCard = npcCard
 
     local meta = EXUI:CreateVisualFontString(npcCard, EXFONTFRAME, "GameFontDisableSmall")
     meta:SetPoint("LEFT", npcCard, "LEFT", 6, 0)
     meta:SetPoint("RIGHT", npcCard, "RIGHT", -6, 0)
-    meta:SetJustifyH("LEFT")
+    meta:SetJustifyH("RIGHT")
     meta:SetJustifyV("MIDDLE")
     meta:SetWordWrap(false)
     meta:SetMaxLines(1)
@@ -2526,6 +2777,7 @@ local function UpdateDetailCard()
 
     if detailPlaceholder then detailPlaceholder:Hide() end
     if detailEnableHost then detailEnableHost:Show() end
+    if detailOutputHost then detailOutputHost:Show() end
     detailIcon:Show()
     if detailIconBorder then detailIconBorder:Show() end
     detailIcon:SetTexture(icon or 134400)
@@ -2695,6 +2947,7 @@ function Page:RefreshSpellList()
         row.icon:SetTexture(GetRowSpellIcon(rowData))
         row._enabled = cfg.enabled == true
         row.check:SetChecked(cfg.enabled == true)
+        row.check:Hide()
         row.label:SetText(tostring(rowData.spellName or ""))
         local borderR, borderG, borderB = ResolveSpellEntryBorderColor(cfg)
         if borderR == nil or borderG == nil or borderB == nil then
@@ -2704,21 +2957,26 @@ function Page:RefreshSpellList()
         row._borderG = borderG
         row._borderB = borderB
         row.icon:ClearAllPoints()
-        row.icon:SetPoint("LEFT", row.check, "RIGHT", -1, 0)
+        row.icon:SetSize(30, 30)
+        row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+        row.label:SetFont(ExwindTools.MAIN_FONT, 17, "")
+        row.label:SetHeight(22)
+        row.testAtlasHolder:ClearAllPoints()
+        row.testAtlasHolder:SetPoint("RIGHT", row.textBlock, "RIGHT", 0, 0)
         row.alertIcon:ClearAllPoints()
         local eventTypeAtlas = ResolveEventTypeIcon(rowData.eventType)
         if eventTypeAtlas and row.alertIcon and row.alertIcon.SetAtlas then
             row.alertIcon:SetAtlas(eventTypeAtlas, false)
-            row.alertIcon:SetPoint("TOPLEFT", row.textBlock, "TOPLEFT", 0, 0)
+            row.alertIcon:SetPoint("LEFT", row.textBlock, "LEFT", 0, 0)
             row.alertIcon:Show()
             row.label:ClearAllPoints()
-            row.label:SetPoint("TOPLEFT", row.alertIcon, "TOPRIGHT", 3, 0)
+            row.label:SetPoint("LEFT", row.alertIcon, "RIGHT", 3, 0)
         else
             if row.alertIcon then
                 row.alertIcon:Hide()
             end
             row.label:ClearAllPoints()
-            row.label:SetPoint("TOPLEFT", row.textBlock, "TOPLEFT", 0, 0)
+            row.label:SetPoint("LEFT", row.textBlock, "LEFT", 0, 0)
         end
         row.label:SetPoint("RIGHT", row.testAtlasHolder, "LEFT", -6, 0)
         if TEST_THREAT_ATLAS_SPELLS[tonumber(rowData.spellID)] then
@@ -2904,13 +3162,17 @@ function Page:RenderSettingsGrid(resetScroll)
     Page._settingsCardSession = Grid:MountCards(settingsScrollChild, SETTINGS_LAYOUT, {
         pageId = SPELL_SETTINGS_MODULE_KEY,
         regionId = "trash-spell-editor",
-        layoutDefaults = { left = 0, right = 0, top = 0, bottom = 0, gap = 6 },
+        layoutDefaults = { left = 0, right = 0, top = 12, bottom = 0, gap = 6 },
         config = db,
         moduleKey = SPELL_SETTINGS_MODULE_KEY,
         scrollFrame = settingsScrollFrame,
         exbossSummaryEnableHost = detailEnableHost,
     })
     ApplyTrashSettingsCardSurfaces(Page._settingsCardSession)
+    if detailOutputHost and GetSelectedSpellRow() then
+        detailOutputHost:Show()
+        RefreshDetailCardLayout()
+    end
     RefreshSettingsDynamicWidgets()
 end
 
@@ -3015,6 +3277,12 @@ local function EnsureUI(parent)
     detailEnableHost:SetSize(154, 28)
     detailEnableHost:SetPoint("TOPRIGHT", detailPane, "TOPRIGHT", -14, -9)
     detailEnableHost:Hide()
+
+    detailOutputHost = CreateFrame("Frame", nil, detailPane, "BackdropTemplate")
+    detailOutputHost:SetSize(330, 34)
+    detailOutputHost:SetPoint("BOTTOMRIGHT", detailPane, "BOTTOMRIGHT", -12, 9)
+    EXUI:SetControlSurface(detailOutputHost, 4, GC.subcard, GC.subcardBorder)
+    detailOutputHost:Hide()
 
     detailIcon = EXUI:CreateRoundedImage(detailPane, 9)
     detailIcon:SetSize(46, 46)
@@ -3177,6 +3445,10 @@ local function ApplyHostLayout(leftHost, contentHost)
     detailPane:SetPoint("TOPLEFT", root, "TOPLEFT", mainLeft, -16)
     detailPane:SetPoint("TOPRIGHT", root, "TOPRIGHT", -16, -16)
     detailPane:SetHeight(C.SPELL_DETAIL_HEIGHT)
+    -- EnsureUI may run before the unified hosts have their final size.  Reapply
+    -- the same surface after final anchoring so a direct first open has the
+    -- same border as a page that has already gone through hide/show.
+    EXUI:SetControlSurface(detailPane, 10, GC.card, GC.panelBorder)
     settingsPane:SetParent(root)
     settingsPane:ClearAllPoints()
     settingsPane:SetPoint("TOPLEFT", detailPane, "BOTTOMLEFT", 0, -8)
@@ -3200,7 +3472,7 @@ function Page:RelayoutPrototype()
     local rowHeights = {}
     for i, item in ipairs(activeSpellRows) do
         item:SetWidth(cardWidth)
-        item.textBlock:SetHeight(40)
+        item.textBlock:SetHeight(34)
         item.npcCard:SetWidth(math.min(math.max(72,
             math.ceil(item.meta:GetUnboundedStringWidth() or 0) + 12),
             math.max(72, item.textBlock:GetWidth() or 96)))
@@ -3268,6 +3540,25 @@ local function RefreshActiveSurfaces()
     }
     for _, key in ipairs(fields) do PersistEditorToSelectedSpell(key) end
     RefreshSettingsDynamicWidgets()
+    -- The description-card ON/OFF is the only visible enabled control now.
+    -- Keep the existing Store/controller write path and only refresh the two
+    -- current-page visual consumers after that write has completed.
+    local selectedRow = GetSelectedSpellRow()
+    local runtimeCfg = selectedRow and GetRuntimeSpellEntry(selectedRow) or nil
+    if selectedRow and type(runtimeCfg) == "table" then
+        for _, spellRow in ipairs(activeSpellRows) do
+            if spellRow.npcID == selectedRow.npcID and spellRow.spellID == selectedRow.spellID then
+                spellRow._enabled = runtimeCfg.enabled == true
+                if spellRow.check then
+                    spellRow.check:SetChecked(spellRow._enabled)
+                    spellRow.check:Hide()
+                end
+                break
+            end
+        end
+        RefreshSpellRowVisuals()
+        UpdateDetailCard()
+    end
 end
 
 if EXUI then
