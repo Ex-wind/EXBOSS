@@ -3250,10 +3250,10 @@ local function EnsureUI(leftFrame, contentFrame)
     end
     if UI.seasonDropdown then
         UI.mapScrollFrame:SetPoint("TOPLEFT", UI.seasonDropdown, "BOTTOMLEFT", 0, -12)
-        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.seasonDropdown, "BOTTOMRIGHT", 0, -12)
+        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -18, -12)
     else
         UI.mapScrollFrame:SetPoint("TOPLEFT", UI.leftRoot, "TOPLEFT", 14, -18)
-        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -14, -18)
+        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -18, -18)
     end
     UI.mapScrollFrame:SetHeight(172)
 
@@ -3284,7 +3284,7 @@ local function EnsureUI(leftFrame, contentFrame)
         ExBoss.UI.ApplyModernScrollBarSkin(UI.bossScrollFrame)
     end
     UI.bossScrollFrame:SetPoint("TOPLEFT", UI.mapScrollFrame, "BOTTOMLEFT", -6, -10)
-    UI.bossScrollFrame:SetPoint("BOTTOMRIGHT", UI.leftRoot, "BOTTOMRIGHT", -4, 18)
+    UI.bossScrollFrame:SetPoint("BOTTOMRIGHT", UI.leftRoot, "BOTTOMRIGHT", -18, 18)
 
     UI.bossScrollContent = CreateFrame("Frame", nil, UI.bossScrollFrame)
     UI.bossScrollContent:SetSize(200, 1)
@@ -3597,7 +3597,7 @@ local function EnsureUI(leftFrame, contentFrame)
         ExBoss.UI.ApplyModernScrollBarSkin(UI.spellScrollFrame)
     end
     UI.spellScrollFrame:SetPoint("TOPLEFT", UI.rightRoot, "TOPLEFT", 16, -C.SPELL_LIST_TOP_INSET)
-    UI.spellScrollFrame:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "TOPRIGHT", -4, 4)
+    UI.spellScrollFrame:SetPoint("BOTTOMRIGHT", UI.spellDetailHeader, "TOPRIGHT", -18, 4)
     UI.spellScrollFrame:EnableMouseWheel(true)
     UI.spellScrollFrame:SetScript("OnMouseWheel", function(self, delta)
         local maximum = math.max(0, self:GetVerticalScrollRange())
@@ -3792,12 +3792,12 @@ local function RelayoutMapNavigation()
     else
         UI.mapScrollFrame:SetPoint("TOPLEFT", UI.leftRoot, "TOPLEFT", inset, -topInset)
     end
-    UI.mapScrollFrame:SetWidth(math.max(1, UI.leftRoot:GetWidth() - inset * 2))
+    UI.mapScrollFrame:SetWidth(math.max(1, UI.leftRoot:GetWidth() - inset - 18))
     UI.mapScrollChild:SetWidth(math.max(1, UI.mapScrollFrame:GetWidth() - 4))
     UI.bossNavTitle:Hide()
     UI.bossScrollFrame:ClearAllPoints()
     UI.bossScrollFrame:SetPoint("TOPLEFT", UI.mapScrollFrame, "BOTTOMLEFT", -6, -10)
-    UI.bossScrollFrame:SetPoint("BOTTOMRIGHT", UI.leftRoot, "BOTTOMRIGHT", -4, topInset)
+    UI.bossScrollFrame:SetPoint("BOTTOMRIGHT", UI.leftRoot, "BOTTOMRIGHT", -18, topInset)
     UI.bossScrollContent:SetWidth(math.max(1, UI.bossScrollFrame:GetWidth() - 4))
     local cellWidth = math.max(1, (UI.mapScrollChild:GetWidth() - 21) / 4)
     local iconSize = math.max(1, math.min(90, cellWidth - 2))

@@ -179,7 +179,7 @@ local function EnsureDebugCopyFrame()
 
     local scrollFrame = ET.UI:CreateScrollFrame(frame)
     scrollFrame:SetPoint("TOPLEFT", 18, -46)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -32, 18)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -18, 18)
     scrollFrame:SetScript("OnMouseWheel", function(self, delta)
         local cur = self:GetVerticalScroll()
         self:SetVerticalScroll(math.max(0, math.min(cur - delta * 24, self:GetVerticalScrollRange())))

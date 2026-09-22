@@ -2243,7 +2243,7 @@ local function RefreshSettingsDynamicWidgets()
     local noticeHeight = settingsVoiceDisabledNote and settingsVoiceDisabledNote:IsShown()
         and math.ceil(settingsVoiceDisabledNote:GetStringHeight() or 0) + 8 or 0
     settingsScrollFrame:SetPoint("TOPLEFT", settingsPane, "TOPLEFT", 0, -noticeHeight)
-    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -4, 0)
+    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -18, 0)
 
     local modeDropdownWidget = widgets["eventColorMode"]
     local customColor = widgets["eventColor"]
@@ -3252,9 +3252,9 @@ local function EnsureUI(parent)
         ExBoss.UI.ApplyModernScrollBarSkin(mapScrollFrame)
     end
     mapScrollFrame:SetPoint("TOPLEFT", mapPane, "TOPLEFT", 0, 0)
-    mapScrollFrame:SetPoint("TOPRIGHT", mapPane, "TOPRIGHT", 0, 0)
+    mapScrollFrame:SetPoint("TOPRIGHT", mapPane, "TOPRIGHT", -18, 0)
     mapScrollFrame:SetPoint("BOTTOMLEFT", mapPane, "BOTTOMLEFT", 0, 0)
-    mapScrollFrame:SetPoint("BOTTOMRIGHT", mapPane, "BOTTOMRIGHT", 0, 0)
+    mapScrollFrame:SetPoint("BOTTOMRIGHT", mapPane, "BOTTOMRIGHT", -18, 0)
 
     mapScrollChild = CreateFrame("Frame", nil, mapScrollFrame)
     mapScrollChild:SetSize(208, 1)
@@ -3262,7 +3262,7 @@ local function EnsureUI(parent)
 
     spellScrollFrame = CreateFrame("ScrollFrame", nil, spellPane, "ScrollFrameTemplate")
     spellScrollFrame:SetPoint("TOPLEFT", spellPane, "TOPLEFT", -6, 0)
-    spellScrollFrame:SetPoint("BOTTOMRIGHT", spellPane, "BOTTOMRIGHT", -4, 0)
+    spellScrollFrame:SetPoint("BOTTOMRIGHT", spellPane, "BOTTOMRIGHT", -18, 0)
     spellScrollChild = CreateFrame("Frame", nil, spellScrollFrame)
     spellScrollChild:SetWidth(leftW - 30)
     spellScrollChild:SetHeight(300)
@@ -3405,7 +3405,7 @@ local function EnsureUI(parent)
 
     settingsScrollFrame = CreateFrame("ScrollFrame", nil, settingsPane, "ScrollFrameTemplate")
     settingsScrollFrame:SetPoint("TOPLEFT", 0, -28)
-    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -4, 0)
+    settingsScrollFrame:SetPoint("BOTTOMRIGHT", settingsPane, "BOTTOMRIGHT", -18, 0)
     settingsScrollChild = CreateFrame("Frame", nil, settingsScrollFrame)
     settingsScrollChild:SetWidth(900)
     settingsScrollChild:SetHeight(420)
