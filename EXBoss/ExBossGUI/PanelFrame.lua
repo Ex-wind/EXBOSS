@@ -439,15 +439,17 @@ local function ApplySpecialPageHostGeometry()
         leftFrame:SetBackdropColor(unpack(GC.panel))
         -- Previous background: contentFrame:SetBackdropColor(unpack(GC.page))
         contentFrame:SetBackdropColor(unpack(currentTab == "boss" and GC.panel or GC.page))
-        leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+        leftFrame:SetBackdropBorderColor(unpack(IsUnifiedMode() and GC.transparent or GC.panelBorder))
         contentFrame:SetBackdropBorderColor(unpack(GC.transparent))
         mainFrame._prototypeHosts = true
     elseif mainFrame._prototypeHosts then
         mainFrame._prototypeHosts = nil
         leftFrame:SetBackdropColor(unpack(GC.panel))
-        leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+        -- Unified Shell 拥有外轮廓与 B/C 分隔线，离开特殊页也不叠加宿主方框。
+        local hostBorder = IsUnifiedMode() and GC.transparent or GC.panelBorder
+        leftFrame:SetBackdropBorderColor(unpack(hostBorder))
         contentFrame:SetBackdropColor(unpack(GC.page))
-        contentFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+        contentFrame:SetBackdropBorderColor(unpack(hostBorder))
         if not IsUnifiedMode() then
             leftFrame:ClearAllPoints()
             leftFrame:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 4, TAB_BAR_Y - TAB_H - 4)
@@ -458,6 +460,10 @@ local function ApplySpecialPageHostGeometry()
                 ShouldUseLeftNav(currentTab) and CONTENT_X + 4 or 4, TAB_BAR_Y - TAB_H - 4)
             contentFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -4, 4)
         end
+    end
+    if not special then
+        local border = (IsUnifiedMode() or currentTab == "home") and GC.transparent or GC.panelBorder
+        contentFrame:SetBackdropBorderColor(unpack(border))
     end
 end
 
@@ -759,13 +765,13 @@ local function CreateUnifiedPanel()
     leftFrame:SetAllPoints(unifiedHosts.navHost)
     leftFrame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     leftFrame:SetBackdropColor(unpack(GC.panel))
-    leftFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+    leftFrame:SetBackdropBorderColor(unpack(GC.transparent))
     Panel.leftFrame = leftFrame
 
     contentFrame = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     contentFrame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     contentFrame:SetBackdropColor(unpack(GC.page))
-    contentFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
+    contentFrame:SetBackdropBorderColor(unpack(GC.transparent))
     local placeholder = EXUI:CreateVisualFontString(contentFrame, EXFONTFRAME, "GameFontNormal")
     placeholder:SetPoint("CENTER")
     placeholder:SetTextColor(unpack(GC.textDim))

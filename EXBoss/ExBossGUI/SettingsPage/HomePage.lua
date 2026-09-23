@@ -551,6 +551,11 @@ local function RenderGrid(contentFrame, resetScroll)
             moduleKey = MODULE_KEY,
             scrollFrame = scrollFrame,
         })
+        -- 首页是资料页，保留分区标题、文字与输入框，去掉 SettingsList
+        -- 默认包在每个资料区外的整块卡片边框及其穿过首行的顶边。
+        for _, cardState in ipairs(cardSession.cards) do
+            EXUI:ClearControlSurface(cardState.body)
+        end
     end)
 
     return true
