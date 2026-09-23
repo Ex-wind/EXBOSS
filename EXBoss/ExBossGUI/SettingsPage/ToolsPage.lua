@@ -16,7 +16,6 @@ local activeButtons = {}
 local resetButton = nil
 local searchBox = nil
 local searchText = ""
-local sidebarDivider = nil
 
 -- 确认弹窗（只注册一次）
 if not StaticPopupDialogs["EXBOSS_RESET_TOOL_CONFIRM"] then
@@ -178,12 +177,6 @@ local function EnsureUI(leftFrame)
 
     leftRoot = CreateFrame("Frame", nil, leftFrame)
     leftRoot:SetAllPoints(leftFrame)
-
-    sidebarDivider = EXUI:CreateVisualTexture(leftRoot, EXBORDERFRAME)
-    sidebarDivider:SetWidth(1)
-    sidebarDivider:SetPoint("TOPRIGHT", leftRoot, "TOPRIGHT", -2, -2)
-    sidebarDivider:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -2, 2)
-    sidebarDivider:SetColorTexture(unpack(GC.popupDivider))
 
     if ExBoss.UI and ExBoss.UI.CreateSidebarSearchBox then
         searchBox = ExBoss.UI.CreateSidebarSearchBox(leftRoot, searchText, {

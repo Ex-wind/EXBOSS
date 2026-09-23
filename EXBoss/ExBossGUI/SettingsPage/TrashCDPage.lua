@@ -3247,22 +3247,18 @@ local function EnsureUI(parent)
     settingsPane:SetPoint("TOPLEFT", detailPane, "BOTTOMLEFT", 0, -8)
     settingsPane:SetPoint("BOTTOMRIGHT", -8, 8)
 
-    mapScrollFrame = CreateFrame("ScrollFrame", nil, mapPane, "ScrollFrameTemplate")
-    if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
-        ExBoss.UI.ApplyModernScrollBarSkin(mapScrollFrame)
-    end
-    mapScrollFrame:SetPoint("TOPLEFT", mapPane, "TOPLEFT", 0, 0)
-    mapScrollFrame:SetPoint("TOPRIGHT", mapPane, "TOPRIGHT", -18, 0)
-    mapScrollFrame:SetPoint("BOTTOMLEFT", mapPane, "BOTTOMLEFT", 0, 0)
-    mapScrollFrame:SetPoint("BOTTOMRIGHT", mapPane, "BOTTOMRIGHT", -18, 0)
+    -- 副本选择固定两排八项，不建立滚动视口或滚动条。
+    mapScrollFrame = CreateFrame("Frame", nil, mapPane)
+    mapScrollFrame:SetAllPoints(mapPane)
+    mapScrollFrame:SetClipsChildren(true)
 
     mapScrollChild = CreateFrame("Frame", nil, mapScrollFrame)
+    mapScrollChild:SetPoint("TOPLEFT", mapScrollFrame, "TOPLEFT")
     mapScrollChild:SetSize(208, 1)
-    mapScrollFrame:SetScrollChild(mapScrollChild)
 
     spellScrollFrame = CreateFrame("ScrollFrame", nil, spellPane, "ScrollFrameTemplate")
-    spellScrollFrame:SetPoint("TOPLEFT", spellPane, "TOPLEFT", -6, 0)
-    spellScrollFrame:SetPoint("BOTTOMRIGHT", spellPane, "BOTTOMRIGHT", -18, 0)
+    spellScrollFrame:SetPoint("TOPLEFT", spellPane, "TOPLEFT", 4, 0)
+    spellScrollFrame:SetPoint("BOTTOMRIGHT", spellPane, "BOTTOMRIGHT", -4, 0)
     spellScrollChild = CreateFrame("Frame", nil, spellScrollFrame)
     spellScrollChild:SetWidth(leftW - 30)
     spellScrollChild:SetHeight(300)

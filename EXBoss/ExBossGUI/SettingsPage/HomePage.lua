@@ -357,14 +357,10 @@ end
 -- 分区标题使用共享 SettingsList 外置标题；卡片正文保持无内置标题栏、无图标、不可折叠。
 local function BuildLayout()
     local fullWidth = { ratio = 1 }
-    local function InformationCard(id, title, target, entries, opts)
+    local leftWidth = { ratio = 0.60, offset = -CARD_GAP * 0.60 }
+    local rightWidth = { ratio = 0.40, offset = -CARD_GAP * 0.40 }
+    local function InformationCard(id, title, placement, entries, opts)
         local contentKey = id .. "_content"
-        local placement
-        if target then
-            placement = { target = target, side = "below", align = "start", gap = CARD_GAP, width = fullWidth }
-        else
-            placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = fullWidth }
-        end
         opts = opts or {}
         opts.entries = entries
         return {
@@ -385,25 +381,31 @@ local function BuildLayout()
 
     return {
         version = 1,
+        title = L["首页"],
+        description = L["官方资源"] .. " · " .. L["联系与支持"],
         settingsListWidthPercent = 100,
+        settingsLayoutBreakpoint = 1100,
         cards = {
-            InformationCard("official", "官方资源", nil, HOME_INFORMATION.official, {
-                columns = 3, minColumnWidth = 320, columnGap = 28, rowGap = 20, linkWidth = 340,
+            InformationCard("official", "官方资源", {
+                target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = leftWidth,
+                narrow = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = fullWidth },
+            }, HOME_INFORMATION.official, {
+                columns = 2, minColumnWidth = 290, columnGap = 18, rowGap = 16, linkWidth = 340,
             }),
-            InformationCard("contact", "联系与支持", "official", HOME_INFORMATION.contact, {
-                columns = 4, minColumnWidth = 250, columnGap = 28, rowGap = 18, linkWidth = 300,
-            }),
-            InformationCard("third-party", "第三方人员感谢", "contact", HOME_INFORMATION.thirdParty, {
-                columns = 2, minColumnWidth = 430, columnGap = 36, rowGap = 22, linkWidth = 360,
-            }),
-            InformationCard("special-thanks", "特别感谢", "third-party", HOME_INFORMATION.specialThanks, {
-                columns = 2, minColumnWidth = 430, columnGap = 36, rowGap = 24, linkWidth = 360,
+            InformationCard("contact", "联系与支持", {
+                target = "official", side = "below", align = "start", gap = CARD_GAP, width = leftWidth,
+                narrow = { target = "official", side = "below", align = "start", gap = CARD_GAP, width = fullWidth },
+            }, HOME_INFORMATION.contact, {
+                columns = 2, minColumnWidth = 230, columnGap = 18, rowGap = 16, linkWidth = 300,
             }),
             {
                 id = "locale",
                 title = L["界面语言"],
-                placement = { target = "special-thanks", side = "below", align = "start",
-                    gap = CARD_GAP, width = fullWidth },
+                placement = {
+                    target = "official", side = "right", align = "start", gap = CARD_GAP, width = rightWidth,
+                    narrow = { target = "contact", side = "below", align = "start",
+                        gap = CARD_GAP, width = fullWidth },
+                },
                 content = { kind = "grid", items = {
                     { key = "localeMode", type = "select", label = L["界面语言"], items = LOCALE_ITEMS,
                         search = true, x = 1, y = 1, w = 120, h = 10 },
@@ -418,12 +420,25 @@ local function BuildLayout()
                     title = L["界面语言"],
                     preserveHeader = false,
                     rows = {
-                        { key = "localeMode", label = L["界面语言"] },
-                        { controls = { { key = "btn_reload_ui", width = 140 } } },
+                        { controls = { { key = "localeMode", width = 250 },
+                            { key = "btn_reload_ui", width = 140 } } },
                         { key = "desc_locale_status", fullWidth = true },
                     },
                 },
             },
+            InformationCard("third-party", "第三方人员感谢", {
+                target = "locale", side = "below", align = "start", gap = CARD_GAP, width = rightWidth,
+                narrow = { target = "locale", side = "below", align = "start", gap = CARD_GAP, width = fullWidth },
+            }, HOME_INFORMATION.thirdParty, {
+                columns = 2, minColumnWidth = 210, columnGap = 16, rowGap = 16, linkWidth = 250,
+            }),
+            InformationCard("special-thanks", "特别感谢", {
+                target = "third-party", side = "below", align = "start", gap = CARD_GAP, width = rightWidth,
+                narrow = { target = "third-party", side = "below", align = "start",
+                    gap = CARD_GAP, width = fullWidth },
+            }, HOME_INFORMATION.specialThanks, {
+                columns = 2, minColumnWidth = 210, columnGap = 16, rowGap = 16, linkWidth = 250,
+            }),
         },
     }
 end
@@ -525,11 +540,12 @@ local function RenderGrid(contentFrame, resetScroll)
         if not (scrollFrame and scrollFrame:IsShown() and scrollChild) then
             return
         end
-        local width = contentFrame:GetWidth()
+        local width = scrollFrame:GetWidth()
         if width < 100 then
-            width = 1400
+            local contentWidth = contentFrame:GetWidth()
+            width = contentWidth >= 100 and (contentWidth - 22) or 1400
         end
-        scrollChild:SetWidth(width - 16)
+        scrollChild:SetWidth(math.max(1, width - 4))
         scrollChild:SetHeight(1)
         scrollChild:SetParent(scrollFrame)
         scrollChild:ClearAllPoints()
@@ -551,11 +567,6 @@ local function RenderGrid(contentFrame, resetScroll)
             moduleKey = MODULE_KEY,
             scrollFrame = scrollFrame,
         })
-        -- 首页是资料页，保留分区标题、文字与输入框，去掉 SettingsList
-        -- 默认包在每个资料区外的整块卡片边框及其穿过首行的顶边。
-        for _, cardState in ipairs(cardSession.cards) do
-            EXUI:ClearControlSurface(cardState.body)
-        end
     end)
 
     return true

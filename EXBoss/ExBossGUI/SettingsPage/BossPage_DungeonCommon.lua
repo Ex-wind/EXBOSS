@@ -24,7 +24,7 @@ local LAYOUT = {}
 -- 方案 A 的视觉令牌。这里只影响 Frame/Texture/FontString 的表现，AuraSound
 -- 的 action ID、字段结构、SavedVariables 与运行时调用链均保持原样。
 local AURA_UI_THEME = {
-    canvas = GC.page,
+    canvas = GC.panel,
     panel = GC.card,
     panelDeep = GC.input,
     panelHover = GC.headerHover,

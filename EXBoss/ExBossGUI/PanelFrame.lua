@@ -357,7 +357,7 @@ local function EnsureEmbedHost()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    embedHost:SetBackdropColor(unpack(GC.page))
+    embedHost:SetBackdropColor(unpack(GC.panel))
     embedHost:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     local placeholder = EXUI:CreateVisualFontString(embedHost, EXFONTFRAME, "GameFontNormal")
@@ -425,9 +425,9 @@ local function ApplySpecialPageHostGeometry()
         -- In split mode FullContentHost is deliberately unanchored by Core.
         -- Use the live B+C body bounds, respecting the existing preview dock.
         local rightHost = IsUnifiedMode() and unifiedHosts.contentBodyHost or mainFrame
-        local width = IsUnifiedMode() and ((unifiedHosts.navHost:GetWidth() or 0) + (rightHost:GetWidth() or 0)) or host:GetWidth()
-        width = math.max(1, width)
-        local navWidth = width <= 1180 and 220 or math.max(248, math.min(320, width * 0.21))
+        local width = math.max(1, host:GetWidth())
+        local navWidth = IsUnifiedMode() and math.max(1, unifiedHosts.navHost:GetWidth() or 0)
+            or (width <= 1180 and 220 or math.max(248, math.min(320, width * 0.21)))
         local top = IsUnifiedMode() and 0 or (TAB_BAR_Y - TAB_H - 4)
         leftFrame:ClearAllPoints()
         leftFrame:SetPoint("TOPLEFT", host, "TOPLEFT", 0, top)
@@ -437,8 +437,7 @@ local function ApplySpecialPageHostGeometry()
         contentFrame:SetPoint("TOPLEFT", host, "TOPLEFT", navWidth, top)
         contentFrame:SetPoint("BOTTOMRIGHT", rightHost, "BOTTOMRIGHT", 0, 0)
         leftFrame:SetBackdropColor(unpack(GC.panel))
-        -- Previous background: contentFrame:SetBackdropColor(unpack(GC.page))
-        contentFrame:SetBackdropColor(unpack(currentTab == "boss" and GC.panel or GC.page))
+        contentFrame:SetBackdropColor(unpack(GC.panel))
         leftFrame:SetBackdropBorderColor(unpack(IsUnifiedMode() and GC.transparent or GC.panelBorder))
         contentFrame:SetBackdropBorderColor(unpack(GC.transparent))
         mainFrame._prototypeHosts = true
@@ -448,7 +447,7 @@ local function ApplySpecialPageHostGeometry()
         -- Unified Shell 拥有外轮廓与 B/C 分隔线，离开特殊页也不叠加宿主方框。
         local hostBorder = IsUnifiedMode() and GC.transparent or GC.panelBorder
         leftFrame:SetBackdropBorderColor(unpack(hostBorder))
-        contentFrame:SetBackdropColor(unpack(GC.page))
+        contentFrame:SetBackdropColor(unpack(GC.panel))
         contentFrame:SetBackdropBorderColor(unpack(hostBorder))
         if not IsUnifiedMode() then
             leftFrame:ClearAllPoints()
@@ -770,7 +769,7 @@ local function CreateUnifiedPanel()
 
     contentFrame = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     contentFrame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    contentFrame:SetBackdropColor(unpack(GC.page))
+    contentFrame:SetBackdropColor(unpack(GC.panel))
     contentFrame:SetBackdropBorderColor(unpack(GC.transparent))
     local placeholder = EXUI:CreateVisualFontString(contentFrame, EXFONTFRAME, "GameFontNormal")
     placeholder:SetPoint("CENTER")
@@ -818,7 +817,7 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left=1, right=1, top=1, bottom=1 },
     })
-    mainFrame:SetBackdropColor(unpack(GC.page))
+    mainFrame:SetBackdropColor(unpack(GC.panel))
     mainFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     -- ── 标题栏 ────────────────────────────────────────────────
@@ -921,7 +920,7 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    outerStrip:SetBackdropColor(unpack(GC.page))
+    outerStrip:SetBackdropColor(unpack(GC.panel))
     outerStrip:SetBackdropBorderColor(unpack(GC.panelBorder))
 
     local function MakeStripButton(label, onClick)
@@ -1017,7 +1016,7 @@ local function CreatePanel()
         tile = true, tileSize = 8, edgeSize = 1,
         insets = { left=1, right=1, top=1, bottom=1 },
     })
-    contentFrame:SetBackdropColor(unpack(GC.page))
+    contentFrame:SetBackdropColor(unpack(GC.panel))
     contentFrame:SetBackdropBorderColor(unpack(GC.panelBorder))
     Panel.contentFrame = contentFrame
 

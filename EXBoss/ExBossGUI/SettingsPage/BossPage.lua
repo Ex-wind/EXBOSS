@@ -2380,7 +2380,8 @@ local function BuildSpellSettingsLayout(spellName, spellIdentifier, eventID, spe
     local cardGap = 6
     local topRowBodyHeight = 176
     local wideColumnRatio = 1.57 / 2.57
-    local narrowColumnRatio = 1 / 2.57
+    -- 右列稍窄，给卡片右边线留出可见间距，避免贴住 Grid 裁剪边界。
+    local narrowColumnRatio = (1 / 2.57) * 0.975
     local wideColumn = { ratio = wideColumnRatio, offset = -cardGap * wideColumnRatio }
     local narrowColumn = { ratio = narrowColumnRatio, offset = -cardGap * narrowColumnRatio }
     local settingsWidth = math.max(1, (UI.spellSettingsGridChild and UI.spellSettingsGridChild:GetWidth()) or 760)
@@ -3244,22 +3245,21 @@ local function EnsureUI(leftFrame, contentFrame)
     mapTitle:SetFont(ExwindTools.MAIN_FONT, 13, "")
     mapTitle:Hide()
 
-    UI.mapScrollFrame = CreateFrame("ScrollFrame", nil, UI.leftRoot, "ScrollFrameTemplate")
-    if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
-        ExBoss.UI.ApplyModernScrollBarSkin(UI.mapScrollFrame)
-    end
+    -- 副本选择固定两排八项，不建立滚动视口或滚动条。
+    UI.mapScrollFrame = CreateFrame("Frame", nil, UI.leftRoot)
+    UI.mapScrollFrame:SetClipsChildren(true)
     if UI.seasonDropdown then
         UI.mapScrollFrame:SetPoint("TOPLEFT", UI.seasonDropdown, "BOTTOMLEFT", 0, -12)
-        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -18, -12)
+        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -14, -12)
     else
         UI.mapScrollFrame:SetPoint("TOPLEFT", UI.leftRoot, "TOPLEFT", 14, -18)
-        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -18, -18)
+        UI.mapScrollFrame:SetPoint("TOPRIGHT", UI.leftRoot, "TOPRIGHT", -14, -18)
     end
     UI.mapScrollFrame:SetHeight(172)
 
     UI.mapScrollChild = CreateFrame("Frame", nil, UI.mapScrollFrame)
+    UI.mapScrollChild:SetPoint("TOPLEFT", UI.mapScrollFrame, "TOPLEFT")
     UI.mapScrollChild:SetSize(208, 1)
-    UI.mapScrollFrame:SetScrollChild(UI.mapScrollChild)
 
     UI.mapEmptyText = EXUI:CreateVisualFontString(UI.mapScrollChild, EXFONTFRAME, "GameFontDisableSmall")
     UI.mapEmptyText:SetPoint("CENTER", 0, 0)
@@ -3792,7 +3792,7 @@ local function RelayoutMapNavigation()
     else
         UI.mapScrollFrame:SetPoint("TOPLEFT", UI.leftRoot, "TOPLEFT", inset, -topInset)
     end
-    UI.mapScrollFrame:SetWidth(math.max(1, UI.leftRoot:GetWidth() - inset - 18))
+    UI.mapScrollFrame:SetWidth(math.max(1, UI.leftRoot:GetWidth() - inset * 2))
     UI.mapScrollChild:SetWidth(math.max(1, UI.mapScrollFrame:GetWidth() - 4))
     UI.bossNavTitle:Hide()
     UI.bossScrollFrame:ClearAllPoints()
@@ -6089,16 +6089,13 @@ RefreshBossList = function(resetScroll)
     end
 end
 
-RefreshMapTabs = function(resetScroll)
+RefreshMapTabs = function()
     if not UI.mapScrollChild then return end
     STATE.mapBuildToken = STATE.mapBuildToken + 1
     local token = STATE.mapBuildToken
 
     ReleaseMapTabs()
     UI.mapScrollChild:SetHeight(1)
-    if resetScroll and UI.mapScrollFrame then
-        UI.mapScrollFrame:SetVerticalScroll(0)
-    end
 
     local mapList = BuildMapList(selectedSeason)
     if #mapList == 0 then
@@ -6218,9 +6215,6 @@ RefreshMapTabs = function(resetScroll)
     local function Finalize()
         if not IsValid() then return end
         RelayoutMapNavigation()
-        if resetScroll and UI.mapScrollFrame then
-            UI.mapScrollFrame:SetVerticalScroll(0)
-        end
     end
 
     local function BuildSync(entries)

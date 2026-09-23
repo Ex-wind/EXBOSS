@@ -42,7 +42,6 @@ local categoryExpanded = {
 }
 local searchBox
 local searchText = ""
-local sidebarDivider
 
 local fixedColorButtons = {}
 local fixedColorLabels = {}
@@ -606,10 +605,10 @@ end
 -- 两页只提供原有控件与回调；页标题、说明、section、card、宽度、间距和流式高度全部由 typed sections 公共层负责。
 local COLOR_PAGE_ID = "ExBoss.GeneralColor"
 local RESET_PAGE_ID = "ExBoss.ResetSettings"
-local COLOR_FIXED_FACTORY = "ExBoss.GeneralColor.FixedControls"
-local COLOR_CUSTOM_FACTORY = "ExBoss.GeneralColor.CustomControls"
-local COLOR_EXTRA_FACTORY = "ExBoss.GeneralColor.ExtraControls"
-local RESET_ACTION_FACTORY = "ExBoss.ResetSettings.ActionControls"
+local COLOR_FIXED_RENDERER = "ExBoss.GeneralColor.FixedRows"
+local COLOR_CUSTOM_RENDERER = "ExBoss.GeneralColor.CustomRows"
+local COLOR_EXTRA_RENDERER = "ExBoss.GeneralColor.ExtraRows"
+local RESET_ACTION_RENDERER = "ExBoss.ResetSettings.ActionRows"
 local standardGlobalPagesRegistered = false
 
 local function ReleaseFactoryControls(host)
@@ -631,6 +630,69 @@ local function TrackFactoryControl(host, control)
     host._exBossOwnedControls = host._exBossOwnedControls or {}
     host._exBossOwnedControls[#host._exBossOwnedControls + 1] = control
     return control
+end
+
+local function AddGlobalSettingsRow(host, label, isLast, fullWidth)
+    local row = EXUI:CreateSettingsRow(host, {
+        label = label, isLast = isLast, fullWidth = fullWidth,
+    })
+    host._exBossRows = host._exBossRows or {}
+    local state = { row = row, fullWidth = fullWidth }
+    host._exBossRows[#host._exBossRows + 1] = state
+    return row, state
+end
+
+local function RegisterGlobalRowsRenderer(Grid, key, count, rowHeight, mount, update, release)
+    Grid:RegisterCustomRenderer(key, {
+        measure = function()
+            return count * rowHeight
+        end,
+        mount = mount,
+        update = update,
+        layout = function(host, ctx, width)
+            width = math.max(1, tonumber(width) or ctx:GetContentWidth())
+            local y = 0
+            for _, state in ipairs(host._exBossRows or {}) do
+                local row = state.row
+                local height, controlX, controlY, controlWidth =
+                    EXUI:UpdateSettingsRowLayout(row, width, state.controlHeight or 30)
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", host, "TOPLEFT", 0, -y)
+                if state.fullWidth then
+                    local available = math.max(1, width - 40)
+                    local checkboxWidth = math.min(110, available * 0.23)
+                    local colorWidth = math.min(145, available * 0.27)
+                    local inputWidth = math.max(1, available - checkboxWidth - colorWidth - 24)
+                    state.checkbox:SetSize(checkboxWidth, 28)
+                    state.checkbox:ClearAllPoints()
+                    state.checkbox:SetPoint("TOPLEFT", row, "TOPLEFT", 20, -controlY)
+                    state.input:SetSize(inputWidth, 28)
+                    state.input:ClearAllPoints()
+                    state.input:SetPoint("TOPLEFT", state.checkbox, "TOPRIGHT", 12, 0)
+                    state.color:SetSize(colorWidth, 28)
+                    state.color:ClearAllPoints()
+                    state.color:SetPoint("TOPRIGHT", row, "TOPRIGHT", -20, -controlY)
+                else
+                    local control = state.control
+                    local selectedWidth = math.min(controlWidth, state.maxWidth or controlWidth)
+                    control:SetSize(selectedWidth, state.controlHeight or 30)
+                    control:ClearAllPoints()
+                    control:SetPoint("TOPLEFT", row, "TOPLEFT",
+                        controlX + controlWidth - selectedWidth, -controlY)
+                end
+                y = y + height
+            end
+            ctx:SetContentHeight(y)
+            return y
+        end,
+        release = function(host, ctx)
+            release(host, ctx)
+            for _, state in ipairs(host._exBossRows or {}) do
+                state.row:Release()
+            end
+            host._exBossRows = nil
+        end,
+    })
 end
 
 local function CreateRegisteredGlobalPage(pageId, regionId)
@@ -747,49 +809,46 @@ end
 local function RegisterStandardGlobalPages()
     if standardGlobalPagesRegistered then return end
     local Grid = _G.ExwindGrid
-    if not Grid or type(Grid.RegisterTableControls) ~= "function"
+    if not Grid or type(Grid.RegisterCustomRenderer) ~= "function"
         or type(Grid.MountSettingsDeclaration) ~= "function"
         or type(EXUI.RegisterSettingsPage) ~= "function" then
         error("Global settings pages require the typed settings page APIs", 2)
     end
 
-    Grid:RegisterTableControls(COLOR_FIXED_FACTORY, {
-        mount = function(host, ctx)
+    RegisterGlobalRowsRenderer(Grid, COLOR_FIXED_RENDERER, 4, 48,
+        function(host)
             local _, schemes = EnsureColorDB()
-            local records = {}
-            for _, key in ipairs(GetSchemeOrder()) do
-                local row = schemes and schemes[key]
-                local label = TrackFactoryControl(host, EXUI:CreateDescription(host, GetSchemeDisplayName(key), 180))
+            local order = GetSchemeOrder()
+            for index, key in ipairs(order) do
+                local settingsRow, state = AddGlobalSettingsRow(
+                    host, GetSchemeDisplayName(key), index == #order)
+                local colorDB = schemes and schemes[key]
                 local button = TrackFactoryControl(host, EXUI:CreateColorButton(
-                    host, L["颜色"], row or { r = 1, g = 1, b = 1 }, "", false,
+                    settingsRow, L["颜色"], colorDB or { r = 1, g = 1, b = 1 }, "", false,
                     function() ApplyVoiceOverrides() end))
-                fixedColorLabels[key] = label.labelText or label.text
+                state.control, state.controlHeight, state.maxWidth = button, 30, 180
+                fixedColorLabels[key] = settingsRow._exSettingsRowTitle
                 fixedColorButtons[key] = button
-                records[#records + 1] = { cells = {
-                    { widget = label, type = "text" },
-                    { widget = button, type = "color" },
-                } }
             end
-            ctx:SetTableControls({ records = records })
             RefreshColorControls()
         end,
-        update = function()
+        function()
             RefreshColorControls()
         end,
-        release = function(host)
+        function(host)
             for _, key in ipairs(GetSchemeOrder()) do
                 fixedColorLabels[key] = nil
                 fixedColorButtons[key] = nil
             end
             ReleaseFactoryControls(host)
-        end,
-    })
+        end)
 
-    Grid:RegisterTableControls(COLOR_CUSTOM_FACTORY, {
-        mount = function(host, ctx)
+    RegisterGlobalRowsRenderer(Grid, COLOR_CUSTOM_RENDERER, 2, 48,
+        function(host)
             local _, _, custom = EnsureColorDB()
+            local nameRow, nameState = AddGlobalSettingsRow(host, L["名称"], false)
             customNameInput = TrackFactoryControl(host, EXUI:CreateEditBox(
-                host,
+                nameRow,
                 (custom and custom.name) or L["自定义方案"],
                 160,
                 28,
@@ -806,35 +865,38 @@ local function RegisterStandardGlobalPages()
                         RefreshColorControls()
                     end,
                 }))
+            nameState.control, nameState.controlHeight, nameState.maxWidth =
+                customNameInput, 30, 260
+            local colorRow, colorState = AddGlobalSettingsRow(host, L["颜色"], true)
             customColorButton = TrackFactoryControl(host, EXUI:CreateColorButton(
-                host, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
+                colorRow, L["自定义方案颜色"], custom or { r = 1, g = 0.82, b = 0.25 }, "", false,
                 function() ApplyVoiceOverrides() end))
-            ctx:SetTableControls({ records = { { cells = {
-                { widget = customNameInput, type = "input" },
-                { widget = customColorButton, type = "color" },
-            } } } })
+            colorState.control, colorState.controlHeight, colorState.maxWidth =
+                customColorButton, 30, 180
             RefreshColorControls()
         end,
-        update = function()
+        function()
             RefreshColorControls()
         end,
-        release = function(host)
+        function(host)
             customNameInput = nil
             customColorButton = nil
             ReleaseFactoryControls(host)
-        end,
-    })
+        end)
 
-    Grid:RegisterTableControls(COLOR_EXTRA_FACTORY, {
-        mount = function(host, ctx)
+    RegisterGlobalRowsRenderer(Grid, COLOR_EXTRA_RENDERER, 3, 72,
+        function(host)
             local _, _, _, extraSlots = EnsureColorDB()
-            local records = {}
-            for i = 1, GetExtraCustomCount() do
+            local count = GetExtraCustomCount()
+            for i = 1, count do
                 local slot = type(extraSlots) == "table" and extraSlots[i] or nil
                 if type(slot) ~= "table" then
                     slot = { enabled = false, name = L["额外方案"] .. tostring(i), r = 1, g = 0.82, b = 0.25 }
                 end
-                local checkbox = TrackFactoryControl(host, EXUI:CreateCheckbox(host, L["启用"], slot.enabled == true, function(checked)
+                local settingsRow, state = AddGlobalSettingsRow(
+                    host, L["额外方案"] .. tostring(i), i == count, true)
+                state.controlHeight = 30
+                local checkbox = TrackFactoryControl(host, EXUI:CreateCheckbox(settingsRow, L["启用"], slot.enabled == true, function(checked)
                     local _, _, _, slots = EnsureColorDB()
                     if type(slots) ~= "table" then return end
                     local row = slots[i]
@@ -847,7 +909,7 @@ local function RegisterStandardGlobalPages()
                     ApplyVoiceOverrides()
                 end))
                 local nameInput = TrackFactoryControl(host, EXUI:CreateEditBox(
-                    host,
+                    settingsRow,
                     slot.name or (L["额外方案"] .. tostring(i)),
                     190,
                     28,
@@ -877,38 +939,30 @@ local function RegisterStandardGlobalPages()
                         end,
                     }))
                 local colorButton = TrackFactoryControl(host, EXUI:CreateColorButton(
-                    host, L["颜色"], slot, "", false, function() ApplyVoiceOverrides() end))
+                    settingsRow, L["颜色"], slot, "", false, function() ApplyVoiceOverrides() end))
+                state.checkbox, state.input, state.color = checkbox, nameInput, colorButton
                 extraCustomEnableChecks[i] = checkbox
                 extraCustomNameInputs[i] = nameInput
                 extraCustomColorButtons[i] = colorButton
-                records[#records + 1] = { cells = {
-                    { widget = checkbox, type = "switch" },
-                    { widget = nameInput, type = "input" },
-                    { widget = colorButton, type = "color" },
-                } }
             end
-            ctx:SetTableControls({ records = records })
             RefreshColorControls()
         end,
-        update = function()
+        function()
             RefreshColorControls()
         end,
-        release = function(host)
+        function(host)
             for i = 1, GetExtraCustomCount() do
                 extraCustomEnableChecks[i] = nil
                 extraCustomNameInputs[i] = nil
                 extraCustomColorButtons[i] = nil
             end
             ReleaseFactoryControls(host)
-        end,
-    })
+        end)
 
-    Grid:RegisterTableControls(RESET_ACTION_FACTORY, {
-        mount = function(host, ctx)
-            local resetStyleLabel = TrackFactoryControl(host, EXUI:CreateDescription(host, L["重置外观"], 220))
-            local resetConfigLabel = TrackFactoryControl(host, EXUI:CreateDescription(host, L["重置配置"], 220))
-            local resetAllLabel = TrackFactoryControl(host, EXUI:CreateDescription(host, L["重置外观加配置"], 220))
-            local resetStyleBtn = TrackFactoryControl(host, EXUI:CreateButton(host, 120, 32, L["确认"], function()
+    RegisterGlobalRowsRenderer(Grid, RESET_ACTION_RENDERER, 3, 48,
+        function(host)
+            local styleRow, styleState = AddGlobalSettingsRow(host, L["重置外观"], false)
+            local resetStyleBtn = TrackFactoryControl(host, EXUI:CreateButton(styleRow, 120, 32, L["确认"], function()
                 local popupID = "EXBOSS_RESET_STYLE_ONLY_CONFIRM"
                 if not StaticPopupDialogs[popupID] then
                     StaticPopupDialogs[popupID] = {
@@ -927,7 +981,10 @@ local function RegisterStandardGlobalPages()
                 end
                 StaticPopup_Show(popupID)
             end))
-            local resetConfigBtn = TrackFactoryControl(host, EXUI:CreateButton(host, 120, 32, L["确认"], function()
+            styleState.control, styleState.controlHeight, styleState.maxWidth =
+                resetStyleBtn, 32, 120
+            local configRow, configState = AddGlobalSettingsRow(host, L["重置配置"], false)
+            local resetConfigBtn = TrackFactoryControl(host, EXUI:CreateButton(configRow, 120, 32, L["确认"], function()
                 local popupID = "EXBOSS_RESET_CONFIG_ONLY_CONFIRM"
                 if not StaticPopupDialogs[popupID] then
                     StaticPopupDialogs[popupID] = {
@@ -946,7 +1003,10 @@ local function RegisterStandardGlobalPages()
                 end
                 StaticPopup_Show(popupID)
             end))
-            local resetAllBtn = TrackFactoryControl(host, EXUI:CreateButton(host, 120, 32, L["确认"], function()
+            configState.control, configState.controlHeight, configState.maxWidth =
+                resetConfigBtn, 32, 120
+            local allRow, allState = AddGlobalSettingsRow(host, L["重置外观加配置"], true)
+            local resetAllBtn = TrackFactoryControl(host, EXUI:CreateButton(allRow, 120, 32, L["确认"], function()
                 local popupID = "EXBOSS_RESET_ALL_CONFIRM"
                 if not StaticPopupDialogs[popupID] then
                     StaticPopupDialogs[popupID] = {
@@ -965,15 +1025,11 @@ local function RegisterStandardGlobalPages()
                 end
                 StaticPopup_Show(popupID)
             end))
-            ctx:SetTableControls({ records = {
-                { cells = { { widget = resetStyleLabel, type = "text" }, { widget = resetStyleBtn, type = "button" } } },
-                { cells = { { widget = resetConfigLabel, type = "text" }, { widget = resetConfigBtn, type = "button" } } },
-                { cells = { { widget = resetAllLabel, type = "text" }, { widget = resetAllBtn, type = "button" } } },
-            } })
+            allState.control, allState.controlHeight, allState.maxWidth =
+                resetAllBtn, 32, 120
         end,
-        update = function() end,
-        release = ReleaseFactoryControls,
-    })
+        function() end,
+        ReleaseFactoryControls)
 
     EXUI:RegisterSettingsPage(COLOR_PAGE_ID, {
         version = 1,
@@ -981,20 +1037,17 @@ local function RegisterStandardGlobalPages()
         description = L["4个固定颜色方案 + 1个自定义方案 + 最多3个额外方案。Boss技能页可直接选择方案或自定义颜色。"],
         sections = {
             {
-                kind = "table", id = "fixed-colors", title = L["固定方案"],
+                kind = "custom", id = "fixed-colors", title = L["固定方案"],
                 description = L["Boss技能页面可选择下列方案；选择“自定义颜色”时使用“自定义方案”。勾选启用的额外方案会出现在技能页下拉。"],
-                columns = { { title = L["名称"] }, { title = L["颜色"] } },
-                supportsAdd = false, controlFactory = COLOR_FIXED_FACTORY, key = "fixedColors",
+                renderer = COLOR_FIXED_RENDERER, key = "fixedColors",
             },
             {
-                kind = "table", id = "custom-color", title = L["自定义方案"],
-                columns = { { title = L["名称"] }, { title = L["颜色"] } },
-                supportsAdd = false, controlFactory = COLOR_CUSTOM_FACTORY, key = "customColor",
+                kind = "custom", id = "custom-color", title = L["自定义方案"],
+                renderer = COLOR_CUSTOM_RENDERER, key = "customColor",
             },
             {
-                kind = "table", id = "extra-colors", title = L["额外方案（最多3个）"],
-                columns = { { title = L["启用"] }, { title = L["名称"] }, { title = L["颜色"] } },
-                supportsAdd = false, controlFactory = COLOR_EXTRA_FACTORY, key = "extraColors",
+                kind = "custom", id = "extra-colors", title = L["额外方案（最多3个）"],
+                renderer = COLOR_EXTRA_RENDERER, key = "extraColors",
             },
         },
     })
@@ -1005,10 +1058,9 @@ local function RegisterStandardGlobalPages()
         description = L["提供三种重置方式：重置外观、重置配置、重置外观加配置。"],
         sections = {
             {
-                kind = "table", id = "reset-actions", title = L["重置操作"],
+                kind = "custom", id = "reset-actions", title = L["重置操作"],
                 description = L["“重置外观”保留配置数据；“重置配置”保留外观；“重置外观加配置”恢复全部设置。每项操作仍会先显示原有确认提示。"],
-                columns = { { title = L["名称"] }, { title = L["操作"] } },
-                supportsAdd = false, controlFactory = RESET_ACTION_FACTORY, key = "resetActions",
+                renderer = RESET_ACTION_RENDERER, key = "resetActions",
             },
         },
     })
@@ -1676,12 +1728,6 @@ local function EnsureUI(leftFrame, contentFrame)
 
     leftRoot = CreateFrame("Frame", nil, leftFrame)
     leftRoot:SetAllPoints(leftFrame)
-
-    sidebarDivider = EXUI:CreateVisualTexture(leftRoot, EXBORDERFRAME)
-    sidebarDivider:SetWidth(1)
-    sidebarDivider:SetPoint("TOPRIGHT", leftRoot, "TOPRIGHT", -2, -2)
-    sidebarDivider:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -2, 2)
-    sidebarDivider:SetColorTexture(unpack(GC.popupDivider))
 
     if ExBoss.UI and ExBoss.UI.CreateSidebarSearchBox then
         searchBox = ExBoss.UI.CreateSidebarSearchBox(leftRoot, searchText, {
