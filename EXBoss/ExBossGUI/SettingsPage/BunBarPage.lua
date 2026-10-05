@@ -23,7 +23,6 @@ end
 local ANCHOR_OPTS = bunBar:GetStandardAnchorGroupOptions()
 
 local COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"] },
     { path = "moveDir", type = "dropdown", label = L["移动方向"], items = { { L["向上"], "UP" }, { L["向下"], "DOWN" } } },
     { path = "font_spell.side", type = "dropdown", label = L["名称位置"], items = { { L["图标左边"], "LEFT" }, { L["图标右边"], "RIGHT" } } },
     { path = "hideLongTimersSeconds", type = "slider", label = L["隐藏几秒以上的"], min = 1, max = 60, step = 1 },
@@ -54,6 +53,9 @@ local LAYOUT = {
     version = 1,
     title = L["束状条设置"],
     sections = {
+        { kind = "settings", id = "timeline-enabled", title = L["时间轴样式选择"],
+            binding = { moduleKey = "ExBoss.GeneralOverview", getConfig = function() return _G.EXBOSS12S2 end },
+            items = { { key = "bun", type = "switch", label = L["启用"], parentKey = "ui.general.timelineBars" } } },
         { kind = "composite", id = "module-common", title = L["通用设置"],
             component = "modulecommonsettings", key = "moduleCommon", opts = COMMON_OPTS },
         { kind = "composite", id = "anchor", title = L["锚点设置"],
@@ -128,4 +130,9 @@ end
 
 function Page:Hide()
     return StandardPage:Hide()
+end
+
+function Page:RefreshTimelineBarControls()
+    local control = StandardPage.cardSession and StandardPage.cardSession:GetWidget("timeline-enabled", "bun")
+    if control then control:SetChecked(ExBoss.DisplayPolicy.IsTimelineBarEnabled("bun")) end
 end

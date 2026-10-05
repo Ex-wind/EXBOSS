@@ -35,9 +35,9 @@ local function Trim(value)
     return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-local function CreateActionButton(parent, text, onClick, color)
+local function CreateActionButton(parent, text, onClick)
     return EXUI:CreateButton(parent, 180, 28, text, onClick,
-        { variant = color == THEME.Primary and "soft" or "primary", compact = true })
+        { variant = "primary", compact = true })
 end
 
 -- Import/export fields must use the shared EXUI factory.  Apart from visual
@@ -635,7 +635,7 @@ local function EnsureUI(contentFrame)
     local iy = -42
     importInputBox = CreateMultiLineEditBox(importSection, columnWidth - 48, 240)
     importInputBox:SetPoint("TOPLEFT", 14, iy); iy = iy - 252
-    importParseButton = CreateActionButton(importSection, L["解析"], ParseImport, THEME.Success)
+    importParseButton = CreateActionButton(importSection, L["解析"], ParseImport)
     importParseButton:SetSize(100, 28); importParseButton:SetPoint("TOPLEFT", 14, iy); iy = iy - 46
     importAppearanceCheck = EXUI:CreateCheckbox(importSection, L["导入并启用外观配置"], true, RefreshImportNameRows)
     importAppearanceCheck:SetPoint("TOPLEFT", 14, iy); iy = iy - 28
@@ -647,9 +647,9 @@ local function EnsureUI(contentFrame)
         check:SetPoint("TOPLEFT", 14, iy); iy = iy - 25
         importRoleChecks[slot] = check
     end
-    importButton = CreateActionButton(importSection, L["执行导入"], DoImport, THEME.Success)
+    importButton = CreateActionButton(importSection, L["执行导入"], DoImport)
     importButton:SetSize(140, 28); importButton:SetPoint("BOTTOMLEFT", 14, 46)
-    apiImportButton = CreateActionButton(importSection, L["测试：通过 Wago API 导入"], DoPublicAPIImport, THEME.Primary)
+    apiImportButton = CreateActionButton(importSection, L["测试：通过 Wago API 导入"], DoPublicAPIImport)
     apiImportButton:SetSize(220, 28); apiImportButton:SetPoint("BOTTOMLEFT", 164, 46)
 
     scrollChild:SetSize(width, math.max(exportSection._settingsCard:GetHeight(), importSection._settingsCard:GetHeight()) + 80)

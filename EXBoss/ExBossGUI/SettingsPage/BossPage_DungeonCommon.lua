@@ -21,6 +21,15 @@ Common._ui = UI
 -- 虚拟列表保持固定视口，不使用 repeat 展开全部 action。
 local LAYOUT = {}
 
+local function ResolvePackPreviewPath(label)
+    local engine = ExBoss and ExBoss.Voice and ExBoss.Voice.Engine
+    if not (engine and engine.ResolveStandaloneSound) then return nil end
+    local info = engine:ResolveStandaloneSound(
+        { enabled = true, sourceType = "pack", label = tostring(label or "") },
+        { triggerIndex = 0, ignoreState = true })
+    return info and info.file or nil
+end
+
 -- 方案 A 的视觉令牌。这里只影响 Frame/Texture/FontString 的表现，AuraSound
 -- 的 action ID、字段结构、SavedVariables 与运行时调用链均保持原样。
 local AURA_UI_THEME = {
@@ -52,7 +61,7 @@ end
 
 local function CreateAuraPrototypeButton(parent, width, height, label, callback)
     return ExwindTools.UI:CreateButton(parent, width, height, label, callback,
-        { presentation = "secondary", compact = true })
+        { variant = "secondary", compact = true })
 end
 
 local function RaiseInteractiveChild(frame, parent, levelOffset)
@@ -1378,13 +1387,10 @@ function Common.EnsureAuraSoundCategoryFilterRenderer()
             if not host._auraSoundCategoryFilter then
                 local panel = CreateFrame("Frame", nil, host)
                 panel:SetAllPoints(host)
-                panel.choice = EXUI:CreateOptionGroup(panel, {
-                    items = {}, value = "", mode = "single", appearance = "segmented",
-                    sizing = "content", wrap = true, itemHeight = 30,
-                    onChange = function(value) Common.SetAuraSoundCategoryFilter(value) end,
-                })
+                panel.choice = EXUI:CreateSegmentedControl(panel, 240, {}, "",
+                    function(value) Common.SetAuraSoundCategoryFilter(value) end,
+                    { height = ExwindTools.GUIMetrics.size.controlHeight })
                 panel.choice:SetPoint("TOPLEFT")
-                if panel.choice.SetPageScroll then panel.choice:SetPageScroll() end
                 host._auraSoundCategoryFilter = panel
             end
             UI.auraSoundCategoryFilterControl = host._auraSoundCategoryFilter
@@ -1626,20 +1632,12 @@ function Common.EnsureAuraSoundCategoryDrawer(parent)
     drawer.close:SetSize(28, 28)
     drawer.close:SetPoint("TOPRIGHT", -5, -5)
     drawer.close:SetScript("OnClick", function() Common.CloseAuraSoundCategoryDrawer(drawer) end)
-    drawer.search = EXUI:CreateEditBox(drawer, "", 290, 26, nil, {
-        placeholder = L["搜索法术、ID、单位、分类..."],
+    drawer.search = EXUI:CreateSearchBox(drawer, "", 290, 30, {
         onChanged = function(text)
             drawer.searchText = tostring(text or "")
             Common.RefreshAuraSoundCategoryDrawerList(drawer)
         end,
     })
-    if drawer.search.SetBackdropColor then drawer.search:SetBackdropColor(unpack(GC.popupSearch)) end
-    if drawer.search.SetBackdropBorderColor then
-        drawer.search:SetBackdropBorderColor(
-            AURA_UI_THEME.lineStrong[1], AURA_UI_THEME.lineStrong[2],
-            AURA_UI_THEME.lineStrong[3], AURA_UI_THEME.lineStrong[4]
-        )
-    end
     drawer.search:SetPoint("TOPRIGHT", drawer, "TOPRIGHT", -18, -57)
     drawer.selectionSummary = ExwindTools.UI:CreateVisualFontString(drawer, EXFONTFRAME, "GameFontHighlight")
     drawer.selectionSummary:SetPoint("TOPRIGHT", drawer, "TOPRIGHT", -18, -94)
@@ -1797,7 +1795,7 @@ function Common.EnsureEncounterVoiceEditor(parent)
         editor.row.label = tostring(value or "")
         Common.SaveEncounterVoiceEditor(editor)
         Common.RefreshEncounterVoiceEditor(editor)
-    end, true)
+    end, { searchable = true, previewPath = ResolvePackPreviewPath })
     editor.pack:SetPoint("TOPLEFT", 18, -155)
     editor.lsm = EXUI:CreateLSMSoundDropdown(editor, 300, "", "", function(value)
         if not editor.row then return end
@@ -1854,13 +1852,10 @@ function Common.EnsureEncounterVoiceRenderer()
                 end)
                 host.configure:SetPoint("RIGHT", host, "RIGHT", -78, 0)
                 RaiseInteractiveChild(host.configure, host, 3)
-                host.preview = CreateFrame("Button", nil, host, "UIPanelButtonTemplate")
-                host.preview:SetSize(66, 24)
-                host.preview:SetPoint("RIGHT", host, "RIGHT", 0, 0)
-                host.preview:SetText(L["试听"])
-                host.preview:SetScript("OnClick", function(button)
+                host.preview = ExwindTools.UI:CreateButton(host, 66, 24, L["试听"], function(button)
                     Common.PreviewEncounterVoiceHost(button:GetParent())
-                end)
+                end, { compact = true })
+                host.preview:SetPoint("RIGHT", host, "RIGHT", 0, 0)
             end
             Common.RefreshEncounterVoiceHost(host, context)
         end,
@@ -2168,7 +2163,7 @@ function Common.EnsureAuraSoundEditor(parent)
     editor.error:SetTextColor(1.00, 0.35, 0.35)
     editor.pack = EXUI:CreateDropdown(editor, 300, "", {}, "", function(value)
         Common.CommitAuraSoundEditor(editor, "label", tostring(value or ""))
-    end, true)
+    end, { searchable = true, previewPath = ResolvePackPreviewPath })
     editor.pack:SetPoint("TOPLEFT", 18, -272)
     editor.lsm = EXUI:CreateLSMSoundDropdown(editor, 300, "", "", function(value)
         Common.CommitAuraSoundEditor(editor, "customLSM", tostring(value or ""))
@@ -2263,8 +2258,7 @@ function Common.EnsureAuraSoundToolbarRenderer()
                 toolbar.count = EXUI:CreateVisualFontString(toolbar, EXFONTFRAME, "GameFontNormalSmall")
                 toolbar.count:SetJustifyH("LEFT")
                 SetAuraThemeText(toolbar.count, GC.textDim)
-                toolbar.search = EXUI:CreateEditBox(toolbar, "", 140, 28, nil, {
-                    placeholder = "|TInterface\\Common\\UI-Searchbox-Icon:14:14|t",
+                toolbar.search = EXUI:CreateSearchBox(toolbar, "", 140, 30, {
                     onChanged = function(text)
                         UI.auraSoundSearchText = tostring(text or "")
                         Common:RefreshAuraSoundFilteredList()
@@ -2401,11 +2395,11 @@ function Common:CreatePageOwner(dungeonKey, slotKey, pageHost)
     owner.predicates = { showToolbarSummary = function() return false end }
     owner.components.divider = {
         mount = function(parent)
-            local divider = ExwindTools.UI:CreateDivider(parent, 1)
+            local divider = ExwindTools.UI:CreateSettingsSeparator(parent, 1)
             return divider
         end,
         update = function() end,
-        measure = function(divider) return divider.separator:GetHeight() end,
+        measure = function(divider) return divider:GetHeight() end,
         layout = function(divider, context, width, height)
             divider:ClearAllPoints()
             divider:SetPoint("TOPLEFT")
@@ -2413,7 +2407,7 @@ function Common:CreatePageOwner(dungeonKey, slotKey, pageHost)
         end,
         setEnabled = function() end,
         setVisible = function(divider, context, visible) divider:SetShown(visible) end,
-        release = function(divider) _G.ExwindFactory:ReleaseGridWidget(divider) end,
+        release = function(divider) divider:Hide(); divider:ClearAllPoints(); divider:SetParent(nil) end,
     }
     UI.componentHosts = UI.componentHosts or {}
     local function Component(ref, rendererKey, kind, categoryKey)

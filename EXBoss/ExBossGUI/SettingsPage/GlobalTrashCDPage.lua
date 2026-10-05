@@ -469,8 +469,7 @@ function Page:Render(contentFrame)
         local dock        = CreateFrame("Frame", "ExBoss_TrashCDNameplatePreviewDock", contentFrame, "BackdropTemplate")
         dock:SetHeight(160)
         dock:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        dock:SetBackdropBorderColor(0.20, 0.62, 0.90, 0.45)
-        dock:SetBackdropColor(0.5804, 0.6471, 0.9882, 1)
+        EXUI:ApplyStandardPreviewShellStyle(dock, true)
         Page._previewDock = dock
 
         sf:HookScript("OnHide", function()

@@ -16,21 +16,7 @@ local MAX_GRID_COLS = 200
 local TARGET_CELL_PX = 18
 local LAYOUT_CACHE = {}
 local ACTIVE_CONTENT_FRAME
-
-local CHANNEL_OPTIONS = {
-    { "Master",   "Master" },
-    { "SFX",      "SFX" },
-    { "Dialog",   "Dialog" },
-    { "Music",    "Music" },
-    { "Ambience", "Ambience" },
-}
-
-local BAR_MODE_OPTIONS = {
-    { L["仅束状条"], "bun" },
-    { L["两者都启用"], "both" },
-    { L["仅计时条"], "timer" },
-    { L["两者都隐藏"], "none" },
-}
+local refreshingTimelineBars = false
 
 local BAR_SOURCE_OPTIONS = {
     { L["Boss 技能"], "boss" },
@@ -119,10 +105,11 @@ local LAYOUT = {
     sections = {
         { kind = "settings", id = "general", title = L["通用设置"],
             items = {
-                { key = "barDisplayMode", type = "select", label = L["时间轴样式选择"], options = { { value = "bun", label = L["仅束状条"] }, { value = "both", label = L["两者都启用"] }, { value = "timer", label = L["仅计时条"] }, { value = "none", label = L["两者都隐藏"] } }, parentKey = "ui.general" },
+                { key = "timelineBars", type = "select", multiple = true, label = L["时间轴样式选择"], options = { { value = "bun", label = L["束状条"] }, { value = "timer", label = L["计时条"] } }, parentKey = "ui.general" },
                 { key = "bunBarSources", type = "select", multiple = true, label = L["束状条显示"], options = { { value = "boss", label = L["Boss 技能"] }, { value = "trash", label = L["小怪技能"] } }, parentKey = "ui.general" },
                 { key = "timerBarSources", type = "select", multiple = true, label = L["计时条显示"], options = { { value = "boss", label = L["Boss 技能"] }, { value = "trash", label = L["小怪技能"] } }, parentKey = "ui.general" },
                 { key = "disableBlizzardEncounterTimeline", type = "switch", label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
+                { key = "enableBlizzardTimelineInRaid", type = "switch", label = L["团本中仍开启暴雪原生计时条"], parentKey = "ui.general" },
                 { key = "disableEXBossInRaid", type = "switch", label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
                 { key = "disableAuraSoundRegistration", type = "switch", label = L["关闭光环语音注册（重载后生效）"], parentKey = "voice.global" },
                 { key = "hideTankBossAlertsForDps", type = "switch", label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
@@ -131,11 +118,6 @@ local LAYOUT = {
                 { key = "encounterWarningsEnabled", type = "switch", label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
                 { key = "encounterWarningSoundsEnabled", type = "switch", label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
                 { key = "enableBlizzardHintCountdown", type = "switch", label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
-            } },
-        { kind = "settings", id = "audio", title = L["音频输出选项"],
-            items = {
-                { key = "channel", type = "select", label = L["输出通道"], options = { { value = "Master", label = "Master" }, { value = "SFX", label = "SFX" }, { value = "Dialog", label = "Dialog" }, { value = "Music", label = "Music" }, { value = "Ambience", label = "Ambience" } }, parentKey = "voice.global" },
-                { key = "volume", type = "slider", label = L["全局音量"], min = 0, max = 1, step = 0.01, parentKey = "voice.global", description = { key = "label_5567", type = "label", label = L["注意:声音大小请勿在此修改,若要调整声音大小请在ESC的设置面板修改"] } },
             } },
         { kind = "settings", id = "auto-gossip", title = L["自动对话"],
             items = {
@@ -147,14 +129,6 @@ local LAYOUT = {
             } },
     },
 }
-
-local function NormalizeBarDisplayMode(mode)
-    local m = tostring(mode or ""):lower()
-    if m == "timer" or m == "bun" or m == "both" or m == "none" then
-        return m
-    end
-    return "bun"
-end
 
 local function EnsureBarSourceSelections(selections)
     if type(selections) ~= "table" then
@@ -174,7 +148,6 @@ local function EnsureRootDB()
     EXBOSS12S2.autoGossip = EXBOSS12S2.autoGossip or {}
 
     local general = EXBOSS12S2.ui.general
-    general.barDisplayMode = NormalizeBarDisplayMode(general.barDisplayMode)
     general.bunBarSources = EnsureBarSourceSelections(general.bunBarSources)
     general.timerBarSources = EnsureBarSourceSelections(general.timerBarSources)
     if general.bossAlertsEnabledMplus == nil then
@@ -229,6 +202,12 @@ local function EnsureRootDB()
     else
         general.disableBlizzardEncounterTimeline = (general.disableBlizzardEncounterTimeline == true)
     end
+    -- 团本例外是独立的新选择；没有旧叶可以推断，默认保持原有行为（不例外）。
+    if general.enableBlizzardTimelineInRaid == nil then
+        general.enableBlizzardTimelineInRaid = false
+    else
+        general.enableBlizzardTimelineInRaid = (general.enableBlizzardTimelineInRaid == true)
+    end
 
     local voice = EXBOSS12S2.voice.global
     voice.channel = tostring(voice.channel or "Master")
@@ -267,29 +246,20 @@ local function EnsureRootDB()
     return EXBOSS12S2
 end
 
-local function IsTimerBarEnabledByGlobal()
-    local root = EnsureRootDB()
-    local mode = NormalizeBarDisplayMode(root.ui.general.barDisplayMode)
-    return mode == "both" or mode == "timer"
-end
-
-local function IsBunBarEnabledByGlobal()
-    local root = EnsureRootDB()
-    local mode = NormalizeBarDisplayMode(root.ui.general.barDisplayMode)
-    return mode == "both" or mode == "bun"
-end
-
 local function ApplyBarModeChange()
-    if not IsBunBarEnabledByGlobal() and ExBoss and ExBoss.UI and ExBoss.UI.BunBar and ExBoss.UI.BunBar.ReleaseAll then
-        ExBoss.UI.BunBar:ReleaseAll()
-    end
-    if not IsTimerBarEnabledByGlobal() and ExBoss and ExBoss.UI and ExBoss.UI.TimerBar and ExBoss.UI.TimerBar.ReleaseAll then
-        ExBoss.UI.TimerBar:ReleaseAll()
-    end
-
     local sched = ExBoss and ExBoss.Timeline and ExBoss.Timeline.Scheduler
-    if sched and sched._running and sched.StartBoss and sched._encounterID then
-        sched:StartBoss(sched._encounterID)
+    sched:RefreshTimelineBars()
+end
+
+local function RefreshTimelineBarControls()
+    local dropdown = Page._cardSession and Page._cardSession:GetWidget("general", "timelineBars")
+    if dropdown then
+        dropdown._selections = ExBoss.DisplayPolicy.GetTimelineBars()
+        dropdown:RefreshSelectionDisplay()
+    end
+    for _, key in ipairs({ "TimerBarPage", "BunBarPage", "GlobalSettingsPage" }) do
+        local page = ExBoss.UI.Panel[key]
+        if page and page.RefreshTimelineBarControls then page:RefreshTimelineBarControls() end
     end
 end
 
@@ -396,7 +366,22 @@ end
 
 ExwindTools:RegisterModuleLayout(MODULE_KEY, LAYOUT)
 
-local function RefreshActiveSurfaces(changedPath)
+local function RefreshActiveSurfaces(_, changedPath, phase)
+    if changedPath == "ui.general.timelineBars"
+        or changedPath == "ui.general.timelineBars.bun"
+        or changedPath == "ui.general.timelineBars.timer" then
+        if refreshingTimelineBars then return end
+        refreshingTimelineBars = true
+        -- The shared multi-select's Clear action removes selection keys.
+        -- Persist both off states explicitly so reload remains idempotent.
+        local bars = ExBoss.DisplayPolicy.GetTimelineBars()
+        bars.bun = bars.bun == true
+        bars.timer = bars.timer == true
+        ApplyBarModeChange()
+        RefreshTimelineBarControls()
+        refreshingTimelineBars = false
+        return
+    end
     local rootDB = EnsureRootDB()
     if changedPath == "voice.global.disableAuraSoundRegistration" then
         -- 这个开关只保存下次加载要采用的值；当前会话不刷新或移除注册。
@@ -409,7 +394,8 @@ local function RefreshActiveSurfaces(changedPath)
     local general = rootDB.ui and rootDB.ui.general or {}
     WriteCVarValue("encounterWarningsEnabled", general.encounterWarningsEnabled == true and "1" or "0")
     WriteCVarValue("Sound_EnableEncounterWarningsSounds", general.encounterWarningSoundsEnabled == true and "1" or "2")
-    WriteCVarValue("encounterTimelineEnabled", general.disableBlizzardEncounterTimeline == true and "0" or "1")
+    WriteCVarValue("encounterTimelineEnabled",
+        ExBoss.DisplayPolicy.ShouldEnableBlizzardEncounterTimeline(general) and "1" or "0")
     ApplySpellCountDisplayChange()
     ApplyBlizzardHintCountdownChange()
     ApplyBarModeChange()

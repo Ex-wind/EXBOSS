@@ -17,33 +17,33 @@ local resetButton = nil
 local searchBox = nil
 local searchText = ""
 
--- 确认弹窗（只注册一次）
-if not StaticPopupDialogs["EXBOSS_RESET_TOOL_CONFIRM"] then
-    StaticPopupDialogs["EXBOSS_RESET_TOOL_CONFIRM"] = {
-        text = L["确定要重置「%s」的所有配置吗？\n\n此操作不可撤销。"],
-        button1 = L["确定重置"],
-        button2 = CANCEL,
-        OnAccept = function(_, data)
-            local resetFn = ExBoss.ResetModuleConfig and ExBoss.ResetModuleConfig[data]
-            if resetFn then
-                resetFn()
-                if leftHostFrame and contentHostFrame then
-                    Page:Render(leftHostFrame, contentHostFrame)
+local function ConfirmResetTool(moduleKey, title)
+    EXUI:ShowDialog({
+        sourceAddon = "EXBoss", sourceModule = title,
+        text = string.format(L["确定要重置「%s」的所有配置吗？\n\n此操作不可撤销。"], title),
+        danger = true,
+        buttons = {
+            { id = "cancel", text = CANCEL, variant = "secondary" },
+            { id = "confirm", text = L["确定重置"], variant = "dangerSolid", onClick = function()
+                local resetFn = ExBoss.ResetModuleConfig and ExBoss.ResetModuleConfig[moduleKey]
+                if resetFn then
+                    resetFn()
+                    if leftHostFrame and contentHostFrame then
+                        Page:Render(leftHostFrame, contentHostFrame)
+                    end
                 end
-            end
-        end,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-    }
+            end },
+        },
+        cancelButton = "cancel",
+    })
 end
 
 -- [卡片/Grid 迁移边界：小工具目录]
 -- ITEMS 顺序、key/page/moduleKey 是可达性、重置与导出合同，禁止因视觉迁移改名或重排。
 -- 允许迁移的是导航项、标题与危险动作区外观；真正内容由各 StandardModulePage 自己拥有。
 local ITEMS = {
-    { key = "mythiccast",       titleKey = "大米怪物施法", moduleKey = "ExBoss.Tools.MythicCast" },
-    { key = "interrupttracker", titleKey = "队友打断监控", moduleKey = "ExBoss.Tools.InterruptTracker" },
+    { key = "mythiccast",       titleKey = "大米怪物施法", moduleKey = "ExBoss.Tools.MythicCast", icon = "castle" },
+    { key = "interrupttracker", titleKey = "队友打断监控", moduleKey = "ExBoss.Tools.InterruptTracker", icon = "octagon-x" },
 }
 
 local ITEMS_BY_KEY = {}
@@ -119,9 +119,10 @@ local function RefreshList()
 
         if matched then
             local button = AcquireListButton()
+            EXUI:SetSidebarNavigationButtonIcon(button, item.icon)
             local active = item.key == selectedKey
             button:SetPoint("TOPLEFT", listChild, "TOPLEFT", 10, y)
-            button:SetPoint("RIGHT", listChild, "RIGHT", -14, 0)
+            button:SetPoint("RIGHT", listChild, "RIGHT", -22, 0)
             if button.label then
                 button.label:SetText(GetTitle(item))
             else
@@ -205,8 +206,11 @@ local function EnsureUI(leftFrame)
     listScroll:SetPoint("BOTTOMRIGHT", leftRoot, "BOTTOMRIGHT", -18, 5)
 
     listChild = CreateFrame("Frame", nil, listScroll)
-    listChild:SetSize(340, 1)
+    listChild:SetSize(math.max(1, listScroll:GetWidth()), 1)
     listScroll:SetScrollChild(listChild)
+    listScroll:SetScript("OnSizeChanged", function(_, width)
+        listChild:SetWidth(math.max(1, width))
+    end)
 end
 
 function Page:Render(leftFrame, contentFrame)
@@ -223,24 +227,21 @@ function Page:Render(leftFrame, contentFrame)
     leftRoot:SetAllPoints(leftFrame)
     leftRoot:Show()
 
+    listChild:SetWidth(math.max(1, listScroll:GetWidth()))
     RefreshList()
     HideEmbeddedPages()
 
     -- 重置按钮（悬浮在内容区右上角）
     if not resetButton then
-        resetButton = CreateFrame("Button", nil, contentFrame, "UIPanelButtonTemplate")
-        resetButton:SetSize(100, 22)
-        resetButton:SetText(L["重置配置"])
-        resetButton:GetFontString():SetTextColor(unpack(GC.dangerText))
-        resetButton:SetScript("OnClick", function()
+        resetButton = EXUI:CreateButton(contentFrame, 100, 22, L["重置配置"], function()
             local item = ITEMS_BY_KEY[selectedKey]
             if not item then return end
             local moduleKey = item.moduleKey
             local hasFn = ExBoss.ResetModuleConfig and ExBoss.ResetModuleConfig[moduleKey]
             if hasFn then
-                StaticPopup_Show("EXBOSS_RESET_TOOL_CONFIRM", item.titleKey, nil, moduleKey)
+                ConfirmResetTool(moduleKey, item.titleKey)
             end
-        end)
+        end, { variant = "danger", compact = true })
     end
     resetButton:SetParent(contentFrame)
     resetButton:SetFrameLevel(contentFrame:GetFrameLevel() + 50)

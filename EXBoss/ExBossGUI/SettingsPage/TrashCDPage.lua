@@ -6,6 +6,7 @@ local Page = ExBoss.UI.Panel.TrashCDPage
 local ExwindTools = _G.ExwindTools
 local EXUI = ExwindTools and ExwindTools.UI
 local GC = ExwindTools and ExwindTools.GUIColors
+local GM = ExwindTools and ExwindTools.GUIMetrics
 local L = ExBoss.L or setmetatable({}, { __index = function(_, key) return key end })
 local TrashStore = ExBoss.TrashCD and ExBoss.TrashCD.Store or nil
 local TrashData = ExBoss.TrashCD and ExBoss.TrashCD.Data or nil
@@ -26,7 +27,7 @@ local C = {
         gapX = 0,
         gapY = 2,
         height = 40,
-        titleFontSizes = { 16, 15, 14, 12 },
+        titleFontSizes = { GM.font.exboss.navigationTitle, GM.font.title, GM.font.exboss.previewText, GM.font.moduleDescription },
     },
     SPELL_DETAIL_HEIGHT = 148,
 }
@@ -53,6 +54,15 @@ local TEST_THREAT_ATLAS_NAME = "Ping_Marker_Icon_Threat"
 local TEST_THREAT_ATLAS_TOOLTIP = "可设置「被点名提示」!"
 local EVENT_COLOR_ITEMS_FUNC = "func:ExBoss.Voice.ColorSchemes.BuildDropdownItems"
 local LABEL_ITEMS_FUNC = "func:ExBoss.Voice.LabelCatalog.GetDropdownItems"
+
+local function ResolvePackPreviewPath(label)
+    local engine = ExBoss and ExBoss.Voice and ExBoss.Voice.Engine
+    if not (engine and engine.ResolveStandaloneSound) then return nil end
+    local info = engine:ResolveStandaloneSound(
+        { enabled = true, sourceType = "pack", label = tostring(label or "") },
+        { triggerIndex = 0, ignoreState = true })
+    return info and info.file or nil
+end
 local TRIGGER_SOURCE_ITEMS = {
     { L["语音包标签"], "pack" },
     { L["LSM音效"], "lsm" },
@@ -302,7 +312,7 @@ local function GetMapShortDisplayName(mapID)
         else
             local shortCN = tostring(meta.zhCNShort or "")
             if shortCN ~= "" then
-                return shortCN
+                return L[shortCN]
             end
         end
     end
@@ -340,6 +350,10 @@ local function SetWidgetUsable(widget, usable)
         return
     end
     usable = usable ~= false
+    if widget.SetDisabled then
+        widget:SetDisabled(not usable)
+        return
+    end
     widget:SetAlpha(usable and 1 or 0.45)
     if widget.checkbox and widget.checkbox.Enable then
         if usable then
@@ -1038,7 +1052,7 @@ local function PlayVoicePreview(sourceType, label, customLSM, customPath)
         end
         local Engine = ExBoss and ExBoss.Voice and ExBoss.Voice.Engine
         if Engine and Engine.TryPlayLabel then
-            Engine:TryPlayLabel(safeLabel, { source = "trash_cd_preview" })
+            return Engine:TryPlayLabel(safeLabel, { source = "trash_cd_preview" })
         end
         return
     end
@@ -1053,7 +1067,8 @@ local function PlayVoicePreview(sourceType, label, customLSM, customPath)
         soundPath = tostring(customPath or "")
     end
     if soundPath and soundPath ~= "" and PlaySoundFile then
-        pcall(PlaySoundFile, soundPath, "Master")
+        local called, ok, handle = pcall(PlaySoundFile, soundPath, "Master")
+        return called and ok, nil, called and handle or nil
     end
 end
 
@@ -1066,7 +1081,7 @@ local function BuildSettingsLayout()
         return
     end
     local rows = {
-        { key = "enabled", type = "checkbox", x = 80, y = 1, w = 20, h = 5, label = L["启用"], labelSize = 18 },
+        { key = "enabled", type = "checkbox", x = 80, y = 1, w = 20, h = 5, label = L["启用"], labelSize = GM.font.cardTitle },
         { key = "eventColorEnabled", type = "checkbox", x = 6, y = 16, w = 20, h = 5, label = L["颜色"] },
         { key = "eventColorMode", type = "dropdown", x = 31, y = 16, w = 37, h = 5, label = "", items = EVENT_COLOR_ITEMS_FUNC, labelPos = "left", search = true },
         { key = "eventColor", type = "color", x = 70, y = 16, w = 30, h = 5, label = L["自定义颜色"] },
@@ -1084,7 +1099,7 @@ local function BuildSettingsLayout()
         { key = "description_trash_voice_1", type = "description", x = 6, y = 80, w = 44, h = 5, label = GC.markup.accent .. L["施法开始"] .. "|r" },
         { key = "tr1Enabled", type = "checkbox", x = 6, y = 85, w = 20, h = 5, label = L["施法开始"] },
         { key = "tr1Source", type = "dropdown", x = 31, y = 85, w = 25, h = 5, label = "", items = TRIGGER_SOURCE_ITEMS, search = true },
-        { key = "tr1Label", type = "dropdown", x = 58, y = 85, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
+        { key = "tr1Label", type = "dropdown", previewPath = ResolvePackPreviewPath, x = 58, y = 85, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
         { key = "tr1LSM", type = "lsm_sound", x = 58, y = 85, w = 30, h = 5, label = "", search = true },
         { key = "tr1Path", type = "input", x = 58, y = 85, w = 30, h = 5, label = "" },
         { key = "tr1ValueTest", type = "button", x = 90, y = 85, w = 10, h = 5, label = "▶", tooltip = L["试听"] },
@@ -1093,7 +1108,7 @@ local function BuildSettingsLayout()
         { key = "tr2CountdownLead", type = "segmented", x = 31, y = 102, w = 25, h = 5, label = "", items = COUNTDOWN_LEAD_ITEMS },
         { key = "tr2PlayTextEnabled", type = "checkbox", x = 6, y = 110, w = 22, h = 5, label = L["播放名称"] },
         { key = "tr2Source", type = "dropdown", x = 31, y = 110, w = 25, h = 5, label = "", items = TRIGGER_SOURCE_ITEMS, search = true },
-        { key = "tr2Label", type = "dropdown", x = 58, y = 110, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
+        { key = "tr2Label", type = "dropdown", previewPath = ResolvePackPreviewPath, x = 58, y = 110, w = 30, h = 5, label = "", items = LABEL_ITEMS_FUNC, search = true },
         { key = "tr2LSM", type = "lsm_sound", x = 58, y = 110, w = 30, h = 5, label = "", search = true },
         { key = "tr2Path", type = "input", x = 58, y = 110, w = 30, h = 5, label = "" },
         { key = "tr2ValueTest", type = "button", x = 90, y = 110, w = 10, h = 5, label = "▶", tooltip = L["试听"] },
@@ -1106,7 +1121,7 @@ local function BuildSettingsLayout()
 
         { key = "showBunBar", type = "checkbox", x = 105, y = 1, w = 15, h = 5, label = L["竖条"] },
         { key = "showTimerBar", type = "checkbox", x = 134, y = 1, w = 20, h = 5, label = L["计时条"] },
-        { key = "showNameplate", type = "checkbox", x = 166, y = 1, w = 20, h = 5, label = L["姓名版"] },
+        { key = "showNameplate", type = "checkbox", x = 166, y = 1, w = 20, h = 5, label = L["纪事条姓名板"] },
 
         { key = "ringEnabled", type = "checkbox", x = 107, y = 16, w = 59, h = 5, label = L["显示圆环"] },
         { key = "castProgressBarEnabled", type = "checkbox", x = 107, y = 23, w = 59, h = 5, label = L["显示读条"] },
@@ -1177,9 +1192,9 @@ local function BuildSettingsLayout()
             placement = { target = "$container", point = "TOPLEFT", relativePoint = "TOPLEFT", width = { ratio = 1 } },
             content = { kind = "grid", items = groups.quick },
             settingsList = { rows = {
-                { controls = { { key = "showBunBar" },
-                    { key = "showTimerBar" },
-                    { key = "showNameplate" } } },
+                { controls = { { key = "showBunBar", presentation = "card" },
+                    { key = "showTimerBar", presentation = "card" },
+                    { key = "showNameplate", presentation = "card" } } },
             } } },
         { id = "text", title = L["文本设置"], collapsible = false,
             equalHeightGroup = "trash-settings-top", minBodyHeight = topRowBodyHeight,
@@ -1355,17 +1370,17 @@ local function RefreshTrashVoicePreviewTimeline(sequence)
             node._previewKind = entry.kind
             if entry.kind == "digit" then
                 EXUI:ClearControlSurface(node.valueHost)
-                node.value:SetFont(ExwindTools.MAIN_FONT, 18, "")
+                node.value:SetFont(ExwindTools.MAIN_FONT, GM.font.cardTitle, "")
                 node.value:SetTextColor(1, 1, 1, 1)
             else
-                EXUI:SetControlSurface(node.valueHost, 4, { 0.12, 0.36, 0.61, 1 }, GC.accent)
-                node.value:SetFont(ExwindTools.MAIN_FONT, 14, "")
-                node.value:SetTextColor(1, 1, 1, 1)
+                EXUI:SetControlSurface(node.valueHost, 4, GC.panel, GC.cardBorder)
+                node.value:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.previewText, "")
+                node.value:SetTextColor(unpack(GC.selectedText))
             end
         else
             node._previewKind = "empty"
             node.value:SetText("")
-            node.value:SetFont(ExwindTools.MAIN_FONT, 14, "")
+            node.value:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.previewText, "")
             node.value:SetTextColor(unpack(GC.textDim))
             EXUI:ClearControlSurface(node.valueHost)
         end
@@ -1379,15 +1394,36 @@ local function RefreshTrashVoicePreviewDisplay()
     RefreshTrashVoicePreviewTimeline(sequence)
 end
 
-local function StartTrashVoiceSequencePreview()
+-- 序列预览播的是一串 C_Timer.After，没有单一声音句柄，用不了 RunSoundPreview；
+-- 播放态只能由调用方用 SetSoundPreviewPlaying 告知公共试听按钮。只改外观，不碰播放。
+local function SetTrashVoiceSequencePreviewPlaying(playing)
+    local session = Page._settingsCardSession
+    local button = session and session.GetWidget
+        and session:GetWidget("voice", "voiceSequencePreview") or nil
+    if button then
+        EXUI:SetSoundPreviewPlaying(button, playing)
+    end
+end
+
+-- 作废在排的序列并立刻收回播放态。切换技能／重新套表面、页面隐藏都经过这里。
+local function CancelTrashVoiceSequencePreview()
     voicePreviewGeneration = voicePreviewGeneration + 1
+    SetTrashVoiceSequencePreviewPlaying(false)
+end
+
+local function StartTrashVoiceSequencePreview()
+    CancelTrashVoiceSequencePreview()
     local generation = voicePreviewGeneration
     local db = GetSpellEditorDB()
     local sequence, earliest = BuildTrashVoicePreviewSequence(db)
+    local scheduledAny, lastDelay = false, 0
     for _, entry in ipairs(sequence) do
         if entry.kind ~= "silent" then
             local scheduledEntry = entry
-            C_Timer.After(math.max(0, earliest - scheduledEntry.seconds), function()
+            local delay = math.max(0, earliest - scheduledEntry.seconds)
+            scheduledAny = true
+            if delay > lastDelay then lastDelay = delay end
+            C_Timer.After(delay, function()
                 if generation ~= voicePreviewGeneration or Page._visible ~= true then return end
                 if scheduledEntry.kind == "digit" then
                     local countdown = ExBoss and ExBoss.Voice and ExBoss.Voice.Countdown
@@ -1402,6 +1438,18 @@ local function StartTrashVoiceSequencePreview()
             end)
         end
     end
+    if not scheduledAny then
+        return
+    end
+    SetTrashVoiceSequencePreviewPlaying(true)
+    -- 序列正常走完：Core 不知道这串计时器何时结束，必须由本页收回播放态。
+    -- 本次之后又点了播放／被取消时 generation 已变，这里不再回写。
+    C_Timer.After(lastDelay, function()
+        if generation ~= voicePreviewGeneration then
+            return
+        end
+        SetTrashVoiceSequencePreviewPlaying(false)
+    end)
 end
 
 LayoutTrashQuickRow = function(session)
@@ -1512,7 +1560,7 @@ local function LayoutTrashCastCard(session)
         card._exTrashCastCheckHelp = help
         help.label = EXUI:CreateVisualFontString(help, EXFONTFRAME, "GameFontDisableSmall")
         help.label:SetPoint("CENTER", 0, 0)
-        help.label:SetFont(ExwindTools.MAIN_FONT, 9, "")
+        help.label:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.micro, "")
         help.label:SetText("?")
         help.label:SetTextColor(unpack(GC.textDim))
         help:SetScript("OnEnter", function(self)
@@ -1527,16 +1575,17 @@ local function LayoutTrashCastCard(session)
     end
     AnchorTrashWidget(castCheck, body, inset, 62, nil, 64, inset)
     if castDescription then
-        AnchorTrashWidget(castDescription, castCheck, 38, 33, nil, 23, 14)
+        AnchorTrashWidget(castDescription, castCheck, 0, 33, nil, 23, 14)
         if castDescription.text then
-            castDescription.text:SetFont(ExwindTools.MAIN_FONT, 11, "")
+            castDescription.text:SetFont(ExwindTools.MAIN_FONT, GM.font.hint, "")
             castDescription.text:SetTextColor(unpack(GC.textDim))
         end
+        EXUI:LayoutCheckboxCardDescription(castCheck, castDescription, 23)
     end
     card._exTrashCastCheckHelp:ClearAllPoints()
     card._exTrashCastCheckHelp:SetPoint("TOPRIGHT", castCheck, "TOPRIGHT", -8, -7)
     card._exTrashCastCheckHelp:SetFrameLevel(castCheck:GetFrameLevel() + 3)
-    card._exTrashCastCheckHelp:Show()
+    card._exTrashCastCheckHelp:Hide() -- 用户要求删除施法检测右上角问号（原 Show()）
     AnchorTrashWidget(session:GetWidget("cast", "castProgressBarRenameEnabled"), body, inset, 148, choiceWidth, 30)
     AnchorTrashWidget(session:GetWidget("cast", "castProgressBarRenameText"), body,
         inset + choiceWidth + gap, 148, nil, 30, inset)
@@ -1546,94 +1595,24 @@ end
 
 local function SetTrashPlayButtonVisual(button)
     if not button then return end
-    if not button._exTrashPlayIcon then
-        button._exTrashPlayIcon = EXUI:CreateVisualTexture(button, EXBORDERFRAME)
-        button._exTrashPlayIcon:SetTexture(
-            "Interface\\AddOns\\EXBoss\\Core\\Media\\Textures\\EXBossPlayTriangleWhite32.tga")
-    end
-    button._exTrashPlayIconActive = true
-    if not button._exTrashPlayReleaseAttached then
-        local previousRelease = button._exPoolRelease
-        button._exTrashPlayReleaseAttached = true
-        ExwindFactory:AttachPoolRelease(button, function(frame)
-            frame._exTrashPlayIcon:Hide()
-            frame._exTrashPlayIconActive = nil
-            frame._exTrashPlayReleaseAttached = nil
-            if previousRelease then previousRelease(frame) end
-        end)
-    end
-    if not button._exTrashPlayHoverHooked then
-        button._exTrashPlayHoverHooked = true
-        button:HookScript("OnEnter", function(self)
-            if self._exTrashPlayIconActive and self._exTrashPlayIcon then
-                self._exTrashPlayIcon:SetVertexColor(unpack(
-                    not self:IsEnabled() and GC.textDisabled or GC.accentHover))
-            end
-        end)
-        button:HookScript("OnLeave", function(self)
-            if self._exTrashPlayIconActive and self._exTrashPlayIcon then
-                self._exTrashPlayIcon:SetVertexColor(unpack(
-                    not self:IsEnabled() and GC.textDisabled or GC.textDim))
-            end
-        end)
-    end
-    button:SetText("")
-    button._exTrashPlayIcon:ClearAllPoints()
-    button._exTrashPlayIcon:SetPoint("CENTER", button, "CENTER", 0, 0)
-    button._exTrashPlayIcon:SetSize(14, 14)
-    button._exTrashPlayIcon:SetVertexColor(unpack(
-        not button:IsEnabled() and GC.textDisabled
-            or (MouseIsOver and MouseIsOver(button) and GC.accentHover or GC.textDim)))
-    button._exTrashPlayIcon:Show()
-end
-
-local function LayoutTrashAudioRow(session, prefix, parent, top, labelWidth, sourceWidth)
-    local enabled = session:GetWidget("voice", prefix .. "Enabled")
-    local source = session:GetWidget("voice", prefix .. "Source")
-    local test = session:GetWidget("voice", prefix .. "ValueTest")
-    AnchorTrashWidget(enabled, parent, 14, top, labelWidth, 30)
-    AnchorTrashWidget(source, parent, 14 + labelWidth, top, sourceWidth, 30)
-    if test then
-        test:ClearAllPoints()
-        test:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -12, -top)
-        test:SetSize(28, 30)
-        SetTrashPlayButtonVisual(test)
-        test:Show()
-    end
-    if not (source and test) then return end
-    for _, suffix in ipairs({ "Label", "LSM", "Path" }) do
-        local content = session:GetWidget("voice", prefix .. suffix)
-        if content then
-            content:ClearAllPoints()
-            content:SetPoint("TOPLEFT", source, "TOPRIGHT", 0, 0)
-            content:SetPoint("TOPRIGHT", test, "TOPLEFT", 0, 0)
-            content:SetHeight(30)
-        end
-    end
+    EXUI:ApplySoundPreviewAppearance(button)
 end
 
 local function LayoutTrashAudioControls(session, prefix, parent, top, left, sourceWidth, rightPad)
-    rightPad = tonumber(rightPad) or 12
-    local source = session:GetWidget("voice", prefix .. "Source")
-    local test = session:GetWidget("voice", prefix .. "ValueTest")
-    AnchorTrashWidget(source, parent, left, top, sourceWidth, 30)
-    if test then
-        test:ClearAllPoints()
-        test:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -rightPad, -top)
-        test:SetSize(28, 30)
-        SetTrashPlayButtonVisual(test)
-        test:Show()
-    end
-    if not (source and test) then return end
-    for _, suffix in ipairs({ "Label", "LSM", "Path" }) do
-        local content = session:GetWidget("voice", prefix .. suffix)
-        if content then
-            content:ClearAllPoints()
-            content:SetPoint("TOPLEFT", source, "TOPRIGHT", 0, 0)
-            content:SetPoint("TOPRIGHT", test, "TOPLEFT", 0, 0)
-            content:SetHeight(30)
-        end
-    end
+    EXUI:LayoutSoundSelector(parent, {
+        source = session:GetWidget("voice", prefix .. "Source"),
+        preview = session:GetWidget("voice", prefix .. "ValueTest"),
+        contents = { pack = session:GetWidget("voice", prefix .. "Label"),
+            lsm = session:GetWidget("voice", prefix .. "LSM"),
+            file = session:GetWidget("voice", prefix .. "Path") },
+        top = top, left = left, sourceWidth = sourceWidth, right = rightPad or 12,
+        height = 30, previewWidth = 28, paintPreview = SetTrashPlayButtonVisual,
+    })
+end
+
+local function LayoutTrashAudioRow(session, prefix, parent, top, labelWidth, sourceWidth)
+    AnchorTrashWidget(session:GetWidget("voice", prefix .. "Enabled"), parent, 14, top, labelWidth, 30)
+    LayoutTrashAudioControls(session, prefix, parent, top, 14 + labelWidth, sourceWidth, 12)
 end
 
 local function GetTrashVoiceContentHeight(timelineHeight)
@@ -1672,9 +1651,12 @@ local function LayoutTrashVoiceCard(session)
     AnchorTrashWidget(session:GetWidget("voice", "tr2Enabled"), surface, 2, 4, controlLeft - 2, 30)
     local segmented = session:GetWidget("voice", "tr2CountdownLead")
     if segmented then
+        segmented:SetParent(surface)
+        segmented:SetFrameLevel(surface:GetFrameLevel() + 6)
         segmented:ClearAllPoints()
         segmented:SetPoint("TOPLEFT", surface, "TOPLEFT", controlLeft, -4)
         segmented:SetPoint("TOPRIGHT", surface, "TOPRIGHT", 0, -4)
+        segmented.itemHeight = 30
         segmented:SetHeight(30)
         segmented:Show()
     end
@@ -1834,6 +1816,18 @@ local function ApplyTrashSettingsCardSurfaces(session)
                     title:ClearAllPoints()
                     title:SetPoint("LEFT", header, "LEFT", 18, 12)
                     title:SetWidth(math.ceil(title:GetUnboundedStringWidth() or 0) + 2)
+                    -- 标题骑在卡片上边框上，必须用同色垫条把边框遮断，否则线会从字中间穿过。
+                    -- 与首领页 legend 垫条同一做法。
+                    if not card._exTrashLegendBacking then
+                        card._exTrashLegendBacking = EXUI:CreateVisualTexture(header, EXBASEFRAME)
+                    end
+                    local backing = card._exTrashLegendBacking
+                    backing:ClearAllPoints()
+                    backing:SetPoint("LEFT", header, "LEFT", 12, 12)
+                    backing:SetSize(math.ceil(title:GetUnboundedStringWidth() or 0) + 14,
+                        PixelUtil.GetNearestPixelSize(2, header:GetEffectiveScale(), 1))
+                    backing:SetColorTexture(unpack(GC.panel))
+                    backing:Show()
                 end
             end
             body:ClearAllPoints()
@@ -1870,39 +1864,6 @@ local function ApplyTrashSettingsCardSurfaces(session)
             voiceCard._exTrashVoicePreviewBackground = background
         end
         voiceCard._exTrashVoicePreviewBackground:SetParent(voiceSurface)
-        local countdownSelector = session:GetWidget("voice", "tr2CountdownLead")
-        if countdownSelector and countdownSelector.viewport then
-            local outline = countdownSelector._exTrashSelectedOutline
-            if not outline then
-                outline = CreateFrame("Frame", nil, countdownSelector.viewport)
-                outline:EnableMouse(false)
-                countdownSelector._exTrashSelectedOutline = outline
-            end
-            outline:SetScript("OnUpdate", function(self)
-                local selected = countdownSelector.GetValue and countdownSelector:GetValue() or nil
-                local selectedButton
-                for _, button in ipairs(countdownSelector.buttons or {}) do
-                    if button._choiceItem and button._choiceItem.id == selected then
-                        selectedButton = button
-                        break
-                    end
-                end
-                if not selectedButton or countdownSelector.disabled then
-                    self:SetAlpha(0)
-                    return
-                end
-                if self._exTrashSelectedButton ~= selectedButton then
-                    self._exTrashSelectedButton = selectedButton
-                    self:ClearAllPoints()
-                    self:SetAllPoints(selectedButton)
-                    self:SetFrameLevel(selectedButton:GetFrameLevel() + 5)
-                    EXUI:SetControlSurface(self, 4, GC.transparent, GC.checkboxChecked)
-                end
-                self:SetAlpha(1)
-                self:Show()
-            end)
-            outline:Show()
-        end
         if not voiceCard._exTrashVoicePreviewTimeline then
             local timeline = CreateFrame("Frame", nil, voiceBody)
             timeline:SetFrameLevel((voiceBody:GetFrameLevel() or 1) + 3)
@@ -1917,7 +1878,7 @@ local function ApplyTrashSettingsCardSurfaces(session)
                 node.time:SetPoint("TOPRIGHT", node, "TOPRIGHT", 0, 0)
                 node.time:SetJustifyH("CENTER")
                 node.time:SetWordWrap(false)
-                node.time:SetFont(ExwindTools.MAIN_FONT, 11, "")
+                node.time:SetFont(ExwindTools.MAIN_FONT, GM.font.hint, "")
                 node.valueHost = CreateFrame("Frame", nil, node, "BackdropTemplate")
                 node.valueHost:SetPoint("TOPLEFT", node.time, "BOTTOMLEFT", 0, -5)
                 node.valueHost:SetHeight(26)
@@ -2050,57 +2011,7 @@ local function ApplyTrashSettingsCardSurfaces(session)
         })
     end
     if summaryEnabled and summaryEnabled.checkbox then
-        local box = summaryEnabled.checkbox
-        local visual = summaryEnabled._exTrashEnableSegments
-        if not visual then
-            visual = CreateFrame("Frame", nil, box)
-            visual:EnableMouse(false)
-            visual:SetAllPoints(box)
-            visual.on = CreateFrame("Frame", nil, visual)
-            visual.off = CreateFrame("Frame", nil, visual)
-            for _, segment in ipairs({ visual.on, visual.off }) do
-                segment:EnableMouse(false)
-                segment.text = EXUI:CreateVisualFontString(segment, EXFONTFRAME, "GameFontHighlightSmall")
-                segment.text:SetPoint("CENTER")
-                segment.text:SetFont(ExwindTools.MAIN_FONT, 12, "")
-            end
-            visual.on.text:SetText("ON")
-            visual.off.text:SetText("OFF")
-            visual.Refresh = function(self)
-                local checked, enabled = box:GetChecked() == true, box:IsEnabled()
-                local width = box:GetWidth()
-                local hover = enabled and box:IsMouseOver()
-                if self.checked == checked and self.enabled == enabled
-                    and self.width == width and self.hover == hover then return end
-                self.checked, self.enabled, self.width, self.hover = checked, enabled, width, hover
-                self:SetFrameLevel(box:GetFrameLevel() + 5)
-                EXUI:SetControlSurface(self, 4, GC.panel, hover and GC.accent or GC.cardBorder)
-                self.on:ClearAllPoints()
-                self.on:SetPoint("TOPLEFT", 3, -3)
-                self.on:SetPoint("BOTTOMRIGHT", self, "BOTTOM", -1, 3)
-                self.off:ClearAllPoints()
-                self.off:SetPoint("TOPLEFT", self, "TOP", 1, -3)
-                self.off:SetPoint("BOTTOMRIGHT", -3, 3)
-                for index, segment in ipairs({ self.on, self.off }) do
-                    local selected = (index == 1) == checked
-                    local color = index == 1 and { 0.12, 0.48, 0.29, 1 } or { 0.64, 0.20, 0.22, 1 }
-                    EXUI:SetControlSurface(segment, 3, selected and enabled and color or GC.panel,
-                        { 0, 0, 0, 0 })
-                    segment.text:SetTextColor(unpack(selected and enabled and { 1, 1, 1, 1 } or GC.textDim))
-                end
-                box:SetHitRectInsets(checked and width / 2 or 0, checked and 0 or width / 2, 0, 0)
-            end
-            visual:SetScript("OnUpdate", visual.Refresh)
-            visual:SetScript("OnHide", function(self)
-                self.checked, self.enabled, self.width, self.hover = nil, nil, nil, nil
-            end)
-            summaryEnabled._exTrashEnableSegments = visual
-        end
-        if not visual.originalHitInsets then
-            visual.originalHitInsets = { box:GetHitRectInsets() }
-        end
-        visual:Show()
-        visual:Refresh()
+        EXUI:ApplyCheckboxOnOffVisual(summaryEnabled)
     end
     local layouts = {
         quick = LayoutTrashQuickRow,
@@ -2146,28 +2057,11 @@ local function ReleaseTrashSettingsCardSession()
         centralLead._exTrashUnitInside = nil
         centralLead._exTrashUnitOriginalText = nil
     end
-    local countdownSelector = session and session.GetWidget and session:GetWidget("voice", "tr2CountdownLead")
-    if countdownSelector and countdownSelector._exTrashSelectedOutline then
-        countdownSelector._exTrashSelectedOutline:SetScript("OnUpdate", nil)
-        countdownSelector._exTrashSelectedOutline._exTrashSelectedButton = nil
-        countdownSelector._exTrashSelectedOutline:Hide()
-    end
     local summaryEnabled = session and session.GetWidget and session:GetWidget("master", "enabled")
-    local enableSegments = summaryEnabled and summaryEnabled._exTrashEnableSegments
-    if enableSegments then
-        enableSegments:Hide()
-        if enableSegments.originalHitInsets then
-            summaryEnabled.checkbox:SetHitRectInsets(unpack(enableSegments.originalHitInsets))
-            enableSegments.originalHitInsets = nil
-        end
-    end
+    if summaryEnabled then EXUI:ReleaseCheckboxOnOffVisual(summaryEnabled) end
     for _, spec in ipairs({ { "voice", "tr1ValueTest" }, { "voice", "tr2ValueTest" },
         { "voice", "voiceSequencePreview" }, { "target", "targetAlertStartValueTest" } }) do
         local button = session and session.GetWidget and session:GetWidget(spec[1], spec[2])
-        if button and button._exTrashPlayIcon then
-            button._exTrashPlayIconActive = nil
-            button._exTrashPlayIcon:Hide()
-        end
     end
     local voiceState = session and session.byId and session.byId.voice
     local voiceCard = voiceState and voiceState.card
@@ -2185,6 +2079,11 @@ local function ReleaseTrashSettingsCardSession()
                 visual._layoutBusy = nil
             end
         end
+    end
+    -- 标题遮线垫条在每张卡上都可能存在，释放时一并隐藏。
+    for _, state in pairs((session and session.byId) or {}) do
+        local card = state and state.card
+        if card and card._exTrashLegendBacking then card._exTrashLegendBacking:Hide() end
     end
     for _, id in ipairs({ "text", "cast", "target" }) do
         local state = session and session.byId and session.byId[id]
@@ -2359,28 +2258,11 @@ local function RefreshSettingsDynamicWidgets()
             SetWidgetUsable(playTextWidget, not authorVoiceDisabled)
         end
 
-        if source == "pack" then
-            if packWidget then packWidget:Show() end
-            if lsmWidget then lsmWidget:Hide() end
-            if pathWidget then pathWidget:Hide() end
-            if valueTestWidget then valueTestWidget:Show() end
-            SetWidgetUsable(packWidget, configEnabled)
-            SetWidgetUsable(valueTestWidget, configEnabled)
-        elseif source == "lsm" then
-            if packWidget then packWidget:Hide() end
-            if lsmWidget then lsmWidget:Show() end
-            if pathWidget then pathWidget:Hide() end
-            if valueTestWidget then valueTestWidget:Show() end
-            SetWidgetUsable(lsmWidget, configEnabled)
-            SetWidgetUsable(valueTestWidget, configEnabled)
-        else
-            if packWidget then packWidget:Hide() end
-            if lsmWidget then lsmWidget:Hide() end
-            if pathWidget then pathWidget:Show() end
-            if valueTestWidget then valueTestWidget:Show() end
-            SetWidgetUsable(pathWidget, configEnabled)
-            SetWidgetUsable(valueTestWidget, configEnabled)
-        end
+        EXUI:RefreshSoundSelector({
+            contents = { pack = packWidget, lsm = lsmWidget, file = pathWidget },
+            value = source, preview = valueTestWidget, enabled = configEnabled,
+            setUsable = SetWidgetUsable,
+        })
 
         if offsetModeWidget then
             offsetModeWidget:Hide()
@@ -2532,9 +2414,13 @@ local function RefreshDungeonButtonVisuals()
             -- 与 Boss 页面左上副本切换完全同一视觉：外按钮透明，状态只作用于图标框。
             EXUI:SetControlSurface(btn, 10, { 0, 0, 0, 0 }, { 0, 0, 0, 0 })
             if active then
-                EXUI:SetControlSurface(btn.iconFrame, 10, GC.menuSelected, GC.accent)
+                -- 选中只描边：图标框底色沿用各自原底（未选中 GC.input／悬停时沿用悬停底），
+                -- 只换成一圈实心主色轮廓；不加淡底、不抬底、不加左侧指示条。
+                EXUI:SetControlSurface(btn.iconFrame, 10,
+                    hovered and GC.secondaryHoverFill or GC.input,
+                    hovered and GC.primaryFillHover or GC.primaryFill)
                 btn.icon:SetDesaturated(false)
-                btn.text:SetTextColor(unpack(GC.selectedText))
+                btn.text:SetTextColor(unpack(GC.text))
             elseif hovered then
                 EXUI:SetControlSurface(btn.iconFrame, 10, GC.secondaryHoverFill, GC.inputHoverBorder)
                 btn.icon:SetDesaturated(false)
@@ -2613,7 +2499,7 @@ local function AcquireDungeonButton()
     btn.text:SetJustifyH("CENTER")
     btn.text:SetWordWrap(true)
     btn.text:SetMaxLines(0)
-    btn.text:SetFont(ExwindTools.MAIN_FONT, 13, "")
+    btn.text:SetFont(ExwindTools.MAIN_FONT, GM.font.text, "")
 
     btn:SetScript("OnEnter", function(self)
         self._hovered = true
@@ -2684,7 +2570,7 @@ local function AcquireSpellRow()
     label:SetWordWrap(false)
     label:SetMaxLines(1)
     label:SetSpacing(0)
-    label:SetFont(ExwindTools.MAIN_FONT, 17, "")
+    label:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.spellListTitle, "")
     row.label = label
 
     local atlasHolder = CreateFrame("Frame", nil, row)
@@ -2726,7 +2612,9 @@ local function AcquireSpellRow()
     meta:SetJustifyV("MIDDLE")
     meta:SetWordWrap(false)
     meta:SetMaxLines(1)
-    meta:SetFont(ExwindTools.MAIN_FONT, 11, "")
+    -- 用户 2026-10-05 第五批第 67 项：技能行右侧的怪物名称字号 +1 号
+    -- （GM.font.hint 11 → GM.font.small 12），只改这一个字号。
+    meta:SetFont(ExwindTools.MAIN_FONT, GM.font.small, "")
     meta:SetTextColor(unpack(GC.textDim))
     row.meta = meta
 
@@ -2796,13 +2684,9 @@ local function UpdateDetailCard()
     end
     detailBody:SetText((desc ~= "" and tostring(desc)) or L["暂无描述。"])
     if detailBodyScroll then detailBodyScroll:SetVerticalScroll(0) end
-    if disabled then
-        detailInfo:SetText(L["技能已停用，配置仍保留；重新启用后生效。"])
-        detailInfo:Show()
-    else
-        detailInfo:SetText("")
-        detailInfo:Hide()
-    end
+    -- 用户要求删除 Off 状态右侧“技能已停用，配置仍保留”说明；停用状态由 On/Off 标签表达。
+    detailInfo:SetText("")
+    detailInfo:Hide()
     if detailDivider then detailDivider:Hide() end
     RefreshDetailCardLayout()
 end
@@ -2959,7 +2843,7 @@ function Page:RefreshSpellList()
         row.icon:ClearAllPoints()
         row.icon:SetSize(30, 30)
         row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
-        row.label:SetFont(ExwindTools.MAIN_FONT, 17, "")
+        row.label:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.spellListTitle, "")
         row.label:SetHeight(22)
         row.testAtlasHolder:ClearAllPoints()
         row.testAtlasHolder:SetPoint("RIGHT", row.textBlock, "RIGHT", 0, 0)
@@ -2994,7 +2878,11 @@ function Page:RefreshSpellList()
         row._hovered = false
         row._applyVisual = function(self)
             if self._selected then
-                EXUI:SetControlSurface(self, 4, GC.menuSelected, GC.checkboxChecked)
+                -- 选中只描边：底色沿用各自原底（未选中无底／悬停时沿用悬停底），
+                -- 只加一圈实心主色轮廓；不加淡底、不抬底、不显示左侧指示条。
+                EXUI:SetControlSurface(self, 4,
+                    self._hovered and GC.menuHover or { 0, 0, 0, 0 },
+                    self._hovered and GC.primaryFillHover or GC.primaryFill)
             elseif self._hovered then
                 EXUI:SetControlSurface(self, 4, GC.menuHover, { 0, 0, 0, 0 })
             else
@@ -3003,7 +2891,7 @@ function Page:RefreshSpellList()
             self.leftBar:Hide()
             if self._enabled == true then
                 self.icon:SetVertexColor(1, 1, 1)
-                self.label:SetTextColor(unpack(self._selected and GC.selectedText or GC.text))
+                self.label:SetTextColor(unpack(GC.text))
                 self.meta:SetTextColor(unpack(GC.textDim))
             else
                 self.icon:SetVertexColor(0.55, 0.55, 0.55)
@@ -3213,7 +3101,7 @@ local function EnsureUI(parent)
 
     spellTitle = EXUI:CreateVisualFontString(spellPane, EXFONTFRAME, "GameFontNormal")
     spellTitle:SetPoint("TOPLEFT", 0, 0)
-    spellTitle:SetFont(ExwindTools.MAIN_FONT, 13, "")
+    spellTitle:SetFont(ExwindTools.MAIN_FONT, GM.font.text, "")
     spellTitle:SetTextColor(unpack(GC.textDim))
     spellTitle:SetText(L["技能列表"])
     spellTitle:Hide()
@@ -3293,14 +3181,14 @@ local function EnsureUI(parent)
     detailTitle:SetPoint("TOPLEFT", detailIcon, "TOPRIGHT", 8, -1)
     detailTitle:SetJustifyH("LEFT")
     detailTitle:SetWordWrap(true)
-    detailTitle:SetFont(ExwindTools.MAIN_FONT, 21, "")
+    detailTitle:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.spellDetailTitle, "")
     detailTitle:SetTextColor(unpack(GC.text))
 
     detailMeta = EXUI:CreateVisualFontString(detailPane, EXFONTFRAME, "GameFontHighlight")
     detailMeta:SetPoint("TOPLEFT", detailTitle, "BOTTOMLEFT", 0, -2)
     detailMeta:SetJustifyH("LEFT")
     detailMeta:SetWordWrap(true)
-    detailMeta:SetFont(ExwindTools.MAIN_FONT, 11, "")
+    detailMeta:SetFont(ExwindTools.MAIN_FONT, GM.font.hint, "")
     detailMeta:SetTextColor(unpack(GC.textDim))
     detailMeta:Hide()
 
@@ -3311,7 +3199,7 @@ local function EnsureUI(parent)
         if label then
             chip.label = EXUI:CreateVisualFontString(chip, EXFONTFRAME, "GameFontDisableSmall")
             chip.label:SetPoint("LEFT", chip, "LEFT", 9, 0)
-            chip.label:SetFont(ExwindTools.MAIN_FONT, 11, "")
+            chip.label:SetFont(ExwindTools.MAIN_FONT, GM.font.hint, "")
             chip.label:SetTextColor(unpack(GC.textDim))
             chip.label:SetText(label)
             chip.label:SetWordWrap(false)
@@ -3327,7 +3215,7 @@ local function EnsureUI(parent)
             chip.value:SetPoint("RIGHT", chip, "RIGHT", -9, 0)
             chip.value:SetJustifyH("CENTER")
         end
-        chip.value:SetFont(ExwindTools.MAIN_FONT, 13, "")
+        chip.value:SetFont(ExwindTools.MAIN_FONT, GM.font.text, "")
         chip.value:SetTextColor(unpack(color or GC.text))
         chip.value:SetWordWrap(false)
         if chip.value.SetMaxLines then chip.value:SetMaxLines(1) end
@@ -3367,7 +3255,7 @@ local function EnsureUI(parent)
     detailBody:SetJustifyV("TOP")
     detailBody:SetWordWrap(true)
     detailBody:SetSpacing(1)
-    detailBody:SetFont(ExwindTools.MAIN_FONT, 14, "")
+    detailBody:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.previewText, "")
     detailBody:SetTextColor(unpack(GC.textDim))
 
     detailDivider = EXUI:CreateVisualTexture(detailPane, EXBORDERFRAME)
@@ -3389,7 +3277,7 @@ local function EnsureUI(parent)
     settingsTitle:SetPoint("TOPLEFT", 10, -8)
     settingsTitle:SetText("")
     settingsTitle:SetTextColor(unpack(GC.text))
-    settingsTitle:SetFont(ExwindTools.MAIN_FONT, 14, "OUTLINE")
+    settingsTitle:SetFont(ExwindTools.MAIN_FONT, GM.font.exboss.previewText, "OUTLINE")
 
     settingsVoiceDisabledNote = EXUI:CreateVisualFontString(settingsPane, EXFONTFRAME, "GameFontNormalSmall")
     settingsVoiceDisabledNote:SetPoint("TOPLEFT", settingsPane, "TOPLEFT", 0, -2)
@@ -3419,6 +3307,20 @@ end
 -- [共享宿主边界] 只可调整 left/map 与 content/spell/settings 三 pane 的锚点；Unified 挂载、独立滚动与选择状态禁止修改。
 local function ApplyHostLayout(leftHost, contentHost)
     if not root or not contentHost then return end
+    local contentWidth, contentHeight = contentHost:GetWidth(), contentHost:GetHeight()
+    local leftWidth = leftHost and leftHost:GetWidth() or 0
+    if Page._layoutLeftHost == leftHost and Page._layoutContentHost == contentHost
+        and Page._layoutContentWidth == contentWidth and Page._layoutContentHeight == contentHeight
+        and Page._layoutLeftWidth == leftWidth then
+        mapPane:Show()
+        spellPane:Show()
+        detailPane:Show()
+        settingsPane:Show()
+        return
+    end
+    Page._layoutLeftHost, Page._layoutContentHost = leftHost, contentHost
+    Page._layoutContentWidth, Page._layoutContentHeight = contentWidth, contentHeight
+    Page._layoutLeftWidth = leftWidth
     root:SetParent(contentHost)
     root:ClearAllPoints()
     root:SetAllPoints(contentHost)
@@ -3504,12 +3406,21 @@ if ExwindTools and type(ExwindTools.WatchState) == "function" then
             if type(db) ~= "table" or type(info) ~= "table" then
                 return
             end
-            if info.key == "tr1ValueTest" then
-                PlayVoicePreview(db.tr1Source, db.tr1Label, db.tr1LSM, db.tr1Path)
-            elseif info.key == "tr2ValueTest" then
-                PlayVoicePreview(db.tr2Source, db.tr2Label, db.tr2LSM, db.tr2Path)
+            if info.key == "tr1ValueTest" or info.key == "tr2ValueTest" then
+                -- 用户 2026-10-05 第五批第 66 项：这两个播放按钮原来直接调
+                -- PlayVoicePreview，没有经过公共试听驱动，所以播放中没有竖线跳动。
+                -- 改走与下面 targetAlertStartValueTest 相同的 RunSoundPreview：
+                -- 播放逻辑、声音来源与返回值不变，Start/Stop 由 Core 按返回的
+                -- 声音句柄接管（内部即 AcquirePlayingIndicator，手册 §2.5.7）。
+                local prefix = (info.key == "tr1ValueTest") and "tr1" or "tr2"
+                EXUI:RunSoundPreview(_G.ExwindGrid:FindMountedWidget(settingsScrollChild, info.key), function()
+                    return PlayVoicePreview(db[prefix .. "Source"], db[prefix .. "Label"],
+                        db[prefix .. "LSM"], db[prefix .. "Path"])
+                end)
             elseif info.key == "targetAlertStartValueTest" then
-                PlayVoicePreview("lsm", "", db.targetAlertStartLSM, "")
+                EXUI:RunSoundPreview(_G.ExwindGrid:FindMountedWidget(settingsScrollChild, info.key), function()
+                    return PlayVoicePreview("lsm", "", db.targetAlertStartLSM, "")
+                end)
             elseif info.key == "voiceSequencePreview" then
                 StartTrashVoiceSequencePreview()
             end
@@ -3520,11 +3431,14 @@ end
 -- current draft field as the editor's single reapply transaction.
 local function RefreshActiveSurfaces()
     if Page._visible ~= true then return end
-    voicePreviewGeneration = voicePreviewGeneration + 1
+    CancelTrashVoiceSequencePreview()
     local fields = {
         "enabled", "showBunBar", "showTimerBar", "showNameplate",
         "eventColorEnabled", "eventColorMode", "eventColor", "centralEnabled",
-        "centralLead", "centralText", "countdownEnabled", "countdownLead",
+        "centralLead", "centralText", "countdownEnabled",
+        -- countdownLead 没有自己的 Grid 控件，它由 PersistEditorToSelectedSpell 的互写
+        -- 与 LoadSelectedSpellToEditor 同步。放进这张表会在 tr2CountdownLead 之前执行，
+        -- 用旧值把刚选中的秒数覆盖回去，分段切换因此点不动。
         "tr2CountdownLead", "preAlertText", "timerBarRenameEnabled",
         "timerBarRenameText", "ringEnabled", "ringRenameEnabled", "ringRenameText",
         "castProgressBarEnabled", "castProgressBarRenameEnabled", "castProgressBarRenameText",
@@ -3615,7 +3529,8 @@ end
 -- [释放边界] 必须保留 ActivePage 清理、Grid 控件归还、draft/context 作废、三个 pane/屏幕预览停止；卡壳不得重复释放。
 function Page:Hide()
     Page._visible = false
-    voicePreviewGeneration = voicePreviewGeneration + 1
+    -- 作废序列并收回播放态必须在释放卡片会话之前：之后拿不到预览按钮。
+    CancelTrashVoiceSequencePreview()
     ReleaseTrashSettingsCardSession()
     -- 页面显示值永远不跨页面保存；下次显示重新读取当前 Runtime。
     spellEditorDraft = nil

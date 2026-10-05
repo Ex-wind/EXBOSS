@@ -28,7 +28,6 @@ local LAYOUT_CACHE = {}
 -- 模块控件规格
 -- =============================================================
 local TIMER_BAR_COMMON_FIELDS = {
-    { path = "enabled", type = "checkbox", label = L["启用"], row = 1, presentation = "switch" },
     { path = "hideLongTimersSeconds", type = "slider", label = L["只显示最后几秒"], min = 1, max = 60, step = 1, row = 2 },
 }
 
@@ -96,6 +95,9 @@ local LAYOUT = {
     version = 1,
     title = L["计时条设置"],
     sections = {
+        { kind = "settings", id = "timeline-enabled", title = L["时间轴样式选择"],
+            binding = { moduleKey = "ExBoss.GeneralOverview", getConfig = function() return _G.EXBOSS12S2 end },
+            items = { { key = "timer", type = "switch", label = L["启用"], parentKey = "ui.general.timelineBars" } } },
         { kind = "composite", id = "module-common", title = L["通用设置"],
             component = "modulecommonsettings", key = "moduleCommon", opts = TIMER_BAR_COMMON_OPTS },
         { kind = "composite", id = "layout", title = L["排列设置"],
@@ -239,4 +241,9 @@ end
 
 function Page:Hide()
     return StandardPage:Hide()
+end
+
+function Page:RefreshTimelineBarControls()
+    local control = StandardPage.cardSession and StandardPage.cardSession:GetWidget("timeline-enabled", "timer")
+    if control then control:SetChecked(ExBoss.DisplayPolicy.IsTimelineBarEnabled("timer")) end
 end

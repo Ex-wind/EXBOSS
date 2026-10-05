@@ -24,9 +24,6 @@ local bossAlertsEnabledMplusCheck
 local bossAlertsEnabledRaidCheck
 local encounterWarningsEnabledCheck
 local encounterTimelineDisabledCheck
-local voiceSection
-local voiceChannelDrop
-local voiceVolumeSlider
 local colorSettingsPage
 local resetSettingsPage
 local embedPlaceholder
@@ -83,6 +80,13 @@ local CATEGORIES = {
     { key = "display", titleKey = "显示" },
     { key = "trash",   titleKey = "小怪" },
     { key = "other",   titleKey = "其他" },
+}
+
+local SIDEBAR_ICONS = {
+    overview = "settings", countdownvoice = "headphones", batchedit = "pencil-line", color = "palette",
+    timerbar = "timer", bunbar = "list", countdown = "hourglass", flashtextmedium = "message-square",
+    ringprogress = "crosshair", iconalert = "image", castprogressbar = "wand-sparkles", extrashieldbar = "shield",
+    trashcd = "castle", reset = "refresh-cw", dungeonextras = "map",
 }
 
 function Page:GetExportModuleKeys()
@@ -151,20 +155,10 @@ local function EnsureSelectedCategoryExpanded()
     end
 end
 
-local CHANNEL_OPTIONS = {
-    { "Master", "Master" },
-    { "SFX", "SFX" },
-    { "Dialog", "Dialog" },
-    { "Music", "Music" },
-    { "Ambience", "Ambience" },
-}
-
 local function GetBarModeOptions()
     return {
-        { L["仅束状条"],   "bun"  },
-        { L["两者都启用"], "both" },
-        { L["仅计时条"],   "timer"},
-        { L["两者都隐藏"], "none" },
+        { L["束状条"], "bun" },
+        { L["计时条"], "timer" },
     }
 end
 
@@ -196,30 +190,6 @@ local function GetColorModule()
     return ExBoss and ExBoss.Voice and ExBoss.Voice.ColorSchemes
 end
 
-local function EnsureVoiceDB()
-    EXBOSS12S2 = EXBOSS12S2 or {}
-    EXBOSS12S2.voice = EXBOSS12S2.voice or {}
-    EXBOSS12S2.voice.global = EXBOSS12S2.voice.global or {}
-
-    local CS = GetColorModule()
-    if CS and CS.EnsureDB then
-        CS.EnsureDB()
-    end
-
-    local g = EXBOSS12S2.voice.global
-    g.channel = g.channel or "Master"
-    g.volume = tonumber(g.volume) or 1.0
-    return g
-end
-
-local function NormalizeBarDisplayMode(mode)
-    local m = tostring(mode or ""):lower()
-    if m == "timer" or m == "bun" or m == "both" or m == "none" then
-        return m
-    end
-    return "bun"
-end
-
 local function EnsureGeneralDB()
     EXBOSS12S2 = EXBOSS12S2 or {}
     EXBOSS12S2.ui = EXBOSS12S2.ui or {}
@@ -235,7 +205,6 @@ local function EnsureGeneralDB()
     else
         g.bossAlertsEnabledRaid = (g.bossAlertsEnabledRaid == true)
     end
-    g.barDisplayMode = NormalizeBarDisplayMode(g.barDisplayMode)
     if g.hideTankBossAlertsForDps == nil then
         g.hideTankBossAlertsForDps = true
     else
@@ -346,31 +315,11 @@ local function SetEncounterWarningSoundsEnabled(enabled)
     WriteCVarValue("Sound_EnableEncounterWarningsSounds", enabled and "1" or "2")
 end
 
-local function IsTimerBarEnabledByGlobal()
-    local g = EnsureGeneralDB()
-    local mode = NormalizeBarDisplayMode(g.barDisplayMode)
-    return mode == "both" or mode == "timer"
-end
-
-local function IsBunBarEnabledByGlobal()
-    local g = EnsureGeneralDB()
-    local mode = NormalizeBarDisplayMode(g.barDisplayMode)
-    return mode == "both" or mode == "bun"
-end
-
 local function RefreshGeneralControls()
     local g = EnsureGeneralDB()
     if barModeDropdown then
-        local mode = NormalizeBarDisplayMode(g.barDisplayMode)
-        barModeDropdown._currentValue = mode
-        local label = L["仅束状条"]
-        for _, item in ipairs(GetBarModeOptions()) do
-            if item[2] == mode then
-                label = item[1]
-                break
-            end
-        end
-        barModeDropdown:SetText(label)
+        barModeDropdown._selections = ExBoss.DisplayPolicy.GetTimelineBars()
+        barModeDropdown:RefreshSelectionDisplay()
     end
     if bossAlertsEnabledMplusCheck and bossAlertsEnabledMplusCheck.SetChecked then
         bossAlertsEnabledMplusCheck:SetChecked(g.bossAlertsEnabledMplus == true)
@@ -445,18 +394,15 @@ local function CreateOverviewSection(parent, anchor, exui)
     overviewTitle:SetText(L["全局条显示模式"])
     overviewTitle:SetTextColor(unpack(GC.accent))
 
-    if exui and exui.CreateDropdown then
-        barModeDropdown = exui:CreateDropdown(
+    if exui and exui.CreateMultiSelectDropdown then
+        barModeDropdown = exui:CreateMultiSelectDropdown(
             overviewSection,
             220,
             L["显示模式"],
             GetBarModeOptions(),
-            EnsureGeneralDB().barDisplayMode,
-            function(val)
-                local g = EnsureGeneralDB()
-                g.barDisplayMode = NormalizeBarDisplayMode(val)
-                RefreshGeneralControls()
-                ApplyBarModeChange()
+            ExBoss.DisplayPolicy.GetTimelineBars(),
+            function()
+                EXUI:NotifyModuleValueChanged("ExBoss.GeneralOverview", "ui.general.timelineBars", "committed")
             end,
             true
         )
@@ -541,64 +487,6 @@ local function CreateOverviewSection(parent, anchor, exui)
     overviewDesc:SetTextColor(unpack(GC.textDim))
     overviewDesc:SetText(L["控制全局显示：仅计时条 / 仅束状条 / 两者都启用 / 两者都隐藏。\n可分别关闭大秘境或团本首领提示；关闭后将整体禁用对应场景的 Boss 计时、中央文字、语音与颜色覆盖。\n可按当前职责过滤坦克类 Boss 技能提示。\n可选：首领战中自动将战斗音频预警分类音量静音（0），脱战恢复原值。"])
     overviewSection:Hide()
-end
-
--- [排除边界] 这是未由当前 ITEMS 选择的旧 builtin voice；真实语音设置是 CountdownVoicePage/VoicePackPage，禁止为卡片迁移恢复此区。
-local function CreateVoiceSection(parent, anchor, exui)
-    voiceSection = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    voiceSection:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -12)
-    voiceSection:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -14, 0)
-    voiceSection:SetHeight(120)
-    voiceSection:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 10,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 },
-    })
-    voiceSection:SetBackdropColor(unpack(GC.panel))
-    voiceSection:SetBackdropBorderColor(unpack(GC.panelBorder))
-
-    local voiceTitle = EXUI:CreateVisualFontString(voiceSection, EXFONTFRAME, "GameFontNormal")
-    voiceTitle:SetPoint("TOPLEFT", 10, -8)
-    voiceTitle:SetText(L["全局语音输出"])
-    voiceTitle:SetTextColor(unpack(GC.accent))
-
-    if exui and exui.CreateDropdown then
-        voiceChannelDrop = exui:CreateDropdown(
-            voiceSection,
-            180,
-            L["输出通道"],
-            CHANNEL_OPTIONS,
-            EnsureVoiceDB().channel,
-            function(val)
-                local g = EnsureVoiceDB()
-                g.channel = tostring(val or "Master")
-                ApplyVoiceOverrides()
-            end,
-            true
-        )
-        voiceChannelDrop:SetPoint("TOPLEFT", 10, -34)
-    end
-
-    if exui and exui.CreateSlider then
-        voiceVolumeSlider = exui:CreateSlider(
-            voiceSection,
-            300,
-            L["全局音量"],
-            0,
-            1,
-            EnsureVoiceDB().volume,
-            0.01,
-            function(v) return string.format("%.2f", v) end,
-            function(v)
-                local g = EnsureVoiceDB()
-                g.volume = tonumber(string.format("%.2f", v)) or 1.0
-                ApplyVoiceOverrides()
-            end
-        )
-        voiceVolumeSlider:SetPoint("TOPLEFT", 10, -78)
-    end
-    voiceSection:Hide()
 end
 
 -- [标准设置页边界：通用颜色 / 重置]
@@ -963,67 +851,55 @@ local function RegisterStandardGlobalPages()
         function(host)
             local styleRow, styleState = AddGlobalSettingsRow(host, L["重置外观"], false)
             local resetStyleBtn = TrackFactoryControl(host, EXUI:CreateButton(styleRow, 120, 32, L["确认"], function()
-                local popupID = "EXBOSS_RESET_STYLE_ONLY_CONFIRM"
-                if not StaticPopupDialogs[popupID] then
-                    StaticPopupDialogs[popupID] = {
-                        text = L["仅重置计时条/束状条/倒计时/文字公告的外观样式，不删除法术配置。是否继续？"],
-                        button1 = L["确定"],
-                        button2 = L["取消"],
-                        timeout = 0,
-                        whileDead = true,
-                        hideOnEscape = true,
-                        preferredIndex = 3,
-                        OnAccept = function()
+                EXUI:ShowDialog({
+                    sourceAddon = "EXBoss", sourceModule = L["设置"],
+                    text = L["仅重置计时条/束状条/倒计时/文字公告的外观样式，不删除法术配置。是否继续？"],
+                    danger = true,
+                    buttons = {
+                        { id = "cancel", text = L["取消"], variant = "secondary" },
+                        { id = "confirm", text = L["确定"], variant = "dangerSolid", onClick = function()
                             ResetDisplayStylesOnly()
                             ReloadUI()
-                        end,
-                    }
-                end
-                StaticPopup_Show(popupID)
+                        end },
+                    },
+                    cancelButton = "cancel",
+                })
             end))
             styleState.control, styleState.controlHeight, styleState.maxWidth =
                 resetStyleBtn, 32, 120
             local configRow, configState = AddGlobalSettingsRow(host, L["重置配置"], false)
             local resetConfigBtn = TrackFactoryControl(host, EXUI:CreateButton(configRow, 120, 32, L["确认"], function()
-                local popupID = "EXBOSS_RESET_CONFIG_ONLY_CONFIRM"
-                if not StaticPopupDialogs[popupID] then
-                    StaticPopupDialogs[popupID] = {
-                        text = L["|cffffcc00将清空 EXBoss 的通用设置、语音配置、技能配置与时间轴设置，但保留外观样式。|r\n确认继续？"],
-                        button1 = L["确定重置"],
-                        button2 = L["取消"],
-                        timeout = 0,
-                        whileDead = true,
-                        hideOnEscape = true,
-                        preferredIndex = 3,
-                        OnAccept = function()
+                EXUI:ShowDialog({
+                    sourceAddon = "EXBoss", sourceModule = L["设置"],
+                    text = L["|cffffcc00将清空 EXBoss 的通用设置、语音配置、技能配置与时间轴设置，但保留外观样式。|r\n确认继续？"],
+                    danger = true,
+                    buttons = {
+                        { id = "cancel", text = L["取消"], variant = "secondary" },
+                        { id = "confirm", text = L["确定重置"], variant = "dangerSolid", onClick = function()
                             ResetAllConfigExceptAppearance()
                             ReloadUI()
-                        end,
-                    }
-                end
-                StaticPopup_Show(popupID)
+                        end },
+                    },
+                    cancelButton = "cancel",
+                })
             end))
             configState.control, configState.controlHeight, configState.maxWidth =
                 resetConfigBtn, 32, 120
             local allRow, allState = AddGlobalSettingsRow(host, L["重置外观加配置"], true)
             local resetAllBtn = TrackFactoryControl(host, EXUI:CreateButton(allRow, 120, 32, L["确认"], function()
-                local popupID = "EXBOSS_RESET_ALL_CONFIRM"
-                if not StaticPopupDialogs[popupID] then
-                    StaticPopupDialogs[popupID] = {
-                        text = L["|cffff4444危险：将清空 EXBoss 的全部设置（包含外观）并重载。此操作不可撤销。|r\n确认继续？"],
-                        button1 = L["确定清空"],
-                        button2 = L["取消"],
-                        timeout = 0,
-                        whileDead = true,
-                        hideOnEscape = true,
-                        preferredIndex = 3,
-                        OnAccept = function()
+                EXUI:ShowDialog({
+                    sourceAddon = "EXBoss", sourceModule = L["设置"],
+                    text = L["|cffff4444危险：将清空 EXBoss 的全部设置（包含外观）并重载。此操作不可撤销。|r\n确认继续？"],
+                    danger = true,
+                    buttons = {
+                        { id = "cancel", text = L["取消"], variant = "secondary" },
+                        { id = "confirm", text = L["确定清空"], variant = "dangerSolid", onClick = function()
                             ResetAllConfigIncludingAppearance()
                             ReloadUI()
-                        end,
-                    }
-                end
-                StaticPopup_Show(popupID)
+                        end },
+                    },
+                    cancelButton = "cancel",
+                })
             end))
             allState.control, allState.controlHeight, allState.maxWidth =
                 resetAllBtn, 32, 120
@@ -1097,20 +973,6 @@ local function ApplyBossSceneToggleChange()
 
     if ExBoss and ExBoss.Voice and ExBoss.Voice.Engine and ExBoss.Voice.Engine.ApplyEventOverridesToAPI then
         ExBoss.Voice.Engine:ApplyEventOverridesToAPI()
-    end
-end
-
-local function ApplyBarModeChange()
-    if not IsBunBarEnabledByGlobal() and ExBoss and ExBoss.UI and ExBoss.UI.BunBar and ExBoss.UI.BunBar.ReleaseAll then
-        ExBoss.UI.BunBar:ReleaseAll()
-    end
-    if not IsTimerBarEnabledByGlobal() and ExBoss and ExBoss.UI and ExBoss.UI.TimerBar and ExBoss.UI.TimerBar.ReleaseAll then
-        ExBoss.UI.TimerBar:ReleaseAll()
-    end
-
-    local sched = ExBoss and ExBoss.Timeline and ExBoss.Timeline.Scheduler
-    if sched and sched._running and sched.StartBoss and sched._encounterID then
-        sched:StartBoss(sched._encounterID)
     end
 end
 
@@ -1382,28 +1244,6 @@ ResetAllConfigIncludingAppearance = function()
     EXBossDataDB = nil
 end
 
-local function RefreshVoiceControls()
-    local g = EnsureVoiceDB()
-    if voiceChannelDrop then
-        voiceChannelDrop._currentValue = g.channel
-        local label = g.channel
-        for _, item in ipairs(CHANNEL_OPTIONS) do
-            if item[2] == g.channel then
-                label = item[1]
-                break
-            end
-        end
-        voiceChannelDrop:SetText(label or "Master")
-    end
-    if voiceVolumeSlider then
-        if voiceVolumeSlider.Init then
-            voiceVolumeSlider:Init(g.volume, 0, 1, 100)
-        else
-            voiceVolumeSlider:SetValue(g.volume)
-        end
-    end
-end
-
 RefreshColorControls = function()
     local _, schemes, custom, extraSlots = EnsureColorDB()
     for _, key in ipairs(GetSchemeOrder()) do
@@ -1471,12 +1311,21 @@ local function ClearButtons()
     wipe(activeButtons)
 end
 
+-- 本列表的选中态按用户选定的方案 C：底色不动、不画左侧指示条，只加一圈主色描边。
+-- 只在本调用点选 "outline"，公共默认值与其他侧栏（含 ExwindTools 左树）保持现状。
+local SIDEBAR_SELECTED_PRESENTATION = "outline"
+
 local function AcquireListButton()
     local b
     if ExBoss.UI and ExBoss.UI.CreateSidebarModuleButton then
-        b = ExBoss.UI.CreateSidebarModuleButton(listChild)
+        b = ExBoss.UI.CreateSidebarModuleButton(listChild, {
+            selectedPresentation = SIDEBAR_SELECTED_PRESENTATION,
+        })
     elseif EXUI and EXUI.CreateSidebarNavigationButton then
-        b = EXUI:CreateSidebarNavigationButton(listChild, "", nil, { level = 1, height = 28 })
+        b = EXUI:CreateSidebarNavigationButton(listChild, "", nil, {
+            level = 1, height = 28,
+            selectedPresentation = SIDEBAR_SELECTED_PRESENTATION,
+        })
     else
         error("GlobalSettings sidebar requires the shared navigation button API", 2)
     end
@@ -1504,9 +1353,11 @@ end
 local function SetupListButton(button, height, leftInset)
     button:SetHeight(height)
     local label = button.label or button.fs
-    label:ClearAllPoints()
-    label:SetPoint("LEFT", leftInset or 14, 0)
-    label:SetPoint("RIGHT", -8, 0)
+    if button._exButtonPresentation ~= "sidebar" then
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", leftInset or 14, 0)
+        label:SetPoint("RIGHT", -8, 0)
+    end
     label:SetJustifyH("LEFT")
     if button.Enable then button:Enable() end
 end
@@ -1574,7 +1425,6 @@ local function RefreshRight()
 
     HideEmbeddedPages()
     if overviewSection then overviewSection:Hide() end
-    if voiceSection then voiceSection:Hide() end
     if embedPlaceholder then embedPlaceholder:Hide() end
 
     if item and item.mode == "embedded" then
@@ -1641,8 +1491,6 @@ local function RefreshRight()
 
     if key == "overview" then
         if overviewSection then overviewSection:Show() end
-    elseif key == "voice" then
-        if voiceSection then voiceSection:Show() end
     end
 end
 
@@ -1676,6 +1524,7 @@ local function RefreshList()
                 local item = row.item
                 local b = AcquireListButton()
                 SetupListButton(b, 30, 34)
+                EXUI:SetSidebarNavigationButtonIcon(b, EXUI:GetIcon(SIDEBAR_ICONS[item.key]))
                 b:SetPoint("TOPLEFT", 10, y)
                 b:SetPoint("RIGHT", listChild, "RIGHT", -8, 0)
 
@@ -1758,6 +1607,9 @@ local function EnsureUI(leftFrame, contentFrame)
     listChild = CreateFrame("Frame", nil, listScroll)
     listChild:SetSize(340, 1)
     listScroll:SetScrollChild(listChild)
+    listScroll:HookScript("OnSizeChanged", function(_, width)
+        listChild:SetWidth(math.max(1, width))
+    end)
 
     rightScrollFrame = CreateFrame("ScrollFrame", nil, contentFrame, "ScrollFrameTemplate")
     if ExBoss.UI and ExBoss.UI.ApplyModernScrollBarSkin then
@@ -1797,7 +1649,6 @@ local function EnsureUI(leftFrame, contentFrame)
     local EXUI = ExwindTools.UI
 
     CreateOverviewSection(rightRoot, descText, EXUI)
-    CreateVoiceSection(rightRoot, descText, EXUI)
 end
 
 function Page:Render(leftFrame, contentFrame)
@@ -1813,6 +1664,7 @@ function Page:Render(leftFrame, contentFrame)
     leftRoot:ClearAllPoints()
     leftRoot:SetAllPoints(leftFrame)
     leftRoot:Show()
+    listChild:SetWidth(math.max(1, listScroll:GetWidth()))
 
     rightScrollFrame:SetParent(contentFrame)
     rightScrollFrame:ClearAllPoints()
@@ -1821,7 +1673,6 @@ function Page:Render(leftFrame, contentFrame)
     rightRoot:SetWidth(math.max((contentFrame:GetWidth() or 0) - 28, 760))
     RefreshList()
     RefreshGeneralControls()
-    RefreshVoiceControls()
     RefreshColorControls()
     RefreshRight()
 end
@@ -1831,6 +1682,13 @@ function Page:Hide()
     if leftRoot then leftRoot:Hide() end
     if rightRoot then rightRoot:Hide() end
     if rightScrollFrame then rightScrollFrame:Hide() end
+end
+
+function Page:RefreshTimelineBarControls()
+    if barModeDropdown then
+        barModeDropdown._selections = ExBoss.DisplayPolicy.GetTimelineBars()
+        barModeDropdown:RefreshSelectionDisplay()
+    end
 end
 
 function Page:SetSelectedKey(key)
@@ -1844,7 +1702,6 @@ function Page:SetSelectedKey(key)
     if leftRoot and embeddedHostFrame and leftRoot:IsShown() then
         RefreshList()
         RefreshGeneralControls()
-        RefreshVoiceControls()
         RefreshColorControls()
         RefreshRight()
     end

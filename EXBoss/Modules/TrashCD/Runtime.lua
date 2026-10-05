@@ -169,6 +169,7 @@ local function EnsureDebugCopyFrame()
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -16)
     title:SetText("ExBoss Trash Debug Copy")
+    ET.UI:ApplyDialogStyle(frame, title)
 
     local closeButton = ET.UI:CreatePicButton(frame, 24, 24,
         "Interface\\Buttons\\UI-Panel-CloseButton-Up",
