@@ -48,8 +48,8 @@ local LOCALE_ITEMS = {
 
 -- 首页资料只用于本次绘制，不参与配置、默认值、保存或通知通道。
 -- 增删人物/资料只改下面的表；人物卡片由 Core 的 EXUI.PersonCards 渲染。
--- 资源图标取 Core 统一图标库，由尺寸规范控制显示大小。
-local UNIFIED_ICON_ROOT = "Interface\\AddOns\\ExwindCore\\Textures\\Icons\\Unified\\"
+-- 首页专用图标按显示尺寸绘制，只裁掉贴图画布的透明补边。
+local UNIFIED_ICON_ROOT = "Interface\\AddOns\\ExwindCore\\Textures\\Icons\\EXBoss\\HomeResources\\"
 local HOME_RESOURCES = {
     { icon = UNIFIED_ICON_ROOT .. "message.tga", title = L["蓝帖追踪"], description = L["实时追踪魔兽世界蓝帖（中文）。"], url = "https://exwind.net" },
     { icon = UNIFIED_ICON_ROOT .. "help.tga", title = L["常见问题"], description = L["插件常见问题与使用帮助。"], url = "https://exwind.net/faq/general" },
@@ -59,39 +59,39 @@ local HOME_RESOURCES = {
     { icon = UNIFIED_ICON_ROOT .. "microphone.tga", title = L["语音包制作"], description = L["制作自己的 EXBoss 语音包。"], url = "https://exwind.net/exboss" },
 }
 
--- 联系方式与平台角标统一使用高清白色图标。
-local CONTACT_HD_ROOT = "Interface\\AddOns\\ExwindCore\\Textures\\Icons\\EXBoss\\Contact\\"
+-- 顶部联系方式使用白色图标；感谢名单使用独立彩色平台素材。
+local CONTACT_ICON_ROOT = "Interface\\AddOns\\ExwindCore\\Textures\\Icons\\EXBoss\\Contact\\"
+local THANKS_ICON_ROOT = "Interface\\AddOns\\ExwindCore\\Textures\\Icons\\EXBoss\\Thanks\\"
 local function PlatformBadge(platform)
-    return { icon = CONTACT_HD_ROOT .. platform .. ".tga", color = GC.white, style = "icon" }
+    return { icon = THANKS_ICON_ROOT .. platform .. ".tga", color = GC.white, style = "icon", texCoords = { 0, 0.75, 0, 0.75 } }
 end
 -- 联系人：统一白色单色图，不画底色方块。
 -- 三项严格等宽，不按网址长短分配宽度。
 local HOME_CONTACTS = {
-    { icon = CONTACT_HD_ROOT .. "discord.tga", brand = GC.white,
+    { icon = CONTACT_ICON_ROOT .. "discord.tga", brand = GC.white,
         title = "Discord", description = L["社区交流与反馈"], url = "https://discord.gg/6fwVhRHyg9" },
-    { icon = CONTACT_HD_ROOT .. "qq.tga", brand = GC.white,
+    { icon = CONTACT_ICON_ROOT .. "qq.tga", brand = GC.white,
         title = L["QQ 群"], description = L["群组交流与反馈"], url = "2168036546" },
-    { icon = CONTACT_HD_ROOT .. "bilibili.tga", brand = GC.white,
+    { icon = CONTACT_ICON_ROOT .. "bilibili.tga", brand = GC.white,
         title = "Bilibili", description = L["EX-WIND 私信"], url = "https://space.bilibili.com/3494364483422992" },
 }
 
 -- 一级感谢：6 张竖排高卡。卡片较窄，网址省略 https:// 与 www. 并用小一号字才能完整显示（浏览器照样能打开）。
 -- avatar 为可选头像图（建议 128×128，会被裁成圆形）；不写则显示名称首字。badge 为头像右下角的平台角标。
-local HOME_AVATAR_PLACEHOLDER = CONTACT_HD_ROOT .. "avatar-placeholder.tga"
 local THANKS_ACCENT = { text = L["特别感谢"], style = "accent" }
 local HOME_PEOPLE = {
-    { avatar = HOME_AVATAR_PLACEHOLDER, name = "MusclebrahTV", tags = { THANKS_ACCENT, L["创作者"] }, url = "instagram.com/musclebrahtv",
+    { name = "MusclebrahTV", tags = { THANKS_ACCENT, L["创作者"] }, url = "instagram.com/musclebrahtv",
         badge = PlatformBadge("instagram"),
         description = L["他提供了非常多的测试反馈以及DC用户的问答，以及后续会协助我们制作介绍视频。"] },
-    { avatar = HOME_AVATAR_PLACEHOLDER, name = "tettles", tags = { THANKS_ACCENT, L["创作者"] }, url = "youtube.com/@tettles",
+    { name = "tettles", tags = { THANKS_ACCENT, L["创作者"] }, url = "youtube.com/@tettles",
         badge = PlatformBadge("youtube"), description = L["他制作了一个协助我们介绍插件的视频。"] },
-    { avatar = HOME_AVATAR_PLACEHOLDER, name = "露露緹婭", tags = { THANKS_ACCENT }, url = "space.bilibili.com/455259",
+    { name = "露露緹婭", tags = { THANKS_ACCENT }, url = "space.bilibili.com/455259",
         badge = PlatformBadge("bilibili"), description = L["在生病期间他给予了很多测试协助支持。"] },
-    { avatar = HOME_AVATAR_PLACEHOLDER, name = "叶落初冬", tags = { THANKS_ACCENT }, url = "space.bilibili.com/121538100",
+    { name = "叶落初冬", tags = { THANKS_ACCENT }, url = "space.bilibili.com/121538100",
         badge = PlatformBadge("bilibili"), description = L["协助反馈并优化插件，提出了多个更为细致的功能。"] },
-    { avatar = HOME_AVATAR_PLACEHOLDER, name = "神秘地瓜", tags = { L["技术交流合作"] },
+    { name = "神秘地瓜", tags = { L["技术交流合作"] },
         url = "space.bilibili.com/242463801", badge = PlatformBadge("bilibili") },
-    { avatar = HOME_AVATAR_PLACEHOLDER, name = "Naowh", tags = { L["创作者"] }, url = "twitch.tv/naowh", badge = PlatformBadge("twitch") },
+    { name = "Naowh", tags = { L["创作者"] }, url = "twitch.tv/naowh", badge = PlatformBadge("twitch") },
 }
 
 -- 二级感谢名单：正文名单，自然换行，不使用按钮式胶囊。为空则整块不显示。
@@ -228,6 +228,7 @@ local function SetTileIcon(tile, path, color, size)
     tile.iconTexture:SetSnapToPixelGrid(true)
     tile.iconTexture:SetTexelSnappingBias(0)
     tile.iconTexture:SetTexture(path)
+    tile.iconTexture:SetTexCoord(0, 0.75, 0, 0.75)
     if color then tile.iconTexture:SetVertexColor(unpack(color)) end
     tile.iconTexture:Show()
 end
@@ -593,6 +594,8 @@ local function BuildLayout()
             opts = { layout = "portrait", surface = "plain", columns = 6, minColumnWidth = 190,
                 columnGap = HOME_BLOCK_GAP, rowGap = HOME_BLOCK_GAP, people = ShuffledPeople(HOME_PEOPLE),
                 avatarSize = GM.size.homeThanksAvatar,
+                avatarRing = { texture = "Interface\\AddOns\\ExwindCore\\Textures\\Materials\\GUI\\HomeAvatarRing.tga",
+                    texCoords = { 0, 0.5625, 0, 0.5625 } },
                 padX = HOME_INSET_X, padTop = HOME_BLOCK_GAP, padBottom = 0 },
             x = 1, y = 5, w = 200, h = 1 },
     }

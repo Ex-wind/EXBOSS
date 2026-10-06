@@ -109,7 +109,6 @@ local LAYOUT = {
                 { key = "bunBarSources", type = "select", multiple = true, label = L["束状条显示"], options = { { value = "boss", label = L["Boss 技能"] }, { value = "trash", label = L["小怪技能"] } }, parentKey = "ui.general" },
                 { key = "timerBarSources", type = "select", multiple = true, label = L["计时条显示"], options = { { value = "boss", label = L["Boss 技能"] }, { value = "trash", label = L["小怪技能"] } }, parentKey = "ui.general" },
                 { key = "disableBlizzardEncounterTimeline", type = "switch", label = L["关闭暴雪原生计时条"], parentKey = "ui.general" },
-                { key = "enableBlizzardTimelineInRaid", type = "switch", label = L["团本中仍开启暴雪原生计时条"], parentKey = "ui.general" },
                 { key = "disableEXBossInRaid", type = "switch", label = L["团本中禁用 EXBoss"], parentKey = "ui.general" },
                 { key = "disableAuraSoundRegistration", type = "switch", label = L["关闭光环语音注册（重载后生效）"], parentKey = "voice.global" },
                 { key = "hideTankBossAlertsForDps", type = "switch", label = L["DPS职责下不提示坦克技能"], parentKey = "ui.general" },
@@ -118,6 +117,7 @@ local LAYOUT = {
                 { key = "encounterWarningsEnabled", type = "switch", label = L["开启暴雪中央文字预警（注意：如果关闭会导致语音不工作）"], parentKey = "ui.general" },
                 { key = "encounterWarningSoundsEnabled", type = "switch", label = L["开启中央文字预警提示音（预设叮一声）"], parentKey = "ui.general" },
                 { key = "enableBlizzardHintCountdown", type = "switch", label = L["暴雪时间轴模式启用5秒倒数"], parentKey = "ui.general" },
+                { key = "enableBlizzardTimelineInRaid", type = "switch", label = L["团本中仍开启暴雪原生计时条"], parentKey = "ui.general" },
             } },
         { kind = "settings", id = "auto-gossip", title = L["自动对话"],
             items = {

@@ -1993,7 +1993,7 @@ local function ApplyTrashSettingsCardSurfaces(session)
                 local contentHeight = GetTrashVoiceContentHeight(timelineHeight)
                 if state and state.reportedHeight ~= contentHeight and list and owner and not owner.released
                     and not list.visualLayoutBusy and not owner.reflowBusy then
-                    owner:_SetReportedContentHeight(state, contentHeight)
+                    _G.ExwindGrid:RequestReflow(voiceBody)
                 end
             end
             timeline:SetScript("OnSizeChanged", function(self) self:_layout() end)
