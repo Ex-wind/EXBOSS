@@ -127,11 +127,8 @@ local function NormalizeUnitToken(unit)
 end
 
 local function NormalizeCastBarID(value)
-    local id = tonumber(value)
-    if not id then
-        return nil
-    end
-    return id
+    -- UnitCastBarID is an opaque, non-secret identifier scoped to a unit token.
+    return value
 end
 
 local function IsNonChineseLocale()
@@ -377,6 +374,7 @@ local function DoesOwnerMatch(state, owner)
     if owner.castKind and tostring(state.ownerCastKind or "") ~= tostring(owner.castKind or "") then
         return false
     end
+    if owner.unit and owner.castKind and owner.castBarID == nil then return false end
     local ownerCastBarID = NormalizeCastBarID(owner.castBarID)
     local stateCastBarID = NormalizeCastBarID(state.ownerCastBarID)
     if ownerCastBarID ~= nil and stateCastBarID ~= ownerCastBarID then
@@ -391,25 +389,8 @@ local function DoesOwnerMatch(state, owner)
     if owner.eventID ~= nil and tonumber(state.ownerEventID) ~= tonumber(owner.eventID) then
         return false
     end
-    if (owner.encounterID ~= nil or owner.eventID ~= nil)
-        and tostring(state.ownerSource or "") == "boss"
-        and tostring(owner.source or "") == "boss"
-    then
-        return true
-    end
     local ownerUnit = NormalizeUnitToken(owner.unit)
-    local stateUnit = NormalizeUnitToken(state.ownerUnit)
-    if ownerUnit ~= nil then
-        if stateUnit == ownerUnit then
-            return true
-        end
-        if tostring(state.ownerSource or "") == "boss"
-            and tostring(owner.source or "") == "boss"
-            and ownerCastBarID ~= nil
-            and stateCastBarID == ownerCastBarID
-        then
-            return true
-        end
+    if ownerUnit ~= nil and NormalizeUnitToken(state.ownerUnit) ~= ownerUnit then
         return false
     end
     return true
@@ -979,6 +960,12 @@ function Ring:Hide()
     end
 end
 
+function Ring:UpdateOwnerCastBarID(owner, castBarID)
+    if DoesOwnerMatch(activeAnim, owner) then
+        activeAnim.ownerCastBarID = castBarID
+    end
+end
+
 function Ring:StopByOwner(owner)
     if type(owner) ~= "table" then
         return 0
@@ -992,6 +979,7 @@ function Ring:StopByOwner(owner)
 end
 
 function Ring:StopByUnitCastBar(unit, castBarID, castKind)
+    if castBarID == nil then return false end
     return self:StopByOwner({
         source = "boss",
         unit = NormalizeUnitToken(unit),

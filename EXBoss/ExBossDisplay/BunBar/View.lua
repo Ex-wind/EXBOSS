@@ -1299,6 +1299,7 @@ local function BuildBunBarTimelinePresentation(mode)
         or timelineLen * (1 - (FIVE_SEC_MARK_REMAIN / ACTIVE_WINDOW_SECS))
     local timeline = {
         anchor = "CENTER", lockAnchor = true,
+        fit = mode == "panel" and "contain" or nil,
         x = mode == "panel" and PANEL_TIMELINE_OFFSET_X or 0,
         y = mode == "panel" and PANEL_TIMELINE_OFFSET_Y or 0,
         width = timelineX, height = timelineLen,
