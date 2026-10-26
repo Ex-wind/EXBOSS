@@ -234,7 +234,7 @@ local function IsBadCheckColor(color)
         and color.b == CAST_CHECK_BAD.b
 end
 
-local function ResolveActiveColor(db)
+local function ResolveActiveColor(colorConfig)
     if activeAnim then
         local hasCheck = false
         local c
@@ -249,16 +249,30 @@ local function ResolveActiveColor(db)
             return CAST_CHECK_GOOD.r, CAST_CHECK_GOOD.g, CAST_CHECK_GOOD.b
         end
     end
-    return GetConfiguredColor(db)
+    return colorConfig.r, colorConfig.g, colorConfig.b
+end
+
+-- 施法检测期间每帧重套颜色，配置色和透明度走运行时缓存；ApplyVisuals 是所有改设置
+-- 路径（设置页、预览、切配置、重置）的共同出口，在那里失效。
+local _colorConfig = nil
+
+local function GetColorConfig()
+    if _colorConfig then
+        return _colorConfig
+    end
+    local db = DB()
+    local r, g, b = GetConfiguredColor(db)
+    _colorConfig = { r = r, g = g, b = b, a = Clamp01(db.alpha, DEFAULTS.alpha) }
+    return _colorConfig
 end
 
 local function ApplyActiveColor()
     if not activeAnim then
         return
     end
-    local db = DB()
-    local r, g, b = ResolveActiveColor(db)
-    local a = Clamp01(db.alpha, DEFAULTS.alpha)
+    local colorConfig = GetColorConfig()
+    local r, g, b = ResolveActiveColor(colorConfig)
+    local a = colorConfig.a
 
     local function ApplyCooldownColor(cd)
         if not cd then return end
@@ -593,6 +607,7 @@ local function StartAnimation(phases, opts)
 end
 
 local function ApplyVisuals()
+    _colorConfig = nil
     if not frame then return end
     local db = DB()
     local size = SafeNum(db.size, DEFAULTS.size)

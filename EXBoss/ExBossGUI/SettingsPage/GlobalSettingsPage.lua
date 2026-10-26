@@ -729,20 +729,13 @@ local function ClearButtons()
     wipe(activeButtons)
 end
 
--- 本列表的选中态按用户选定的方案 C：底色不动、不画左侧指示条，只加一圈主色描边。
--- 只在本调用点选 "outline"，公共默认值与其他侧栏（含 ExwindTools 左树）保持现状。
-local SIDEBAR_SELECTED_PRESENTATION = "outline"
-
 local function AcquireListButton()
     local b
     if ExBoss.UI and ExBoss.UI.CreateSidebarModuleButton then
-        b = ExBoss.UI.CreateSidebarModuleButton(listChild, {
-            selectedPresentation = SIDEBAR_SELECTED_PRESENTATION,
-        })
+        b = ExBoss.UI.CreateSidebarModuleButton(listChild)
     elseif EXUI and EXUI.CreateSidebarNavigationButton then
         b = EXUI:CreateSidebarNavigationButton(listChild, "", nil, {
             level = 1, height = 28,
-            selectedPresentation = SIDEBAR_SELECTED_PRESENTATION,
         })
     else
         error("GlobalSettings sidebar requires the shared navigation button API", 2)

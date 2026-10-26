@@ -231,14 +231,10 @@ local function CreateSidebarCategoryHeader(parent)
     return EXUI:CreateSidebarNavigationHeader(parent, "", { height = 26 })
 end
 
--- opts.selectedPresentation 直接转给公共侧栏导航按钮（nil/"rail" = 默认的淡底+左侧指示条，
--- "outline" = 只描边）。按钮来自共享池，呈现选项每次创建都要重新传，所以不在这里写死默认值。
-local function CreateSidebarModuleButton(parent, opts)
-    local config = type(opts) == "table" and opts or {}
+local function CreateSidebarModuleButton(parent)
     local btn = EXUI:CreateSidebarNavigationButton(parent, "", nil, {
         level = 1,
         height = 28,
-        selectedPresentation = config.selectedPresentation,
     })
     btn:SetHeight(28)
     return btn

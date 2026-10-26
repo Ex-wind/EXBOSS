@@ -1678,12 +1678,10 @@ local function RefreshDungeonButtonVisuals()
             local hovered = btn._hovered == true
             -- 与 Boss 页面左上副本切换完全同一视觉：外按钮透明，状态只作用于图标框。
             EXUI:SetControlSurface(btn, 10, { 0, 0, 0, 0 }, { 0, 0, 0, 0 })
+            -- 选中走 Core 公共选中外观：图标框底色沿用各自原底（未选中 GC.input／悬停时沿用悬停底）。
+            EXUI:PaintSelectCell(btn.iconFrame, active, 10)
             if active then
-                -- 选中只描边：图标框底色沿用各自原底（未选中 GC.input／悬停时沿用悬停底），
-                -- 只换成一圈实心主色轮廓；不加淡底、不抬底、不加左侧指示条。
-                EXUI:SetControlSurface(btn.iconFrame, 10,
-                    hovered and GC.secondaryHoverFill or GC.input,
-                    hovered and GC.primaryFillHover or GC.primaryFill)
+                EXUI:SetControlSurface(btn.iconFrame, 10, hovered and GC.secondaryHoverFill or GC.input, GC.transparent)
                 btn.icon:SetDesaturated(false)
                 btn.text:SetTextColor(unpack(GC.text))
             elseif hovered then
@@ -1789,11 +1787,6 @@ local function AcquireSpellRow()
     row:EnableMouse(true)
     EXUI:ClearControlSurface(row)
 
-    row.leftBar = EXUI:CreateVisualTexture(row, EXBACKGROUNDFRAME)
-    row.leftBar:SetWidth(4)
-    row.leftBar:SetPoint("TOPLEFT", 2, -7)
-    row.leftBar:SetPoint("BOTTOMLEFT", 2, 7)
-    row.leftBar:Hide()
 
     row.navDivider = EXUI:CreateSettingsSeparator(row, 1)
     row.navDivider:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 9, -1)
@@ -2142,18 +2135,13 @@ function Page:RefreshSpellList()
         row._selected = (rowData.npcID == selectedNPCID and rowData.spellID == selectedSpellID)
         row._hovered = false
         row._applyVisual = function(self)
-            if self._selected then
-                -- 选中只描边：底色沿用各自原底（未选中无底／悬停时沿用悬停底），
-                -- 只加一圈实心主色轮廓；不加淡底、不抬底、不显示左侧指示条。
-                EXUI:SetControlSurface(self, 4,
-                    self._hovered and GC.menuHover or { 0, 0, 0, 0 },
-                    self._hovered and GC.primaryFillHover or GC.primaryFill)
-            elseif self._hovered then
+            -- 悬停抬底；选中走 Core 公共选中外观（底色不随选中改变）。
+            if self._hovered then
                 EXUI:SetControlSurface(self, 4, GC.menuHover, { 0, 0, 0, 0 })
             else
                 EXUI:ClearControlSurface(self)
             end
-            self.leftBar:Hide()
+            EXUI:PaintSelectRow(self, self._selected, 4)
             if self._enabled == true then
                 self.icon:SetVertexColor(1, 1, 1)
                 self.label:SetTextColor(unpack(GC.text))

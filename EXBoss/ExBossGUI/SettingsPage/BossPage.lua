@@ -2887,13 +2887,6 @@ local function AcquireBossCard()
     b.navDivider:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 9, -1)
     b.navDivider:SetPoint("TOPRIGHT", b, "BOTTOMRIGHT", -9, -1)
 
-    b.activeBar = EXUI:CreateVisualTexture(b, EXBORDERFRAME)
-    b.activeBar:SetPoint("TOPLEFT", 0, 0)
-    b.activeBar:SetPoint("BOTTOMLEFT", 0, 0)
-    b.activeBar:SetWidth(3)
-    b.activeBar:SetColorTexture(unpack(GC.accent))
-    b.activeBar:Hide()
-
     b.creature = CreateFrame("PlayerModel", nil, b)
     b.creature:SetSize(54, 58)
     b.creature:SetPoint("LEFT", 9, 0)
@@ -2984,14 +2977,8 @@ local function AcquireSpellCard()
     card = CreateFrame("Button", nil, UI.spellScrollChild, "BackdropTemplate")
     EXUI:SetControlSurface(card, 4, GC.card, GC.panelBorder)
 
-    card.leftBar = EXUI:CreateVisualTexture(card, EXBACKGROUNDFRAME)
-    card.leftBar:SetWidth(5)
-    card.leftBar:SetPoint("TOPLEFT", 2, -7)
-    card.leftBar:SetPoint("BOTTOMLEFT", 2, 7)
-    card.leftBar:Hide()
-
     -- 选中内环：技能卡的外框一圈已经被业务分类色占用（GUI-03 不统一），
-    -- 所以选中的主色描边压在外框内侧 1 像素处，底色与外框分类色都不动。
+    -- 所以 Core 公共选中外观画在外框内侧 1 像素处的这一层上，底色与外框分类色都不动。
     card.selectionRing = CreateFrame("Frame", nil, card)
     card.selectionRing:EnableMouse(false)
     card.selectionRing:SetFrameLevel(card:GetFrameLevel() + 1)
@@ -4813,8 +4800,6 @@ RefreshSpellCards = function()
         SetAdaptiveSpellCardTitle(card, string.format("%s%s", tostring(displayName), disableText))
         card.desc:SetText("")
         card.desc:Hide()
-        -- 分类色已经由卡片边框表达，不再重复绘制左侧装饰竖条。
-        card.leftBar:Hide()
         card:SetAlpha(1)
 
         local h = ComputeSpellCardHeight(card)
@@ -4838,15 +4823,9 @@ RefreshSpellCards = function()
             end
             EXUI:SetControlSurface(self, 4, fill, { br, bg, bb, 1 })
             if self.selectionRing then
-                if self._selected then
-                    if self._layoutSelectionRing then self:_layoutSelectionRing() end
-                    EXUI:SetControlSurface(self.selectionRing, 3, { 0, 0, 0, 0 },
-                        self._hovered and GC.primaryFillHover or GC.primaryFill)
-                    self.selectionRing:Show()
-                else
-                    self.selectionRing:Hide()
-                    EXUI:ClearControlSurface(self.selectionRing)
-                end
+                if self._selected and self._layoutSelectionRing then self:_layoutSelectionRing() end
+                EXUI:PaintSelectCell(self.selectionRing, self._selected, 3)
+                self.selectionRing:SetShown(self._selected == true)
             end
         end
         card:SetScript("OnClick", function(self)
@@ -4925,27 +4904,14 @@ RefreshBossList = function(resetScroll)
     local function ApplyVisual(self)
         local selected = self._selected
         local hovered = self._hovered
-        if selected then
-            -- 选中只描边：底色沿用各自原底（未选中为列表底，悬停时沿用悬停底），
-            -- 只加一圈实心主色轮廓；不加淡底、不抬底、不显示左侧指示条。
-            if hovered then
-                PaintBossNavigationSurface(self,
-                    GC.menuHover[1], GC.menuHover[2], GC.menuHover[3], GC.menuHover[4],
-                    GC.primaryFillHover)
-            else
-                PaintBossNavigationSurface(self, 0, 0, 0, 0, GC.primaryFill)
-            end
-            self.activeBar:Hide()
-            self.nameText:SetTextColor(unpack(GC.text))
-        elseif hovered then
+        -- 悬停抬底；选中走 Core 公共选中外观（底色不随选中改变）。
+        if hovered then
             PaintBossNavigationSurface(self, unpack(GC.menuHover))
-            self.activeBar:Hide()
-            self.nameText:SetTextColor(unpack(GC.text))
         else
             PaintBossNavigationSurface(self, 0, 0, 0, 0)
-            self.activeBar:Hide()
-            self.nameText:SetTextColor(unpack(GC.textDim))
         end
+        EXUI:PaintSelectCell(self, selected, 10)
+        self.nameText:SetTextColor(unpack((selected or hovered) and GC.text or GC.textDim))
         -- 「光环语音」行的耳机图标跟随本行名称色（常态 textDim、悬停 text、
         -- 选中 selectedText），原来恒定 GC.text，和同一行的文字状态不一致。
         if self.auraIcon then
@@ -5188,12 +5154,10 @@ RefreshMapTabs = function()
         -- 外层按钮完全透明；选中和 hover 只作用于图标方框。
         self:SetBackdropColor(0, 0, 0, 0)
         self:SetBackdropBorderColor(0, 0, 0, 0)
+        -- 选中走 Core 公共选中外观：图标框底色沿用各自原底（未选中 GC.input／悬停时沿用悬停底）。
+        EXUI:PaintSelectCell(self.iconFrame, selected, 10)
         if selected then
-            -- 选中只描边：图标框底色沿用各自原底（未选中 GC.input／悬停时沿用悬停底），
-            -- 只换成一圈实心主色轮廓；不加淡底、不抬底、不加左侧指示条。
-            EXUI:SetControlSurface(self.iconFrame, 10,
-                hovered and GC.secondaryHoverFill or GC.input,
-                hovered and GC.primaryFillHover or GC.primaryFill)
+            EXUI:SetControlSurface(self.iconFrame, 10, hovered and GC.secondaryHoverFill or GC.input, GC.transparent)
             self.icon:SetDesaturated(false)
             self.text:SetTextColor(unpack(GC.text))
         elseif hovered then

@@ -1570,11 +1570,9 @@ local function ShouldShowTimerBarNow(timer, now)
 end
 
 local function ResolveBunBarLeadTime()
-    local tools = rawget(_G, "ExwindTools")
-    local display = tools and tools.GetModuleDB and tools:GetModuleDB("ExBoss.BunBar") or nil
-    local seconds = type(display) == "table" and display.hideLongTimersSeconds or nil
-    if type(seconds) == "number" then
-        return math.max(0, seconds)
+    local seconds = ExBoss.UI.BunBar:GetLeadTimeSeconds()
+    if seconds then
+        return seconds
     end
     return BUNBAR_LEAD_TIME
 end

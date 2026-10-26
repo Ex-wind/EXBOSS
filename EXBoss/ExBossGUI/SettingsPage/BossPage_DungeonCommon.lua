@@ -134,9 +134,11 @@ end
 
 local function PositionVoiceEditor(editor, parent)
     if not (editor and parent) then return end
-    -- 浮层独立于页面滚动裁切，显示比例跟随当前宿主。
-    editor:SetParent(UIParent)
-    editor:SetScale(parent:GetEffectiveScale() / UIParent:GetEffectiveScale())
+    -- 浮层挂到宿主所在的顶层窗口下：独立于页面滚动裁切，且窗口被点击置顶时一起抬起。
+    local host = parent
+    while host:GetParent() and host:GetParent() ~= UIParent do host = host:GetParent() end
+    editor:SetParent(host)
+    editor:SetScale(parent:GetEffectiveScale() / host:GetEffectiveScale())
     editor:ClearAllPoints()
     editor:SetPoint("CENTER", parent, "CENTER")
     editor:SetFrameStrata("DIALOG")
